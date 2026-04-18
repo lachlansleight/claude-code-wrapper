@@ -1,0 +1,67 @@
+#!/usr/bin/env node
+// CRITICAL: Stdio is the MCP transport. Anything written to stdout that isn't
+// an MCP JSON frame will disconnect the channel. Redirect stray writes to
+// stderr BEFORE importing anything that might log.
+const _origStdoutWrite = process.stdout.write.bind(process.stdout)
+console.log = (...args: unknown[]) => {
+  process.stderr.write('[bridge:stdout-redirect] ' + args.map(String).join(' ') + '\n')
+}
+console.info = console.log
+console.debug = console.log
+// Note: we leave process.stdout.write untouched so the MCP SDK can use it.
+void _origStdoutWrite
+
+import { configureLogger, logger } from './logger.js'
+import { startMcpServer } from './mcp.js'
+import { startHttpServer } from './http.js'
+import { attachWebSocketServer } from './ws.js'
+import type { BridgeConfig } from './types.js'
+
+const VERSION = '0.1.0'
+
+function loadConfig(): BridgeConfig {
+  const token = process.env.BRIDGE_TOKEN
+  if (!token || token.trim().length === 0) {
+    process.stderr.write(
+      '\n[bridge:fatal] BRIDGE_TOKEN is not set.\n' +
+        '  Set it to a strong random string before launching the bridge, e.g.\n' +
+        '    export BRIDGE_TOKEN="$(openssl rand -hex 32)"\n' +
+        '  Or set it in your .mcp.json env block. The bridge will not start without it.\n\n',
+    )
+    process.exit(1)
+  }
+  const portRaw = process.env.BRIDGE_PORT
+  const port = portRaw ? Number.parseInt(portRaw, 10) : 8787
+  if (!Number.isFinite(port) || port <= 0 || port > 65535) {
+    process.stderr.write(`[bridge:fatal] BRIDGE_PORT is invalid: ${portRaw}\n`)
+    process.exit(1)
+  }
+  const host = process.env.BRIDGE_HOST?.trim() || '127.0.0.1'
+  const logFile = process.env.BRIDGE_LOG_FILE?.trim() || undefined
+  return { token: token.trim(), host, port, logFile }
+}
+
+async function main(): Promise<void> {
+  const config = loadConfig()
+  configureLogger({ logFile: config.logFile })
+  logger.info(`claude-code-bridge v${VERSION} starting`)
+  logger.info(`host=${config.host} port=${config.port} log_file=${config.logFile ?? '(stderr only)'}`)
+
+  const attachUpgrade = attachWebSocketServer(config)
+  startHttpServer(config, attachUpgrade)
+  await startMcpServer(VERSION)
+
+  process.on('SIGINT', () => {
+    logger.info('SIGINT received, exiting')
+    process.exit(0)
+  })
+  process.on('SIGTERM', () => {
+    logger.info('SIGTERM received, exiting')
+    process.exit(0)
+  })
+}
+
+main().catch((err) => {
+  process.stderr.write(`[bridge:fatal] ${String(err?.stack ?? err)}\n`)
+  process.exit(1)
+})

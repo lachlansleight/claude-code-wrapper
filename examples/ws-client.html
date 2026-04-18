@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Claude Code Bridge — WS test client</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 900px; margin: 1em auto; padding: 0 1em; }
+      input, button, textarea { font: inherit; padding: 0.4em 0.6em; }
+      input[type=text], input[type=password], textarea { width: 100%; box-sizing: border-box; }
+      .row { display: flex; gap: 0.5em; margin: 0.5em 0; }
+      #log { height: 50vh; overflow-y: auto; background: #111; color: #eee; padding: 0.5em; font-family: ui-monospace, monospace; font-size: 12px; white-space: pre-wrap; }
+      .perm { background: #fffbe6; border: 1px solid #f0c000; padding: 0.5em; margin: 0.3em 0; }
+      .perm code { background: #f0c000; padding: 0 0.3em; }
+    </style>
+  </head>
+  <body>
+    <h1>Claude Code Bridge — WS test client</h1>
+
+    <div class="row">
+      <input id="url" type="text" value="ws://127.0.0.1:8787/ws" />
+      <input id="token" type="password" placeholder="BRIDGE_TOKEN" />
+      <button id="connect">Connect</button>
+      <button id="disconnect" disabled>Disconnect</button>
+    </div>
+
+    <div class="row">
+      <input id="chat_id" type="text" placeholder="chat_id (optional)" />
+      <input id="content" type="text" placeholder="Message to send" />
+      <button id="send" disabled>Send</button>
+    </div>
+
+    <div id="permissions"></div>
+
+    <h3>Event log</h3>
+    <div id="log"></div>
+
+    <script>
+      const $ = (id) => document.getElementById(id)
+      const log = $('log')
+      const perms = $('permissions')
+      let ws = null
+
+      function logLine(text, color) {
+        const div = document.createElement('div')
+        if (color) div.style.color = color
+        div.textContent = `[${new Date().toLocaleTimeString()}] ${text}`
+        log.appendChild(div)
+        log.scrollTop = log.scrollHeight
+      }
+
+      function setConnected(connected) {
+        $('connect').disabled = connected
+        $('disconnect').disabled = !connected
+        $('send').disabled = !connected
+      }
+
+      function renderPermission(p) {
+        const id = `perm-${p.request_id}`
+        if (document.getElementById(id)) return
+        const div = document.createElement('div')
+        div.id = id
+        div.className = 'perm'
+        div.innerHTML = `
+          <strong>Permission request</strong> <code>${p.request_id}</code>
+          — tool <code>${p.tool_name}</code><br>
+          <em>${p.description}</em><br>
+          <pre>${p.input_preview}</pre>
+          <button data-id="${p.request_id}" data-behavior="allow">Allow</button>
+          <button data-id="${p.request_id}" data-behavior="deny">Deny</button>
+        `
+        div.querySelectorAll('button').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            ws.send(
+              JSON.stringify({
+                type: 'permission_verdict',
+                request_id: btn.dataset.id,
+                behavior: btn.dataset.behavior,
+              }),
+            )
+          })
+        })
+        perms.appendChild(div)
+      }
+
+      function resolvePermission(request_id) {
+        const el = document.getElementById(`perm-${request_id}`)
+        if (el) el.remove()
+      }
+
+      $('connect').addEventListener('click', () => {
+        const url = `${$('url').value}?token=${encodeURIComponent($('token').value)}`
+        ws = new WebSocket(url)
+        ws.addEventListener('open', () => {
+          setConnected(true)
+          logLine('connected', '#9f9')
+        })
+        ws.addEventListener('close', (ev) => {
+          setConnected(false)
+          logLine(`closed code=${ev.code} reason=${ev.reason}`, '#f99')
+        })
+        ws.addEventListener('error', () => logLine('socket error', '#f99'))
+        ws.addEventListener('message', (ev) => {
+          let msg
+          try {
+            msg = JSON.parse(ev.data)
+          } catch {
+            logLine('non-json: ' + ev.data)
+            return
+          }
+          logLine(JSON.stringify(msg))
+          if (msg.type === 'permission_request') renderPermission(msg)
+          if (msg.type === 'permission_resolved') resolvePermission(msg.request_id)
+        })
+      })
+
+      $('disconnect').addEventListener('click', () => ws && ws.close())
+
+      $('send').addEventListener('click', () => {
+        if (!ws) return
+        const payload = { type: 'send_message', content: $('content').value }
+        if ($('chat_id').value) payload.chat_id = $('chat_id').value
+        ws.send(JSON.stringify(payload))
+        $('content').value = ''
+      })
+    </script>
+  </body>
+</html>

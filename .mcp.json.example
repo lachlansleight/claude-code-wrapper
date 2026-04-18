@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "bridge": {
+      "command": "node",
+      "args": ["REPLACE_WITH_ABSOLUTE_PATH/dist/index.js"],
+      "env": {
+        "BRIDGE_TOKEN": "REPLACE_WITH_A_STRONG_RANDOM_STRING",
+        "BRIDGE_PORT": "8787",
+        "BRIDGE_HOST": "127.0.0.1"
+      }
+    }
+  }
+}

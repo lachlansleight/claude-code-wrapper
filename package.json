@@ -1,0 +1,29 @@
+{
+  "name": "claude-code-bridge",
+  "version": "0.1.0",
+  "description": "Claude Code channel plugin that exposes an HTTP + WebSocket bridge for remote message injection and permission relay",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "claude-code-bridge": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "ws": "^8.18.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/ws": "^8.5.12",
+    "typescript": "^5.6.0"
+  }
+}
