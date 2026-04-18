@@ -1,0 +1,11 @@
+{
+  "name": "claude-code-bridge",
+  "version": "0.1.0",
+  "description": "Remote HTTP/WebSocket bridge for Claude Code — inject messages, stream events, approve tool-use prompts from external clients.",
+  "author": {
+    "name": "Lachlan Sleight",
+    "email": "lachlan@liquid.city"
+  },
+  "homepage": "https://github.com/LachlanSleight/claude-code-wrapper",
+  "keywords": ["mcp", "channel", "remote", "bridge", "websocket"]
+}

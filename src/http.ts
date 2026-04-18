@@ -126,6 +126,21 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
     return
   }
 
+  if (method === 'POST' && path === '/api/hook-event') {
+    const body = (await readJsonBody(req)) as { hook_type?: unknown; payload?: unknown }
+    if (typeof body.hook_type !== 'string' || body.hook_type.length === 0) {
+      json(res, 400, { error: 'hook_type_required' })
+      return
+    }
+    bus.emit('hook_event', {
+      hook_type: body.hook_type,
+      payload: body.payload ?? null,
+      ts: Date.now(),
+    })
+    res.writeHead(204).end()
+    return
+  }
+
   if (method === 'POST' && path.startsWith('/api/permissions/')) {
     const request_id = decodeURIComponent(path.slice('/api/permissions/'.length))
     const body = (await readJsonBody(req)) as { behavior?: unknown }

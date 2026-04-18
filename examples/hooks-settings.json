@@ -1,0 +1,74 @@
+{
+  "_comment": "Drop the `hooks` block into your Claude Code settings (~/.claude/settings.json on Windows). Every hook pipes its JSON payload via stdin to hook-forward.js, which POSTs it to the bridge at $BRIDGE_URL (default http://127.0.0.1:8787) using $BRIDGE_TOKEN. Adjust the absolute path to dist/hook-forward.js for your machine. The script exits 0 on any failure so hooks never block your turn.",
+  "env": {
+    "BRIDGE_URL": "http://127.0.0.1:8787",
+    "BRIDGE_TOKEN": "replace-with-your-bridge-token"
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/dist/hook-forward.js UserPromptSubmit" }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          { "type": "command", "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/dist/hook-forward.js PreToolUse" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          { "type": "command", "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/dist/hook-forward.js PostToolUse" }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/dist/hook-forward.js Notification" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/dist/hook-forward.js Stop" }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/dist/hook-forward.js SubagentStop" }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/dist/hook-forward.js SessionStart" }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/dist/hook-forward.js SessionEnd" }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/dist/hook-forward.js PreCompact" }
+        ]
+      }
+    ]
+  }
+}

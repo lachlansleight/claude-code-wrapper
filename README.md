@@ -42,7 +42,29 @@ Optional env vars:
 | `BRIDGE_HOST`     | `127.0.0.1`   | Bind address. Localhost only by default — see "Exposing remotely".     |
 | `BRIDGE_LOG_FILE` | *(unset)*     | If set, mirror stderr logs to this file.                               |
 
-## Register with Claude Code
+## Install as a Claude Code plugin (recommended)
+
+The repo ships as a self-contained plugin — `.claude-plugin/plugin.json`,
+`.mcp.json`, and `hooks/hooks.json` all live at the repo root and use
+`${CLAUDE_PLUGIN_ROOT}` for paths, so no hand-editing is needed.
+
+```bash
+# one-time: tell Claude Code about this directory
+claude plugin install /absolute/path/to/claude-code-wrapper
+```
+
+Then provide `BRIDGE_TOKEN`. The plugin's shipped `.mcp.json` deliberately omits
+it so the token isn't committed to disk — supply it via one of:
+
+- **System env var (simplest):** set `BRIDGE_TOKEN` as a user environment
+  variable. Claude Code inherits it and passes it to the MCP subprocess and
+  all hook subprocesses.
+- **`~/.claude/settings.json` `env` block:** Claude Code merges this into the
+  env of MCP servers and hook commands.
+
+Verify with `/mcp` inside Claude Code — `bridge` should show as connected.
+
+## Manual install (without the plugin wrapper)
 
 Copy `.mcp.json.example` to `.mcp.json` (in your project, or `~/.claude/`),
 fill in the absolute path to `dist/index.js`, and set `BRIDGE_TOKEN`:
@@ -102,6 +124,7 @@ See [`examples/curl.md`](examples/curl.md) for full request/response examples.
 | GET    | `/api/state`                  | Bridge state (chats, pending perms, uptime).       |
 | GET    | `/api/permissions`            | List currently-pending permission requests.        |
 | POST   | `/api/permissions/:id`        | Approve or deny a permission request.              |
+| POST   | `/api/hook-event`             | Relay a Claude Code hook event (see hooks section).|
 
 `POST /api/permissions/:id` returns `applied: false` if Claude Code already
 closed the request (terminal user answered first). The verdict was sent but
@@ -122,6 +145,7 @@ Browsers can't set headers on `WebSocket`, so the token is read from the
 - `outbound_reply` — Claude called the `reply` tool
 - `permission_request` — Claude Code asked for tool approval
 - `permission_resolved` — a verdict was relayed (best-effort)
+- `hook_event` — Claude Code lifecycle hook (see "Remote observability via hooks")
 - `session_event` — connection lifecycle
 - `pong` — reply to client `ping`
 - `error` — malformed input
@@ -131,6 +155,35 @@ Browsers can't set headers on `WebSocket`, so the token is read from the
 - `{ type: "send_message", content, chat_id?, meta? }` — same as `POST /api/messages`
 - `{ type: "permission_verdict", request_id, behavior: "allow"|"deny" }`
 - `{ type: "ping" }`
+
+## Remote observability via hooks
+
+The MCP channel only surfaces `reply` tool calls and permission prompts. To see
+*everything* happening in the Claude Code session on a remote client —
+prompts you type, tools Claude invokes, tool results, session start/stop —
+wire Claude Code's hooks to forward events to the bridge.
+
+A tiny helper ships at `dist/hook-forward.js`. It reads the hook's JSON payload
+from stdin, POSTs it to `$BRIDGE_URL/api/hook-event` with `$BRIDGE_TOKEN`, and
+always exits 0 — so a down bridge never blocks your turn. Failures are logged
+to stderr (visible in Claude Code's debug output).
+
+Drop the block from [`examples/hooks-settings.json`](examples/hooks-settings.json)
+into your `~/.claude/settings.json` (Windows: `%USERPROFILE%\.claude\settings.json`),
+fix the absolute path to `dist/hook-forward.js`, and set `BRIDGE_URL` /
+`BRIDGE_TOKEN` in the `env` block. It wires every hook
+(`UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Notification`, `Stop`,
+`SubagentStop`, `SessionStart`, `SessionEnd`, `PreCompact`) to the forwarder.
+
+Events arrive on WS clients as `{ type: "hook_event", hook_type, payload, ts }`
+and are broadcast only — they are not stored in bridge state.
+
+Optional env:
+
+| Variable                   | Default                  | Notes                                            |
+|----------------------------|--------------------------|--------------------------------------------------|
+| `BRIDGE_URL`               | `http://127.0.0.1:8787`  | Where `hook-forward.js` POSTs.                   |
+| `BRIDGE_HOOK_TIMEOUT_MS`   | `500`                    | Per-POST timeout. Never blocks your turn.        |
 
 ## Security notes
 
@@ -163,18 +216,20 @@ Browsers can't set headers on `WebSocket`, so the token is read from the
 
 ```
 src/
-  index.ts    # entry — config, stdout redirect, wires MCP+HTTP+WS
-  mcp.ts      # MCP server: channel capabilities, reply tool, permission relay
-  http.ts     # HTTP REST API (Node builtin http)
-  ws.ts       # WebSocket hub (ws library)
+  index.ts         # entry — config, stdout redirect, wires MCP+HTTP+WS
+  mcp.ts           # MCP server: channel capabilities, reply tool, permission relay
+  http.ts          # HTTP REST API (Node builtin http)
+  ws.ts            # WebSocket hub (ws library)
+  hook-forward.ts  # standalone helper: reads hook JSON on stdin, POSTs to bridge
   bus.ts      # typed in-process EventEmitter
   state.ts    # in-memory chat log + pending-permission store
   auth.ts     # token validation
   logger.ts   # stderr logger (and optional file mirror)
   types.ts    # shared types
 examples/
-  curl.md         # curl recipes for every endpoint
-  ws-client.html  # browser-based WS test client
+  curl.md             # curl recipes for every endpoint
+  ws-client.html      # browser-based WS test client
+  hooks-settings.json # Claude Code settings snippet to forward hooks to the bridge
 .mcp.json.example # copy and edit to register the bridge with Claude Code
 BUILD_BRIEF.md    # original design brief (authoritative spec)
 ```

@@ -13,6 +13,7 @@ export interface BusEvents {
   permission_verdict: (payload: PermissionVerdictPayload) => void
   permission_resolved: (payload: { request_id: string; behavior: 'allow' | 'deny'; by: 'remote' }) => void
   session_event: (payload: { event: 'connected' | 'disconnected' }) => void
+  hook_event: (payload: { hook_type: string; payload: unknown; ts: number }) => void
 }
 
 class TypedBus extends EventEmitter {

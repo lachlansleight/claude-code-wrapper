@@ -32,6 +32,7 @@ export function attachWebSocketServer(config: BridgeConfig): (httpServer: HttpSe
   bus.on('permission_request', (p) => broadcast({ type: 'permission_request', ...p }))
   bus.on('permission_resolved', (p) => broadcast({ type: 'permission_resolved', ...p }))
   bus.on('session_event', (p) => broadcast({ type: 'session_event', ...p }))
+  bus.on('hook_event', (p) => broadcast({ type: 'hook_event', ...p }))
 
   wss.on('connection', (ws, req: IncomingMessage) => {
     const client_id = `ws_${randomUUID()}`

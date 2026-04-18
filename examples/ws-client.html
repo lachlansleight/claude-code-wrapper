@@ -4,112 +4,333 @@
     <meta charset="utf-8" />
     <title>Claude Code Bridge — WS test client</title>
     <style>
-      body { font-family: system-ui, sans-serif; max-width: 900px; margin: 1em auto; padding: 0 1em; }
-      input, button, textarea { font: inherit; padding: 0.4em 0.6em; }
-      input[type=text], input[type=password], textarea { width: 100%; box-sizing: border-box; }
-      .row { display: flex; gap: 0.5em; margin: 0.5em 0; }
-      #log { height: 50vh; overflow-y: auto; background: #111; color: #eee; padding: 0.5em; font-family: ui-monospace, monospace; font-size: 12px; white-space: pre-wrap; }
-      .perm { background: #fffbe6; border: 1px solid #f0c000; padding: 0.5em; margin: 0.3em 0; }
-      .perm code { background: #f0c000; padding: 0 0.3em; }
+      :root {
+        --bg: #0f1115;
+        --panel: #161a22;
+        --panel-2: #1d222c;
+        --border: #2a3140;
+        --text: #e6e8ee;
+        --muted: #8b93a7;
+        --accent: #6ea8ff;
+        --good: #58d68d;
+        --bad: #ff7b7b;
+        --warn: #f0c000;
+        --tool: #c792ea;
+        --hook: #82aaff;
+      }
+      * { box-sizing: border-box; }
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        max-width: 1100px;
+        margin: 1em auto;
+        padding: 0 1em;
+        background: var(--bg);
+        color: var(--text);
+      }
+      h1 { font-size: 1.2em; margin: 0.5em 0; }
+      h3 { margin: 1em 0 0.4em; color: var(--muted); font-weight: 600; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.05em; }
+      input, button, textarea, select {
+        font: inherit;
+        padding: 0.45em 0.7em;
+        background: var(--panel);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+      }
+      button { cursor: pointer; }
+      button:hover:not(:disabled) { background: var(--panel-2); }
+      button:disabled { opacity: 0.4; cursor: not-allowed; }
+      input[type=text], input[type=password] { flex: 1; min-width: 0; }
+      .row { display: flex; gap: 0.5em; margin: 0.5em 0; align-items: center; flex-wrap: wrap; }
+      .status { font-size: 0.85em; color: var(--muted); }
+      .status .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--bad); margin-right: 0.4em; vertical-align: middle; }
+      .status.connected .dot { background: var(--good); }
+
+      #timeline {
+        height: 60vh;
+        overflow-y: auto;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.5em;
+      }
+      .event {
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--muted);
+        border-radius: 4px;
+        margin: 0.4em 0;
+        padding: 0.5em 0.7em;
+        font-size: 0.9em;
+      }
+      .event .meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 0.75em; margin-bottom: 0.25em; }
+      .event .type { font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.7em; }
+      .event .body { white-space: pre-wrap; word-break: break-word; }
+      .event code, .event .kv {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.85em;
+        background: rgba(255,255,255,0.06);
+        padding: 0 0.3em;
+        border-radius: 3px;
+      }
+      .event details { margin-top: 0.4em; }
+      .event summary { cursor: pointer; color: var(--muted); font-size: 0.75em; user-select: none; }
+      .event pre { margin: 0.3em 0 0; padding: 0.5em; background: #0b0d12; border-radius: 3px; overflow-x: auto; font-size: 0.8em; line-height: 1.4; }
+      .event .kvs { display: grid; grid-template-columns: auto 1fr; gap: 0.2em 0.6em; margin-top: 0.3em; font-size: 0.85em; }
+      .event .kvs .k { color: var(--muted); }
+
+      .ev-inbound { border-left-color: var(--accent); }
+      .ev-inbound .type { color: var(--accent); }
+      .ev-outbound { border-left-color: var(--good); }
+      .ev-outbound .type { color: var(--good); }
+      .ev-session { border-left-color: var(--muted); }
+      .ev-hook { border-left-color: var(--hook); }
+      .ev-hook .type { color: var(--hook); }
+      .ev-thinking { border-left-color: var(--tool); background: #1e1a2a; }
+      .ev-thinking .type { color: var(--tool); }
+      .ev-thinking .body { font-style: italic; color: #d8ccec; white-space: pre-wrap; }
+      .ev-permission { border-left-color: var(--warn); background: #2a2410; }
+      .ev-permission .type { color: var(--warn); }
+      .ev-resolved { border-left-color: var(--muted); opacity: 0.75; }
+      .ev-error { border-left-color: var(--bad); }
+      .ev-error .type { color: var(--bad); }
+      .ev-system { border-left-color: var(--muted); font-size: 0.8em; color: var(--muted); }
+
+      .perm-actions { margin-top: 0.5em; display: flex; gap: 0.4em; }
+      .perm-actions button.allow { background: #1f3d2b; border-color: var(--good); color: var(--good); }
+      .perm-actions button.deny { background: #3d1f1f; border-color: var(--bad); color: var(--bad); }
+      .perm-actions button:disabled { background: var(--panel); color: var(--muted); border-color: var(--border); }
+
+      .tool-name { color: var(--tool); font-weight: 600; }
+      .badge { display: inline-block; padding: 0.1em 0.5em; border-radius: 10px; font-size: 0.75em; background: rgba(255,255,255,0.08); color: var(--muted); margin-left: 0.3em; }
+
+      .controls { display: flex; gap: 0.5em; align-items: center; font-size: 0.85em; color: var(--muted); }
+      .controls label { display: flex; align-items: center; gap: 0.3em; }
     </style>
   </head>
   <body>
-    <h1>Claude Code Bridge — WS test client</h1>
+    <h1>Claude Code Bridge — test client</h1>
 
     <div class="row">
       <input id="url" type="text" value="ws://127.0.0.1:8787/ws" />
       <input id="token" type="password" placeholder="BRIDGE_TOKEN" />
       <button id="connect">Connect</button>
       <button id="disconnect" disabled>Disconnect</button>
+      <span id="status" class="status"><span class="dot"></span><span id="statusText">disconnected</span></span>
     </div>
 
     <div class="row">
-      <input id="chat_id" type="text" placeholder="chat_id (optional)" />
+      <input id="chat_id" type="text" placeholder="chat_id (optional)" style="max-width: 220px;" />
       <input id="content" type="text" placeholder="Message to send" />
       <button id="send" disabled>Send</button>
     </div>
 
-    <div id="permissions"></div>
+    <div class="row controls">
+      <label><input type="checkbox" id="showRaw" /> show raw JSON</label>
+      <label><input type="checkbox" id="showHooks" checked /> show hooks</label>
+      <label><input type="checkbox" id="autoscroll" checked /> auto-scroll</label>
+      <button id="clear">Clear</button>
+    </div>
 
-    <h3>Event log</h3>
-    <div id="log"></div>
+    <h3>Timeline</h3>
+    <div id="timeline"></div>
 
     <script>
       const $ = (id) => document.getElementById(id)
-      const log = $('log')
-      const perms = $('permissions')
+      const tl = $('timeline')
       let ws = null
 
-      function logLine(text, color) {
+      const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+      const ts = (t) => new Date(t || Date.now()).toLocaleTimeString()
+
+      function addEvent({ cls, type, time, title, body, kvs, raw, id }) {
         const div = document.createElement('div')
-        if (color) div.style.color = color
-        div.textContent = `[${new Date().toLocaleTimeString()}] ${text}`
-        log.appendChild(div)
-        log.scrollTop = log.scrollHeight
+        div.className = `event ${cls}`
+        if (id) div.id = id
+        const metaHtml = `<div class="meta"><span class="type">${esc(type)}</span><span>${esc(ts(time))}</span></div>`
+        const titleHtml = title ? `<div><strong>${title}</strong></div>` : ''
+        const bodyHtml = body ? `<div class="body">${body}</div>` : ''
+        let kvsHtml = ''
+        if (kvs && kvs.length) {
+          kvsHtml = '<div class="kvs">' + kvs.map(([k, v]) => `<div class="k">${esc(k)}</div><div>${v}</div>`).join('') + '</div>'
+        }
+        const rawHtml = raw ? `<details><summary>raw</summary><pre>${esc(JSON.stringify(raw, null, 2))}</pre></details>` : ''
+        div.innerHTML = metaHtml + titleHtml + bodyHtml + kvsHtml + rawHtml
+        if (!$('showRaw').checked && raw) div.querySelector('details').style.display = 'none'
+        tl.appendChild(div)
+        if ($('autoscroll').checked) tl.scrollTop = tl.scrollHeight
+        return div
+      }
+
+      function sysLine(text) {
+        addEvent({ cls: 'ev-system', type: 'system', time: Date.now(), body: esc(text) })
+      }
+
+      function renderMeta(meta) {
+        if (!meta || typeof meta !== 'object') return ''
+        const entries = Object.entries(meta)
+        if (!entries.length) return ''
+        return entries.map(([k, v]) => `<span class="badge">${esc(k)}=${esc(v)}</span>`).join('')
+      }
+
+      function truncate(s, n = 400) {
+        s = String(s || '')
+        return s.length > n ? s.slice(0, n) + '…' : s
+      }
+
+      function handleMessage(msg) {
+        const raw = msg
+        switch (msg.type) {
+          case 'hello':
+            sysLine(`connected — client_id=${msg.client_id}, server v${msg.server_version}`)
+            break
+          case 'pong':
+            sysLine('pong')
+            break
+          case 'inbound_message':
+            addEvent({
+              cls: 'ev-inbound', type: 'inbound', time: Date.now(),
+              title: `→ ${esc(truncate(msg.content, 200))}`,
+              kvs: [
+                ['chat_id', `<code>${esc(msg.chat_id)}</code>`],
+                ['client', `<code>${esc(msg.client_id)}</code>`],
+                ...(msg.meta && Object.keys(msg.meta).length ? [['meta', renderMeta(msg.meta)]] : []),
+              ],
+              raw,
+            })
+            break
+          case 'outbound_reply':
+            addEvent({
+              cls: 'ev-outbound', type: 'reply', time: Date.now(),
+              title: `← ${esc(truncate(msg.content, 400))}`,
+              kvs: [['chat_id', `<code>${esc(msg.chat_id)}</code>`]],
+              raw,
+            })
+            break
+          case 'session_event':
+            addEvent({
+              cls: 'ev-session', type: 'session', time: Date.now(),
+              body: `session ${esc(msg.event)}`,
+              raw,
+            })
+            break
+          case 'permission_request':
+            renderPermission(msg)
+            break
+          case 'permission_resolved':
+            resolvePermission(msg)
+            break
+          case 'hook_event':
+            if (!$('showHooks').checked) return
+            renderHook(msg)
+            break
+          case 'error':
+            addEvent({ cls: 'ev-error', type: 'error', time: Date.now(), body: esc(msg.message || ''), raw })
+            break
+          default:
+            addEvent({ cls: 'ev-system', type: msg.type || 'unknown', time: Date.now(), body: '', raw })
+        }
+      }
+
+      function renderPermission(p) {
+        const id = `perm-${p.request_id}`
+        if (document.getElementById(id)) return
+        const inputPreview = typeof p.input_preview === 'string'
+          ? p.input_preview
+          : JSON.stringify(p.input_preview, null, 2)
+        const el = addEvent({
+          id,
+          cls: 'ev-permission', type: 'permission requested', time: Date.now(),
+          title: `<span class="tool-name">${esc(p.tool_name)}</span> <code>${esc(p.request_id)}</code>`,
+          body: p.description ? `<em>${esc(p.description)}</em>` : '',
+          kvs: inputPreview ? [['input', `<pre>${esc(inputPreview)}</pre>`]] : [],
+          raw: p,
+        })
+        const actions = document.createElement('div')
+        actions.className = 'perm-actions'
+        actions.innerHTML = `
+          <button class="allow" data-behavior="allow">Allow</button>
+          <button class="deny" data-behavior="deny">Deny</button>
+        `
+        actions.querySelectorAll('button').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            ws && ws.send(JSON.stringify({ type: 'permission_verdict', request_id: p.request_id, behavior: btn.dataset.behavior }))
+            actions.querySelectorAll('button').forEach((b) => (b.disabled = true))
+            btn.textContent = `${btn.dataset.behavior} sent…`
+          })
+        })
+        el.appendChild(actions)
+      }
+
+      function resolvePermission(msg) {
+        const el = document.getElementById(`perm-${msg.request_id}`)
+        if (el) {
+          el.classList.remove('ev-permission')
+          el.classList.add('ev-resolved')
+          const type = el.querySelector('.type')
+          if (type) type.textContent = `permission ${msg.behavior} (by ${msg.by})`
+          const actions = el.querySelector('.perm-actions')
+          if (actions) actions.remove()
+        } else {
+          addEvent({
+            cls: 'ev-resolved', type: `permission ${esc(msg.behavior)}`, time: Date.now(),
+            body: `request <code>${esc(msg.request_id)}</code> resolved by ${esc(msg.by)}`,
+            raw: msg,
+          })
+        }
+      }
+
+      function renderThinking(text, time) {
+        addEvent({
+          cls: 'ev-thinking', type: 'thinking', time,
+          body: esc(text),
+        })
+      }
+
+      function renderHook(msg) {
+        const p = msg.payload || {}
+        if (Array.isArray(p.thinking_blocks)) {
+          for (const t of p.thinking_blocks) renderThinking(t, msg.ts)
+        }
+        const kvs = []
+        const kv = (k, v) => v != null && v !== '' && kvs.push([k, `<code>${esc(v)}</code>`])
+        kv('session', p.session_id)
+        kv('cwd', p.cwd)
+        if (p.tool_name) kv('tool', `<span class="tool-name">${esc(p.tool_name)}</span>`)
+        if (p.tool_input) kvs.push(['input', `<pre>${esc(truncate(JSON.stringify(p.tool_input, null, 2), 600))}</pre>`])
+        if (p.tool_response) kvs.push(['response', `<pre>${esc(truncate(JSON.stringify(p.tool_response, null, 2), 600))}</pre>`])
+        if (p.prompt) kvs.push(['prompt', `<pre>${esc(truncate(p.prompt, 600))}</pre>`])
+        if (p.message) kvs.push(['message', esc(p.message)])
+        if (p.reason) kv('reason', p.reason)
+        if (p.source) kv('source', p.source)
+        addEvent({
+          cls: 'ev-hook', type: `hook · ${esc(msg.hook_type)}`, time: msg.ts,
+          kvs, raw: msg,
+        })
       }
 
       function setConnected(connected) {
         $('connect').disabled = connected
         $('disconnect').disabled = !connected
         $('send').disabled = !connected
-      }
-
-      function renderPermission(p) {
-        const id = `perm-${p.request_id}`
-        if (document.getElementById(id)) return
-        const div = document.createElement('div')
-        div.id = id
-        div.className = 'perm'
-        div.innerHTML = `
-          <strong>Permission request</strong> <code>${p.request_id}</code>
-          — tool <code>${p.tool_name}</code><br>
-          <em>${p.description}</em><br>
-          <pre>${p.input_preview}</pre>
-          <button data-id="${p.request_id}" data-behavior="allow">Allow</button>
-          <button data-id="${p.request_id}" data-behavior="deny">Deny</button>
-        `
-        div.querySelectorAll('button').forEach((btn) => {
-          btn.addEventListener('click', () => {
-            ws.send(
-              JSON.stringify({
-                type: 'permission_verdict',
-                request_id: btn.dataset.id,
-                behavior: btn.dataset.behavior,
-              }),
-            )
-          })
-        })
-        perms.appendChild(div)
-      }
-
-      function resolvePermission(request_id) {
-        const el = document.getElementById(`perm-${request_id}`)
-        if (el) el.remove()
+        const s = $('status')
+        s.classList.toggle('connected', connected)
+        $('statusText').textContent = connected ? 'connected' : 'disconnected'
       }
 
       $('connect').addEventListener('click', () => {
         const url = `${$('url').value}?token=${encodeURIComponent($('token').value)}`
-        ws = new WebSocket(url)
-        ws.addEventListener('open', () => {
-          setConnected(true)
-          logLine('connected', '#9f9')
-        })
+        try { ws = new WebSocket(url) } catch (e) { sysLine('bad url: ' + e.message); return }
+        ws.addEventListener('open', () => setConnected(true))
         ws.addEventListener('close', (ev) => {
           setConnected(false)
-          logLine(`closed code=${ev.code} reason=${ev.reason}`, '#f99')
+          sysLine(`closed code=${ev.code}${ev.reason ? ' reason=' + ev.reason : ''}`)
         })
-        ws.addEventListener('error', () => logLine('socket error', '#f99'))
+        ws.addEventListener('error', () => sysLine('socket error'))
         ws.addEventListener('message', (ev) => {
           let msg
-          try {
-            msg = JSON.parse(ev.data)
-          } catch {
-            logLine('non-json: ' + ev.data)
-            return
-          }
-          logLine(JSON.stringify(msg))
-          if (msg.type === 'permission_request') renderPermission(msg)
-          if (msg.type === 'permission_resolved') resolvePermission(msg.request_id)
+          try { msg = JSON.parse(ev.data) } catch { sysLine('non-json: ' + ev.data); return }
+          handleMessage(msg)
         })
       })
 
@@ -118,10 +339,18 @@
       $('send').addEventListener('click', () => {
         if (!ws) return
         const payload = { type: 'send_message', content: $('content').value }
-        if ($('chat_id').value) payload.chat_id = $('chat_id').value
+        const cid = $('chat_id').value
+        if (cid) payload.chat_id = cid
         ws.send(JSON.stringify(payload))
         $('content').value = ''
       })
+      $('content').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('send').click() })
+
+      $('showRaw').addEventListener('change', () => {
+        tl.querySelectorAll('details').forEach((d) => { d.style.display = $('showRaw').checked ? '' : 'none' })
+      })
+
+      $('clear').addEventListener('click', () => { tl.innerHTML = '' })
     </script>
   </body>
 </html>
