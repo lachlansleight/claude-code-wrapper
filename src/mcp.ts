@@ -105,11 +105,13 @@ export async function startMcpServer(version: string): Promise<void> {
 
   bus.on('permission_verdict', (payload) => {
     const pending = state.resolvePendingPermission(payload.request_id)
+    const verdictNotification = {
+      method: PERMISSION_VERDICT_METHOD,
+      params: { request_id: payload.request_id, behavior: payload.behavior },
+    }
+    logger.info(`verdict about to send: ${JSON.stringify(verdictNotification)}`)
     server
-      .notification({
-        method: PERMISSION_VERDICT_METHOD,
-        params: { request_id: payload.request_id, behavior: payload.behavior },
-      })
+      .notification(verdictNotification)
       .then(() => {
         bus.emit('permission_resolved', {
           request_id: payload.request_id,

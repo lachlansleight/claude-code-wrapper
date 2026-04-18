@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npm install *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "mcp__bridge__reply",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }

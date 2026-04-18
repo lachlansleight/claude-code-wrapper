@@ -2,14 +2,29 @@
 // CRITICAL: Stdio is the MCP transport. Anything written to stdout that isn't
 // an MCP JSON frame will disconnect the channel. Redirect stray writes to
 // stderr BEFORE importing anything that might log.
+import { appendFileSync } from 'node:fs'
+
 const _origStdoutWrite = process.stdout.write.bind(process.stdout)
+const _origStderrWrite = process.stderr.write.bind(process.stderr)
+
+// Optional: mirror every outgoing MCP frame to the log file for debugging.
+// Activated by BRIDGE_DEBUG_FRAMES=1.
+if (process.env.BRIDGE_DEBUG_FRAMES === '1' && process.env.BRIDGE_LOG_FILE) {
+  const debugFile = process.env.BRIDGE_LOG_FILE
+  process.stdout.write = ((chunk: unknown, ...rest: unknown[]): boolean => {
+    try {
+      const text = typeof chunk === 'string' ? chunk : Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk)
+      appendFileSync(debugFile, `[${new Date().toISOString()}] [bridge:stdout-frame] ${text}${text.endsWith('\n') ? '' : '\n'}`)
+    } catch {}
+    return _origStdoutWrite(chunk as Parameters<typeof _origStdoutWrite>[0], ...(rest as []))
+  }) as typeof process.stdout.write
+}
+
 console.log = (...args: unknown[]) => {
-  process.stderr.write('[bridge:stdout-redirect] ' + args.map(String).join(' ') + '\n')
+  _origStderrWrite('[bridge:stdout-redirect] ' + args.map(String).join(' ') + '\n')
 }
 console.info = console.log
 console.debug = console.log
-// Note: we leave process.stdout.write untouched so the MCP SDK can use it.
-void _origStdoutWrite
 
 import { configureLogger, logger } from './logger.js'
 import { startMcpServer } from './mcp.js'
