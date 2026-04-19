@@ -13,6 +13,7 @@
         --muted: #8b93a7;
         --accent: #6ea8ff;
         --good: #58d68d;
+        --good-alt: #d658b9;
         --bad: #ff7b7b;
         --warn: #f0c000;
         --tool: #c792ea;
@@ -86,9 +87,12 @@
       .ev-session { border-left-color: var(--muted); }
       .ev-hook { border-left-color: var(--hook); }
       .ev-hook .type { color: var(--hook); }
-      .ev-thinking { border-left-color: var(--tool); background: #1e1a2a; }
-      .ev-thinking .type { color: var(--tool); }
-      .ev-thinking .body { font-style: italic; color: #d8ccec; white-space: pre-wrap; }
+      .ev-user { border-left-color: var(--good-alt); }
+      .ev-user .type { color: var(--good-alt); }
+      .ev-user .body { white-space: pre-wrap; }
+      .ev-assistant { border-left-color: var(--good); }
+      .ev-assistant .type { color: var(--good); }
+      .ev-assistant .body { white-space: pre-wrap; }
       .ev-permission { border-left-color: var(--warn); background: #2a2410; }
       .ev-permission .type { color: var(--warn); }
       .ev-resolved { border-left-color: var(--muted); opacity: 0.75; }
@@ -280,17 +284,16 @@
         }
       }
 
-      function renderThinking(text, time) {
-        addEvent({
-          cls: 'ev-thinking', type: 'thinking', time,
-          body: esc(text),
-        })
-      }
-
       function renderHook(msg) {
         const p = msg.payload || {}
-        if (Array.isArray(p.thinking_blocks)) {
-          for (const t of p.thinking_blocks) renderThinking(t, msg.ts)
+        if (Array.isArray(p.assistant_text)) {
+          for (const t of p.assistant_text) {
+            addEvent({ cls: 'ev-assistant', type: 'assistant', time: msg.ts, body: esc(t) })
+          }
+        }
+        if (msg.hook_type === 'UserPromptSubmit' && typeof p.prompt === 'string') {
+          addEvent({ cls: 'ev-user', type: 'user', time: msg.ts, body: esc(p.prompt) })
+          return
         }
         const kvs = []
         const kv = (k, v) => v != null && v !== '' && kvs.push([k, `<code>${esc(v)}</code>`])

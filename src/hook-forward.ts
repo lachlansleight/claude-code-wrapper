@@ -80,14 +80,25 @@ function post(url: URL, body: string, token: string): Promise<void> {
 
 const STATE_FILE = join(tmpdir(), 'claude-code-bridge-hook-state.json')
 
-function extractNewThinkingBlocks(payload: unknown): string[] {
+function extractNewAssistantText(payload: unknown): string[] {
   if (HOOK_TYPE !== 'PostToolUse' && HOOK_TYPE !== 'Stop') return []
   const p = payload as { transcript_path?: string; session_id?: string } | null
   if (!p || typeof p.transcript_path !== 'string' || typeof p.session_id !== 'string') return []
 
   let state: Record<string, { offset: number }> = {}
   try { state = JSON.parse(readFileSync(STATE_FILE, 'utf8')) } catch {}
-  const prevOffset = state[p.session_id]?.offset ?? 0
+  let prevOffset = state[p.session_id]?.offset
+  if (typeof prevOffset !== 'number') {
+    // First sighting of this session — skip to current size so we don't dump history.
+    try {
+      const fd = openSync(p.transcript_path, 'r')
+      prevOffset = fstatSync(fd).size
+      closeSync(fd)
+    } catch { prevOffset = 0 }
+    state[p.session_id] = { offset: prevOffset }
+    try { writeFileSync(STATE_FILE, JSON.stringify(state)) } catch {}
+    return []
+  }
 
   let newText = ''
   let newEnd = prevOffset
@@ -106,18 +117,18 @@ function extractNewThinkingBlocks(payload: unknown): string[] {
     return []
   }
 
-  const thoughts: string[] = []
+  const texts: string[] = []
   for (const line of newText.split('\n')) {
     if (!line.trim()) continue
     try {
-      const msg: unknown = JSON.parse(line)
-      const blocks = (msg as { message?: { content?: unknown }; content?: unknown })?.message?.content ??
-        (msg as { content?: unknown })?.content
+      const msg = JSON.parse(line) as { message?: { role?: string; content?: unknown } }
+      if (msg?.message?.role !== 'assistant') continue
+      const blocks = msg.message.content
       if (!Array.isArray(blocks)) continue
       for (const b of blocks) {
-        if (b && typeof b === 'object' && (b as { type?: string }).type === 'thinking') {
-          const t = (b as { thinking?: unknown }).thinking
-          if (typeof t === 'string' && t.length > 0) thoughts.push(t)
+        if (b && typeof b === 'object' && (b as { type?: string }).type === 'text') {
+          const t = (b as { text?: unknown }).text
+          if (typeof t === 'string' && t.length > 0) texts.push(t)
         }
       }
     } catch {}
@@ -126,7 +137,7 @@ function extractNewThinkingBlocks(payload: unknown): string[] {
   state[p.session_id] = { offset: newEnd }
   try { writeFileSync(STATE_FILE, JSON.stringify(state)) } catch {}
 
-  return thoughts
+  return texts
 }
 
 async function main(): Promise<void> {
@@ -139,9 +150,9 @@ async function main(): Promise<void> {
       payload = { raw }
     }
   }
-  const thinking_blocks = extractNewThinkingBlocks(payload)
-  const enrichedPayload = thinking_blocks.length > 0 && payload && typeof payload === 'object'
-    ? { ...(payload as Record<string, unknown>), thinking_blocks }
+  const assistant_text = extractNewAssistantText(payload)
+  const enrichedPayload = assistant_text.length > 0 && payload && typeof payload === 'object'
+    ? { ...(payload as Record<string, unknown>), assistant_text }
     : payload
   const body = JSON.stringify({ hook_type: HOOK_TYPE, payload: enrichedPayload })
   const url = new URL('/api/hook-event', BRIDGE_URL)

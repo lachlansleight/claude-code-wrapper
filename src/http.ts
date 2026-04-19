@@ -132,6 +132,9 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
       json(res, 400, { error: 'hook_type_required' })
       return
     }
+    const p = body.payload as { session_id?: string; assistant_text?: unknown[] } | null
+    const textCount = Array.isArray(p?.assistant_text) ? p!.assistant_text!.length : 0
+    logger.info(`hook_event type=${body.hook_type} session=${p?.session_id ?? '?'} text=${textCount}`)
     bus.emit('hook_event', {
       hook_type: body.hook_type,
       payload: body.payload ?? null,

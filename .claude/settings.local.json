@@ -6,5 +6,8 @@
       "mcp__bridge__reply",
       "WebFetch(domain:raw.githubusercontent.com)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "bridge"
+  ]
 }

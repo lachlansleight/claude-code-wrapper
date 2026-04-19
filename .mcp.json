@@ -2,10 +2,11 @@
   "mcpServers": {
     "bridge": {
       "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/index.js"],
+      "args": ["C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/dist/index.js"],
       "env": {
         "BRIDGE_PORT": "8787",
-        "BRIDGE_HOST": "127.0.0.1"
+        "BRIDGE_HOST": "127.0.0.1",
+        "BRIDGE_TOKEN": "e0112a5b1f05"
       }
     }
   }
