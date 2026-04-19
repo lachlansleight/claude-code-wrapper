@@ -30,6 +30,7 @@ import { configureLogger, logger } from './logger.js'
 import { startMcpServer } from './mcp.js'
 import { startHttpServer } from './http.js'
 import { attachWebSocketServer } from './ws.js'
+import { startFirebaseSync } from './firebase.js'
 import type { BridgeConfig } from './types.js'
 
 const VERSION = '0.1.0'
@@ -64,6 +65,7 @@ async function main(): Promise<void> {
 
   const attachUpgrade = attachWebSocketServer(config)
   startHttpServer(config, attachUpgrade)
+  startFirebaseSync()
   await startMcpServer(VERSION)
 
   process.on('SIGINT', () => {
