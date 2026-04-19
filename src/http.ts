@@ -126,6 +126,28 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
     return
   }
 
+  if (method === 'GET' && path === '/api/firebaseData') {
+    const base = process.env.BRIDGE_DATABASE_URL?.replace(/\/+$/, '')
+    const id = process.env.BRIDGE_AGENT_ID
+    if (!base || !id) {
+      json(res, 503, { error: 'firebase_not_configured' })
+      return
+    }
+    try {
+      const upstream = await fetch(`${base}/agents/${encodeURIComponent(id)}.json`)
+      const text = await upstream.text()
+      res.writeHead(upstream.status, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Content-Length': Buffer.byteLength(text),
+      })
+      res.end(text)
+    } catch (err) {
+      logger.warn(`firebase proxy err=${String(err)}`)
+      json(res, 502, { error: 'upstream_error' })
+    }
+    return
+  }
+
   if (method === 'POST' && path === '/api/hook-event') {
     const body = (await readJsonBody(req)) as { hook_type?: unknown; payload?: unknown }
     if (typeof body.hook_type !== 'string' || body.hook_type.length === 0) {

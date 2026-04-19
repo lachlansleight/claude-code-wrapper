@@ -35,12 +35,32 @@ export BRIDGE_TOKEN="$(openssl rand -hex 32)"
 
 Optional env vars:
 
-| Variable          | Default       | Notes                                                                  |
-|-------------------|---------------|------------------------------------------------------------------------|
-| `BRIDGE_TOKEN`    | *(required)*  | Shared secret. Bridge refuses to start if unset.                       |
-| `BRIDGE_PORT`     | `8787`        | HTTP + WS port.                                                        |
-| `BRIDGE_HOST`     | `127.0.0.1`   | Bind address. Localhost only by default — see "Exposing remotely".     |
-| `BRIDGE_LOG_FILE` | *(unset)*     | If set, mirror stderr logs to this file.                               |
+| Variable               | Default       | Notes                                                                  |
+|------------------------|---------------|------------------------------------------------------------------------|
+| `BRIDGE_TOKEN`         | *(required)*  | Shared secret. Bridge refuses to start if unset.                       |
+| `BRIDGE_PORT`          | `8787`        | HTTP + WS port.                                                        |
+| `BRIDGE_HOST`          | `127.0.0.1`   | Bind address. Set to `0.0.0.0` for LAN access (see "Exposing remotely").|
+| `BRIDGE_LOG_FILE`      | *(unset)*     | If set, mirror stderr logs to this file.                               |
+| `BRIDGE_DEBUG_FRAMES`  | *(unset)*     | Set to `1` to mirror every outbound MCP frame into `BRIDGE_LOG_FILE`.  |
+| `BRIDGE_DATABASE_URL`  | *(unset)*     | Firebase RTDB URL. Enables Firebase sync + `/api/firebaseData` proxy.  |
+| `BRIDGE_AGENT_ID`      | *(unset)*     | Agent key under `<db>/agents/`. Required alongside `BRIDGE_DATABASE_URL`.|
+
+Example `~/.claude/settings.json` env block:
+
+```json
+"env": {
+  "BRIDGE_URL": "http://127.0.0.1:8787",
+  "BRIDGE_TOKEN": "e0112a5b1f05",
+  "BRIDGE_LOG_FILE": "C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/bridge.log",
+  "BRIDGE_DEBUG_FRAMES": "1",
+  "BRIDGE_DATABASE_URL": "https://your-project-default-rtdb.firebaseio.com/",
+  "BRIDGE_AGENT_ID": "test-agent",
+  "BRIDGE_HOST": "0.0.0.0"
+}
+```
+
+(`BRIDGE_URL` is consumed by `hook-forward.js`; the rest are consumed by the
+bridge process itself.)
 
 ## Install as a Claude Code plugin (recommended)
 
@@ -125,6 +145,7 @@ See [`examples/curl.md`](examples/curl.md) for full request/response examples.
 | GET    | `/api/permissions`            | List currently-pending permission requests.        |
 | POST   | `/api/permissions/:id`        | Approve or deny a permission request.              |
 | POST   | `/api/hook-event`             | Relay a Claude Code hook event (see hooks section).|
+| GET    | `/api/firebaseData`           | Proxy current agent state from Firebase (see below).|
 
 `POST /api/permissions/:id` returns `applied: false` if Claude Code already
 closed the request (terminal user answered first). The verdict was sent but
@@ -185,15 +206,33 @@ Optional env:
 | `BRIDGE_URL`               | `http://127.0.0.1:8787`  | Where `hook-forward.js` POSTs.                   |
 | `BRIDGE_HOOK_TIMEOUT_MS`   | `500`                    | Per-POST timeout. Never blocks your turn.        |
 
+## Firebase sync (optional)
+
+If `BRIDGE_DATABASE_URL` and `BRIDGE_AGENT_ID` are set, the bridge writes agent
+state to Firebase Realtime Database via its REST API (no SDK). Keys under
+`<db>/agents/<id>/`:
+
+- `lastAwake` — timestamp on bridge startup
+- `working` — `true` on any non-idle hook, `false` on `Stop` / `SessionEnd`
+- `lastMessage` — `{ summary, blocks }` from the last `Stop` hook's assistant text
+- `preToolUse` / `postToolUse` — raw hook payloads
+- `permissionRequest` — payload on request, `null` on resolve
+
+The bridge also exposes `GET /api/firebaseData`, which proxies
+`<db>/agents/<id>.json` over HTTPS so low-powered clients on the LAN (e.g. the
+ESP32 sketch in [`example_esp32_client/`](example_esp32_client/)) don't need to
+pin a root CA themselves. Requires `BRIDGE_TOKEN` auth like other endpoints.
+
 ## Security notes
 
 - **Localhost by default.** `BRIDGE_HOST` defaults to `127.0.0.1`. Anyone who
   can connect to the bridge AND knows the token can approve tool calls in
   your Claude Code session — this is, by design, not a sandbox.
-- **Exposing remotely.** If you really need remote access, do *not* set
-  `BRIDGE_HOST=0.0.0.0` directly to the internet. Tunnel it through SSH /
-  WireGuard / Tailscale, or front it with a TLS-terminating reverse proxy
-  that also enforces auth.
+- **Exposing remotely.** Setting `BRIDGE_HOST=0.0.0.0` binds to all interfaces
+  — fine on a trusted LAN (required for the ESP32 example), but do *not* expose
+  the bridge directly to the internet. Tunnel it through SSH / WireGuard /
+  Tailscale, or front it with a TLS-terminating reverse proxy that also
+  enforces auth.
 - **Token rotation.** Restart the bridge (and Claude Code, since it spawns the
   bridge as a subprocess) after changing the token.
 
@@ -220,6 +259,7 @@ src/
   mcp.ts           # MCP server: channel capabilities, reply tool, permission relay
   http.ts          # HTTP REST API (Node builtin http)
   ws.ts            # WebSocket hub (ws library)
+  firebase.ts      # optional: PUT agent state to Firebase RTDB on hook events
   hook-forward.ts  # standalone helper: reads hook JSON on stdin, POSTs to bridge
   bus.ts      # typed in-process EventEmitter
   state.ts    # in-memory chat log + pending-permission store
@@ -230,6 +270,7 @@ examples/
   curl.md             # curl recipes for every endpoint
   ws-client.html      # browser-based WS test client
   hooks-settings.json # Claude Code settings snippet to forward hooks to the bridge
+example_esp32_client/ # Arduino sketch polling /api/firebaseData over LAN
 .mcp.json.example # copy and edit to register the bridge with Claude Code
 BUILD_BRIEF.md    # original design brief (authoritative spec)
 ```
