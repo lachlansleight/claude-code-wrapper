@@ -4,11 +4,28 @@ A Claude Code [channel plugin](https://code.claude.com/docs/en/channels-referenc
 that exposes an HTTP REST API and a WebSocket hub. External clients can:
 
 - inject messages into a running Claude Code session,
-- subscribe to live events (Claude's replies, permission requests),
+- subscribe to live events (Claude's replies, permission requests, lifecycle hooks),
 - approve or deny tool-use permission prompts remotely.
 
 It is a single Node.js process: the MCP server (over stdio to Claude Code) and
 the HTTP/WS server live together. One entry point. One port for clients.
+
+## Repo layout
+
+```
+plugin/           # the installable plugin — Node project + manifests live here
+  src/            # TypeScript sources
+  dist/           # compiled output (run `npm run build` inside plugin/)
+  .mcp.json       # registers the bridge as an MCP server
+  hooks/          # hooks.json wiring every lifecycle hook to the bridge
+  .claude-plugin/plugin.json
+.claude-plugin/
+  marketplace.json  # single-plugin marketplace manifest pointing at ./plugin
+robot_experiment/   # ESP32 firmware: OLED dashboard + WS client
+examples/           # curl recipes, browser WS client
+example_esp32_client/     # older ESP32 Firebase-polling sketch
+example_esp32_ws_client/  # older ESP32 raw WS sketch
+```
 
 ## Prerequisites
 
@@ -18,105 +35,103 @@ the HTTP/WS server live together. One entry point. One port for clients.
 
 ## Install
 
+### 1. Build the plugin
+
 ```bash
+cd plugin
 npm install
 npm run build
+cd ..
+```
+
+This produces `plugin/dist/` which the plugin runtime and hooks reference via
+`${CLAUDE_PLUGIN_ROOT}`.
+
+### 2. Register the marketplace and install
+
+The repo self-hosts as a single-plugin marketplace. From inside Claude Code
+(CLI or the Code tab of Claude Desktop):
+
+```
+/plugin marketplace add C:/Users/you/path/to/claude-code-wrapper
+/plugin install claude-code-bridge@claude-code-bridge-local
+/reload-plugins
+```
+
+Use an absolute path with forward slashes. Git-Bash-style paths like
+`/c/Users/...` get interpreted as git remotes and fail.
+
+Confirm with `/mcp` — `bridge` should show as connected.
+
+### 3. Refreshing after updates
+
+Claude Code snapshots the plugin at install time (keyed by commit hash). After
+pulling new changes or editing the plugin, re-snapshot with:
+
+```
+/plugin marketplace remove claude-code-bridge-local
+/plugin marketplace add C:/Users/you/path/to/claude-code-wrapper
+/reload-plugins
 ```
 
 ## Configure
 
-The bridge **will not start without** `BRIDGE_TOKEN`. This is intentional — it
-is a shared secret that authorises clients to inject messages and approve tool
-calls in your Claude Code session. Generate a strong value:
+The bridge **will not start without** `BRIDGE_TOKEN` — it is the shared secret
+clients use to inject messages and approve tool calls.
 
-```bash
-export BRIDGE_TOKEN="$(openssl rand -hex 32)"
-```
+### Recommended: `~/.claude/settings.json`
 
-Optional env vars:
-
-| Variable               | Default       | Notes                                                                  |
-|------------------------|---------------|------------------------------------------------------------------------|
-| `BRIDGE_TOKEN`         | *(required)*  | Shared secret. Bridge refuses to start if unset.                       |
-| `BRIDGE_PORT`          | `8787`        | HTTP + WS port.                                                        |
-| `BRIDGE_HOST`          | `127.0.0.1`   | Bind address. Set to `0.0.0.0` for LAN access (see "Exposing remotely").|
-| `BRIDGE_LOG_FILE`      | *(unset)*     | If set, mirror stderr logs to this file.                               |
-| `BRIDGE_DEBUG_FRAMES`  | *(unset)*     | Set to `1` to mirror every outbound MCP frame into `BRIDGE_LOG_FILE`.  |
-| `BRIDGE_DATABASE_URL`  | *(unset)*     | Firebase RTDB URL. Enables Firebase sync + `/api/firebaseData` proxy.  |
-| `BRIDGE_AGENT_ID`      | *(unset)*     | Agent key under `<db>/agents/`. Required alongside `BRIDGE_DATABASE_URL`.|
-
-Example `~/.claude/settings.json` env block:
-
-```json
-"env": {
-  "BRIDGE_URL": "http://127.0.0.1:8787",
-  "BRIDGE_TOKEN": "e0112a5b1f05",
-  "BRIDGE_LOG_FILE": "C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/bridge.log",
-  "BRIDGE_DEBUG_FRAMES": "1",
-  "BRIDGE_DATABASE_URL": "https://your-project-default-rtdb.firebaseio.com/",
-  "BRIDGE_AGENT_ID": "test-agent",
-  "BRIDGE_HOST": "0.0.0.0"
-}
-```
-
-(`BRIDGE_URL` is consumed by `hook-forward.js`; the rest are consumed by the
-bridge process itself.)
-
-## Install as a Claude Code plugin (recommended)
-
-The repo ships as a self-contained plugin — `.claude-plugin/plugin.json`,
-`.mcp.json`, and `hooks/hooks.json` all live at the repo root and use
-`${CLAUDE_PLUGIN_ROOT}` for paths, so no hand-editing is needed.
-
-```bash
-# one-time: tell Claude Code about this directory
-claude plugin install /absolute/path/to/claude-code-wrapper
-```
-
-Then provide `BRIDGE_TOKEN`. The plugin's shipped `.mcp.json` deliberately omits
-it so the token isn't committed to disk — supply it via one of:
-
-- **System env var (simplest):** set `BRIDGE_TOKEN` as a user environment
-  variable. Claude Code inherits it and passes it to the MCP subprocess and
-  all hook subprocesses.
-- **`~/.claude/settings.json` `env` block:** Claude Code merges this into the
-  env of MCP servers and hook commands.
-
-Verify with `/mcp` inside Claude Code — `bridge` should show as connected.
-
-## Manual install (without the plugin wrapper)
-
-Copy `.mcp.json.example` to `.mcp.json` (in your project, or `~/.claude/`),
-fill in the absolute path to `dist/index.js`, and set `BRIDGE_TOKEN`:
+Claude Code merges the `env` block into MCP subprocesses and hook commands.
+This scopes the token to Claude rather than polluting the system env.
 
 ```json
 {
-  "mcpServers": {
-    "bridge": {
-      "command": "node",
-      "args": ["/absolute/path/to/claude-code-wrapper/dist/index.js"],
-      "env": { "BRIDGE_TOKEN": "your-token-here" }
-    }
+  "env": {
+    "BRIDGE_TOKEN": "e0112a5b1f05",
+    "BRIDGE_URL": "http://127.0.0.1:8787",
+    "BRIDGE_LOG_FILE": "C:/Users/you/path/to/bridge.log",
+    "BRIDGE_DEBUG_FRAMES": "1",
+    "BRIDGE_DATABASE_URL": "https://your-project-default-rtdb.firebaseio.com/",
+    "BRIDGE_AGENT_ID": "test-agent"
   }
 }
 ```
 
-Launch Claude Code with the channel enabled:
+(`BRIDGE_URL` is read by `hook-forward.js` when posting hook events back to the
+bridge. The rest are consumed by the bridge process itself.)
 
-```bash
-claude --dangerously-load-development-channels server:bridge --channels server:bridge
+### Alternative: system env vars
+
+On Windows:
+
+```
+setx BRIDGE_TOKEN "your-token-here"
 ```
 
-Inside Claude Code, run `/mcp` and confirm `bridge` is connected.
+Close and reopen your terminal (and fully restart Claude Desktop via the tray
+icon) so the new value is inherited.
 
-## Test recipe (5 minutes)
+### All env vars
 
-Three terminals:
+| Variable              | Default       | Notes                                                                      |
+|-----------------------|---------------|----------------------------------------------------------------------------|
+| `BRIDGE_TOKEN`        | *(required)*  | Shared secret. Bridge refuses to start if unset.                           |
+| `BRIDGE_PORT`         | `8787`        | HTTP + WS port (set in `plugin/.mcp.json`).                                |
+| `BRIDGE_HOST`         | `0.0.0.0`     | Bind address (set in `plugin/.mcp.json`). `127.0.0.1` for localhost-only. |
+| `BRIDGE_LOG_FILE`     | *(unset)*     | If set, mirror stderr logs to this file.                                   |
+| `BRIDGE_DEBUG_FRAMES` | *(unset)*     | `1` → mirror every outbound MCP frame into `BRIDGE_LOG_FILE`.              |
+| `BRIDGE_DATABASE_URL` | *(unset)*     | Firebase RTDB URL. Enables Firebase sync + `/api/firebaseData` proxy.      |
+| `BRIDGE_AGENT_ID`     | *(unset)*     | Agent key under `<db>/agents/`. Required alongside `BRIDGE_DATABASE_URL`.  |
+| `BRIDGE_URL`          | `http://127.0.0.1:8787` | Where `hook-forward.js` POSTs hook events.                       |
+| `BRIDGE_HOOK_TIMEOUT_MS` | `500`      | Per-hook POST timeout. Never blocks your turn.                             |
 
-1. **Terminal A** — Claude Code, launched as above.
-2. **Terminal B** — open `examples/ws-client.html` in a browser, paste your
-   token, click **Connect**. (Or run `wscat -c "ws://127.0.0.1:8787/ws?token=$BRIDGE_TOKEN"`.)
-3. **Terminal C** — send a message:
+## Quick smoke test
+
+Two surfaces:
+
+1. **Browser** — open `examples/ws-client.html`, paste your token, click
+   **Connect**.
+2. **Terminal** — send a message:
 
    ```bash
    curl -X POST "http://127.0.0.1:8787/api/messages" \
@@ -125,10 +140,9 @@ Three terminals:
      -d '{"content": "Hi from curl"}'
    ```
 
-You should see Claude respond in Terminal A and the reply arrive on the WS
-client in Terminal B. Now ask Claude to do something that triggers a tool
-permission (`run ls`). The browser client will pop up an Allow/Deny card —
-clicking either resolves it without touching the terminal dialog.
+Claude responds in Claude Code and the reply arrives on the WS client. Ask
+Claude to run `ls` and the browser will pop up an Allow/Deny card that
+resolves without touching the terminal dialog.
 
 ## HTTP API
 
@@ -144,8 +158,8 @@ See [`examples/curl.md`](examples/curl.md) for full request/response examples.
 | GET    | `/api/state`                  | Bridge state (chats, pending perms, uptime).       |
 | GET    | `/api/permissions`            | List currently-pending permission requests.        |
 | POST   | `/api/permissions/:id`        | Approve or deny a permission request.              |
-| POST   | `/api/hook-event`             | Relay a Claude Code hook event (see hooks section).|
-| GET    | `/api/firebaseData`           | Proxy current agent state from Firebase (see below).|
+| POST   | `/api/hook-event`             | Relay a Claude Code hook event.                    |
+| GET    | `/api/firebaseData`           | Proxy current agent state from Firebase.           |
 
 `POST /api/permissions/:id` returns `applied: false` if Claude Code already
 closed the request (terminal user answered first). The verdict was sent but
@@ -161,12 +175,12 @@ Browsers can't set headers on `WebSocket`, so the token is read from the
 
 **Server → client** (all JSON, all have a `type`):
 
-- `hello` — sent on connect: `{ type, client_id, server_version }`
+- `hello` — `{ type, client_id, server_version }`
 - `inbound_message` — echo of a message that went to Claude
 - `outbound_reply` — Claude called the `reply` tool
 - `permission_request` — Claude Code asked for tool approval
 - `permission_resolved` — a verdict was relayed (best-effort)
-- `hook_event` — Claude Code lifecycle hook (see "Remote observability via hooks")
+- `hook_event` — Claude Code lifecycle hook (see below)
 - `session_event` — connection lifecycle
 - `pong` — reply to client `ping`
 - `error` — malformed input
@@ -177,34 +191,24 @@ Browsers can't set headers on `WebSocket`, so the token is read from the
 - `{ type: "permission_verdict", request_id, behavior: "allow"|"deny" }`
 - `{ type: "ping" }`
 
-## Remote observability via hooks
+## Lifecycle hooks
 
-The MCP channel only surfaces `reply` tool calls and permission prompts. To see
-*everything* happening in the Claude Code session on a remote client —
-prompts you type, tools Claude invokes, tool results, session start/stop —
-wire Claude Code's hooks to forward events to the bridge.
-
-A tiny helper ships at `dist/hook-forward.js`. It reads the hook's JSON payload
-from stdin, POSTs it to `$BRIDGE_URL/api/hook-event` with `$BRIDGE_TOKEN`, and
-always exits 0 — so a down bridge never blocks your turn. Failures are logged
-to stderr (visible in Claude Code's debug output).
-
-Drop the block from [`examples/hooks-settings.json`](examples/hooks-settings.json)
-into your `~/.claude/settings.json` (Windows: `%USERPROFILE%\.claude\settings.json`),
-fix the absolute path to `dist/hook-forward.js`, and set `BRIDGE_URL` /
-`BRIDGE_TOKEN` in the `env` block. It wires every hook
+The channel only surfaces `reply` tool calls and permission prompts. The
+plugin additionally wires every Claude Code hook
 (`UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Notification`, `Stop`,
-`SubagentStop`, `SessionStart`, `SessionEnd`, `PreCompact`) to the forwarder.
+`SubagentStop`, `SessionStart`, `SessionEnd`, `PreCompact`) to a small helper
+at `plugin/dist/hook-forward.js`.
+
+The helper reads the hook payload from stdin, POSTs it to
+`$BRIDGE_URL/api/hook-event` with `$BRIDGE_TOKEN`, and always exits 0 — so a
+down bridge never blocks your turn. Failures log to stderr (visible in Claude
+Code's debug output).
 
 Events arrive on WS clients as `{ type: "hook_event", hook_type, payload, ts }`
 and are broadcast only — they are not stored in bridge state.
 
-Optional env:
-
-| Variable                   | Default                  | Notes                                            |
-|----------------------------|--------------------------|--------------------------------------------------|
-| `BRIDGE_URL`               | `http://127.0.0.1:8787`  | Where `hook-forward.js` POSTs.                   |
-| `BRIDGE_HOOK_TIMEOUT_MS`   | `500`                    | Per-POST timeout. Never blocks your turn.        |
+The hooks are registered automatically when the plugin is installed; there is
+nothing to wire up by hand.
 
 ## Firebase sync (optional)
 
@@ -220,57 +224,55 @@ state to Firebase Realtime Database via its REST API (no SDK). Keys under
 
 The bridge also exposes `GET /api/firebaseData`, which proxies
 `<db>/agents/<id>.json` over HTTPS so low-powered clients on the LAN (e.g. the
-ESP32 sketch in [`example_esp32_client/`](example_esp32_client/)) don't need to
-pin a root CA themselves. Requires `BRIDGE_TOKEN` auth like other endpoints.
+sketch in [`example_esp32_client/`](example_esp32_client/)) don't need to pin
+a root CA themselves. Requires `BRIDGE_TOKEN` auth like other endpoints.
+
+## ESP32 firmware
+
+[`robot_experiment/`](robot_experiment/) is an Arduino sketch for an ESP32
+with a 128×32 SSD1306 OLED. It connects to the bridge over WebSocket and
+renders a live dashboard: WiFi status, bridge connection, spinner while Claude
+is working, last message summary, current tool + argument, and inline
+permission prompts.
+
+See `robot_experiment/config.example.h` for setup, and
+[`robot_experiment/TOOL_DISPLAY.md`](robot_experiment/TOOL_DISPLAY.md) for the
+tool label / detail mapping.
 
 ## Security notes
 
-- **Localhost by default.** `BRIDGE_HOST` defaults to `127.0.0.1`. Anyone who
-  can connect to the bridge AND knows the token can approve tool calls in
-  your Claude Code session — this is, by design, not a sandbox.
-- **Exposing remotely.** Setting `BRIDGE_HOST=0.0.0.0` binds to all interfaces
-  — fine on a trusted LAN (required for the ESP32 example), but do *not* expose
-  the bridge directly to the internet. Tunnel it through SSH / WireGuard /
+- **Bind address.** `plugin/.mcp.json` defaults `BRIDGE_HOST=0.0.0.0` to
+  support LAN clients (including the ESP32). Anyone who can reach the port AND
+  knows the token can approve tool calls. For localhost-only, override
+  `BRIDGE_HOST=127.0.0.1` in `~/.claude/settings.json` → `env`.
+- **Do not expose directly to the internet.** Tunnel through SSH / WireGuard /
   Tailscale, or front it with a TLS-terminating reverse proxy that also
   enforces auth.
-- **Token rotation.** Restart the bridge (and Claude Code, since it spawns the
-  bridge as a subprocess) after changing the token.
+- **Token rotation.** Restart Claude Code (which spawns the bridge as a
+  subprocess) after changing the token.
 
 ## Troubleshooting
 
-- **`/mcp` shows the bridge as failed / disconnected.** The most common cause
-  is something on the bridge writing to stdout (which is the MCP transport).
-  All logs in this codebase go to stderr; if you've added a dependency that
-  prints to stdout, redirect or remove it. Check Claude Code's debug log at
-  `~/.claude/debug/*.txt`.
-- **Permission relay does nothing.** Confirm Claude Code is 2.1.81+ (the
-  permission capability was wired up in that release). Confirm `/mcp` shows
-  the bridge as connected. Confirm you launched with both
-  `--dangerously-load-development-channels server:bridge` and
-  `--channels server:bridge`.
+- **`/mcp` shows bridge failed / disconnected.** The most common cause is
+  something writing to stdout (the MCP transport). All logs here go to stderr.
+  Check `~/.claude/debug/*.txt`.
+- **Hooks don't fire / OLED doesn't update.** The plugin cache is pinned to a
+  commit. After pulling or editing, remove + re-add the marketplace (see
+  *Refreshing after updates* above).
+- **Install fails with `plugins.0.source: Invalid input`.** The marketplace
+  manifest's `source` field needs a relative path like `./plugin`. Plain `.`
+  is rejected.
+- **Marketplace add tries to clone via git.** You passed a Git-Bash-style path
+  (`/c/...`). Use a Windows absolute path with forward slashes
+  (`C:/Users/.../claude-code-wrapper`).
+- **Permission relay does nothing.** Confirm Claude Code is 2.1.81+. Confirm
+  `/mcp` shows bridge connected.
 - **Verdict returns `applied: false`.** Expected — the terminal user (or a
   faster remote client) answered first. First verdict wins.
 
-## Project layout
+## Further reading
 
-```
-src/
-  index.ts         # entry — config, stdout redirect, wires MCP+HTTP+WS
-  mcp.ts           # MCP server: channel capabilities, reply tool, permission relay
-  http.ts          # HTTP REST API (Node builtin http)
-  ws.ts            # WebSocket hub (ws library)
-  firebase.ts      # optional: PUT agent state to Firebase RTDB on hook events
-  hook-forward.ts  # standalone helper: reads hook JSON on stdin, POSTs to bridge
-  bus.ts      # typed in-process EventEmitter
-  state.ts    # in-memory chat log + pending-permission store
-  auth.ts     # token validation
-  logger.ts   # stderr logger (and optional file mirror)
-  types.ts    # shared types
-examples/
-  curl.md             # curl recipes for every endpoint
-  ws-client.html      # browser-based WS test client
-  hooks-settings.json # Claude Code settings snippet to forward hooks to the bridge
-example_esp32_client/ # Arduino sketch polling /api/firebaseData over LAN
-.mcp.json.example # copy and edit to register the bridge with Claude Code
-BUILD_BRIEF.md    # original design brief (authoritative spec)
-```
+- [`BUILD_BRIEF.md`](BUILD_BRIEF.md) — original design brief, authoritative on
+  architecture and scope.
+- [`CLAUDE.md`](CLAUDE.md) — condensed guide for Claude Code when working on
+  this repo.
