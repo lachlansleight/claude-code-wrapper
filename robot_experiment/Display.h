@@ -2,31 +2,28 @@
 
 // OLED UI for the 128x32 SSD1306.
 //
-// Layout (4 rows × 21 chars at text size 1):
-//   row 0: status bar   — WiFi + bridge conn + working/idle + session tail
-//   row 1: context line — current hook / tool, or pending permission
-//   row 2: log line -1
-//   row 3: log line 0   (most recent)
+// Layout:
+//   y 0-7   header icons (wifi + bridge check/cross + working/idle indicator)
+//   y 9     1-pixel separator line
+//   y 10-15 gap
+//   y 16-23 body line 1
+//   y 24-31 body line 2
 //
-// Log lines come from `Display::log()`. The display is only redrawn when
-// something changed AND at most every ~50ms, so it's safe to call from
-// event handlers.
+// Body priority:
+//   1. Pending permission: "ALLOW? TOOL detail"
+//   2. Working + current tool: "TOOL detail"
+//   3. Idle: last assistant summary (word-wrapped across both lines)
+//
+// The display pulls straight from ClaudeEvents::state() and redraws itself.
+// Nothing else in the firmware needs to call into Display except begin() and
+// tick(). invalidate() exists for edge cases (e.g. a manual display test).
 
 #include <Arduino.h>
 
 namespace Display {
 
 void begin();
-
-// Push a short message onto the scrolling log (bottom two rows).
-void log(const char* line);
-void logf(const char* fmt, ...);
-
-// Mark the rendered-state as dirty. Call after updating ClaudeState so the
-// status bar re-renders on the next tick().
 void invalidate();
-
-// Call from loop(); rate-limits actual redraws internally.
 void tick();
 
 }  // namespace Display

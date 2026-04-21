@@ -4,7 +4,10 @@
       "Bash(npm install *)",
       "Bash(npm run *)",
       "mcp__bridge__reply",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebSearch",
+      "Read(//c/Users/Lachlan/.claude/plugins/**)",
+      "Read(//c/Users/Lachlan/.claude/plugins/marketplaces/**)"
     ]
   },
   "enabledMcpjsonServers": [

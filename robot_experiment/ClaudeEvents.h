@@ -75,10 +75,18 @@ struct ClaudeState {
   char session_id[40];               // last seen session id
   char last_hook[24];                // last hook_type
   char last_tool[32];                // last tool_name from hooks
-  char last_msg[80];                 // last inbound/outbound content snippet
+
+  // Currently-running tool (set on PreToolUse, cleared on PostToolUse/Stop).
+  // Empty when Claude is idle or between tools.
+  char current_tool[24];
+  char tool_detail[48];              // formatted per-tool metadata for display
+
+  // Most recent assistant text snippet (captured from hook transcripts).
+  char last_summary[128];
 
   char pending_permission[8];        // request_id of unresolved permission, or ""
   char pending_tool[32];             // tool_name of unresolved permission
+  char pending_detail[48];           // formatted per-tool metadata for permission
 
   uint32_t last_event_ms;            // millis() of most recent ws frame
 };

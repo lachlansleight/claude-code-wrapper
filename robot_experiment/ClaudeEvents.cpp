@@ -18,11 +18,139 @@ static SessionHandler             h_session     = nullptr;
 static RawHandler                 h_raw         = nullptr;
 static ConnectionHandler          h_conn        = nullptr;
 
+// Decode one UTF-8 codepoint; advances `*p` past the sequence. Returns
+// UINT32_MAX on malformed input (advancing one byte) so the caller can emit
+// a single replacement without desyncing.
+static uint32_t utf8Decode(const char** p) {
+  const uint8_t b0 = (uint8_t)**p;
+  if (b0 < 0x80) { (*p)++; return b0; }
+  uint32_t cp;
+  int extra;
+  if      ((b0 & 0xE0) == 0xC0) { cp = b0 & 0x1F; extra = 1; }
+  else if ((b0 & 0xF0) == 0xE0) { cp = b0 & 0x0F; extra = 2; }
+  else if ((b0 & 0xF8) == 0xF0) { cp = b0 & 0x07; extra = 3; }
+  else { (*p)++; return UINT32_MAX; }
+  (*p)++;
+  for (int i = 0; i < extra; ++i) {
+    const uint8_t b = (uint8_t)**p;
+    if ((b & 0xC0) != 0x80) return UINT32_MAX;
+    cp = (cp << 6) | (b & 0x3F);
+    (*p)++;
+  }
+  return cp;
+}
+
+// ASCII substitute for common Unicode chars Claude tends to emit. Returns
+// nullptr if we don't have a mapping; callers fall back to '?'.
+static const char* asciiSubstitute(uint32_t cp) {
+  switch (cp) {
+    case 0x2013: return "-";   case 0x2014: return "--";  // en/em dash
+    case 0x2018: case 0x2019: case 0x201A: case 0x201B: return "'";
+    case 0x201C: case 0x201D: case 0x201E: case 0x201F: return "\"";
+    case 0x2026: return "...";                            // ellipsis
+    case 0x2022: case 0x00B7: case 0x2219: return "*";    // bullet / mid-dot
+    case 0x2190: return "<-";  case 0x2192: return "->";
+    case 0x2191: return "^";   case 0x2193: return "v";
+    case 0x00A0: return " ";                              // nbsp
+    case 0x00AB: return "<<";  case 0x00BB: return ">>";
+    case 0x2713: case 0x2714: return "v";                 // check
+    case 0x2717: case 0x2718: case 0x2715: return "x";    // cross
+    case 0x00A9: return "(c)";
+    case 0x00AE: return "(R)";
+    case 0x2122: return "(TM)";
+    case 0x00B0: return "deg";
+    case 0x00B1: return "+/-";
+    case 0x00D7: return "x";   case 0x00F7: return "/";
+    default:     return nullptr;
+  }
+}
+
+// Copy `src` into `dst` while folding UTF-8 / control chars down to ASCII
+// the Adafruit GFX default font can render. Newlines collapse to spaces;
+// unknown non-ASCII codepoints become '?'.
 static void copyStr(char* dst, size_t cap, const char* src) {
   if (!dst || cap == 0) return;
   if (!src) { dst[0] = '\0'; return; }
-  strncpy(dst, src, cap - 1);
-  dst[cap - 1] = '\0';
+  size_t o = 0;
+  const char* p = src;
+  while (*p && o + 1 < cap) {
+    const uint32_t cp = utf8Decode(&p);
+    if (cp < 0x80) {
+      char c = (char)cp;
+      if (c == '\n' || c == '\r' || c == '\t') c = ' ';
+      if ((unsigned char)c < 0x20) continue;  // drop other control chars
+      dst[o++] = c;
+    } else {
+      const char* rep = asciiSubstitute(cp);
+      if (!rep) rep = "?";
+      while (*rep && o + 1 < cap) dst[o++] = *rep++;
+    }
+  }
+  dst[o] = '\0';
+}
+
+// Strip directory prefix from a file path. Handles both / and \ separators.
+static void basename(const char* path, char* out, size_t cap) {
+  if (!path) { out[0] = '\0'; return; }
+  const char* slash = nullptr;
+  for (const char* p = path; *p; ++p) {
+    if (*p == '/' || *p == '\\') slash = p;
+  }
+  copyStr(out, cap, slash ? slash + 1 : path);
+}
+
+// Best-effort short description of a tool call, sourced from its input blob.
+// Fields mirror Claude Code's tool schemas; see TOOL_DISPLAY.md for the full
+// catalogue and how to customize per tool.
+static void formatToolDetail(const char* tool, JsonVariantConst input,
+                             char* out, size_t cap) {
+  out[0] = '\0';
+  if (!tool || !*tool || input.isNull()) return;
+
+  if (!strcmp(tool, "Edit") || !strcmp(tool, "Write") ||
+      !strcmp(tool, "Read") || !strcmp(tool, "MultiEdit")) {
+    basename(input["file_path"] | "", out, cap);
+  } else if (!strcmp(tool, "NotebookEdit")) {
+    basename(input["notebook_path"] | "", out, cap);
+  } else if (!strcmp(tool, "Bash")) {
+    copyStr(out, cap, input["command"] | "");
+  } else if (!strcmp(tool, "BashOutput")) {
+    copyStr(out, cap, input["bash_id"] | "");
+  } else if (!strcmp(tool, "KillShell")) {
+    copyStr(out, cap, input["shell_id"] | "");
+  } else if (!strcmp(tool, "Glob") || !strcmp(tool, "Grep")) {
+    copyStr(out, cap, input["pattern"] | "");
+  } else if (!strcmp(tool, "WebFetch")) {
+    const char* url = input["url"] | "";
+    const char* p = strstr(url, "://");
+    copyStr(out, cap, p ? p + 3 : url);
+  } else if (!strcmp(tool, "WebSearch")) {
+    copyStr(out, cap, input["query"] | "");
+  } else if (!strcmp(tool, "Task")) {
+    copyStr(out, cap, input["subagent_type"] | "");
+  } else if (!strcmp(tool, "TodoWrite")) {
+    JsonVariantConst todos = input["todos"];
+    if (todos.is<JsonArrayConst>()) {
+      snprintf(out, cap, "%u items", (unsigned)todos.size());
+    }
+  } else if (!strcmp(tool, "SlashCommand")) {
+    copyStr(out, cap, input["command"] | "");
+  } else if (!strncmp(tool, "mcp__", 5)) {
+    // Drop the "mcp__" prefix; keeps the server__tool portion.
+    copyStr(out, cap, tool + 5);
+  }
+}
+
+// Grab the last assistant text block from a hook payload (hook-forward.ts
+// attaches `assistant_text` as a string array on PostToolUse / Stop).
+static void captureAssistantSummary(JsonVariantConst payload,
+                                    char* out, size_t cap) {
+  JsonVariantConst arr = payload["assistant_text"];
+  if (!arr.is<JsonArrayConst>()) return;
+  size_t n = arr.size();
+  if (n == 0) return;
+  const char* last = arr[n - 1] | "";
+  if (*last) copyStr(out, cap, last);
 }
 
 const ClaudeState& state() { return g_state; }
@@ -44,8 +172,11 @@ void notifyConnection(bool connected) {
   g_state.ws_connected = connected;
   if (!connected) {
     g_state.working = false;
+    g_state.current_tool[0] = '\0';
+    g_state.tool_detail[0] = '\0';
     g_state.pending_permission[0] = '\0';
     g_state.pending_tool[0] = '\0';
+    g_state.pending_detail[0] = '\0';
   }
   if (h_conn) h_conn(connected);
 }
@@ -59,14 +190,37 @@ static void handleHookUpdate(const HookEvent& evt) {
     copyStr(g_state.session_id, sizeof(g_state.session_id), evt.session_id);
   }
 
-  // Track the "working" flag from the hook lifecycle. UserPromptSubmit opens
-  // a turn; Stop / SessionEnd close it. Best-effort — hooks may be dropped.
-  if (!strcmp(evt.hook_type, "UserPromptSubmit")) {
+  const char* h = evt.hook_type;
+
+  // Turn lifecycle: UserPromptSubmit opens a turn; Stop / SessionEnd close
+  // it. Best-effort — hooks may be dropped.
+  if (!strcmp(h, "UserPromptSubmit")) {
     g_state.working = true;
-  } else if (!strcmp(evt.hook_type, "Stop") ||
-             !strcmp(evt.hook_type, "SessionEnd")) {
+    g_state.current_tool[0] = '\0';
+    g_state.tool_detail[0] = '\0';
+    // Wipe the previous turn's summary so the body doesn't display stale
+    // text while Claude is thinking about the new prompt.
+    g_state.last_summary[0] = '\0';
+  } else if (!strcmp(h, "Stop") || !strcmp(h, "SessionEnd")) {
     g_state.working = false;
+    g_state.current_tool[0] = '\0';
+    g_state.tool_detail[0] = '\0';
   }
+
+  // Tool lifecycle: PreToolUse(X) → current=X; PostToolUse(X) → clear.
+  JsonVariantConst input = evt.payload["tool_input"];
+  if (!strcmp(h, "PreToolUse")) {
+    copyStr(g_state.current_tool, sizeof(g_state.current_tool), evt.tool_name);
+    formatToolDetail(evt.tool_name, input,
+                     g_state.tool_detail, sizeof(g_state.tool_detail));
+  } else if (!strcmp(h, "PostToolUse")) {
+    g_state.current_tool[0] = '\0';
+    g_state.tool_detail[0] = '\0';
+  }
+
+  // Capture the most recent assistant snippet for the idle view.
+  captureAssistantSummary(evt.payload,
+                          g_state.last_summary, sizeof(g_state.last_summary));
 }
 
 void dispatch(JsonDocument& doc) {
@@ -86,7 +240,7 @@ void dispatch(JsonDocument& doc) {
       doc["content"] | "",
       doc["chat_id"] | "",
     };
-    copyStr(g_state.last_msg, sizeof(g_state.last_msg), e.content);
+    copyStr(g_state.last_summary, sizeof(g_state.last_summary), e.content);
     LOG_EVT("inbound chat=%s \"%.40s\"", e.chat_id, e.content);
     if (h_inbound) h_inbound(e);
   }
@@ -95,7 +249,7 @@ void dispatch(JsonDocument& doc) {
       doc["content"] | "",
       doc["chat_id"] | "",
     };
-    copyStr(g_state.last_msg, sizeof(g_state.last_msg), e.content);
+    copyStr(g_state.last_summary, sizeof(g_state.last_summary), e.content);
     LOG_EVT("outbound chat=%s \"%.40s\"", e.chat_id, e.content);
     if (h_outbound) h_outbound(e);
   }
@@ -107,6 +261,8 @@ void dispatch(JsonDocument& doc) {
     };
     copyStr(g_state.pending_permission, sizeof(g_state.pending_permission), e.request_id);
     copyStr(g_state.pending_tool, sizeof(g_state.pending_tool), e.tool_name);
+    formatToolDetail(e.tool_name, e.input,
+                     g_state.pending_detail, sizeof(g_state.pending_detail));
     LOG_EVT("perm-req id=%s tool=%s", e.request_id, e.tool_name);
     if (h_permReq) h_permReq(e);
   }
@@ -119,6 +275,7 @@ void dispatch(JsonDocument& doc) {
     if (!strcmp(e.request_id, g_state.pending_permission)) {
       g_state.pending_permission[0] = '\0';
       g_state.pending_tool[0] = '\0';
+      g_state.pending_detail[0] = '\0';
     }
     LOG_EVT("perm-res id=%s %s applied=%d", e.request_id, e.behavior, e.applied);
     if (h_permRes) h_permRes(e);

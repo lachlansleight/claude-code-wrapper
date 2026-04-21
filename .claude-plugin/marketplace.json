@@ -1,0 +1,14 @@
+{
+  "name": "claude-code-bridge-local",
+  "owner": {
+    "name": "Lachlan Sleight",
+    "email": "lachlan@liquid.city"
+  },
+  "plugins": [
+    {
+      "name": "claude-code-bridge",
+      "source": "./plugin",
+      "description": "Remote HTTP/WebSocket bridge for Claude Code — inject messages, stream events, approve tool-use prompts from external clients."
+    }
+  ]
+}

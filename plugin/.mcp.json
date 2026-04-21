@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "bridge": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/index.js"],
+      "env": {
+        "BRIDGE_PORT": "8787",
+        "BRIDGE_HOST": "0.0.0.0"
+      }
+    }
+  }
+}
