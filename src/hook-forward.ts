@@ -81,7 +81,9 @@ function post(url: URL, body: string, token: string): Promise<void> {
 const STATE_FILE = join(tmpdir(), 'claude-code-bridge-hook-state.json')
 
 function extractNewAssistantText(payload: unknown): string[] {
-  if (HOOK_TYPE !== 'PostToolUse' && HOOK_TYPE !== 'Stop') return []
+  const isReadHook = HOOK_TYPE === 'PostToolUse' || HOOK_TYPE === 'Stop'
+  const isSeedHook = HOOK_TYPE === 'SessionStart' || HOOK_TYPE === 'UserPromptSubmit'
+  if (!isReadHook && !isSeedHook) return []
   const p = payload as { transcript_path?: string; session_id?: string } | null
   if (!p || typeof p.transcript_path !== 'string' || typeof p.session_id !== 'string') return []
 
@@ -89,7 +91,7 @@ function extractNewAssistantText(payload: unknown): string[] {
   try { state = JSON.parse(readFileSync(STATE_FILE, 'utf8')) } catch {}
   let prevOffset = state[p.session_id]?.offset
   if (typeof prevOffset !== 'number') {
-    // First sighting of this session — skip to current size so we don't dump history.
+    // First sighting of this session — seed offset at current size so we don't dump history.
     try {
       const fd = openSync(p.transcript_path, 'r')
       prevOffset = fstatSync(fd).size
@@ -99,6 +101,7 @@ function extractNewAssistantText(payload: unknown): string[] {
     try { writeFileSync(STATE_FILE, JSON.stringify(state)) } catch {}
     return []
   }
+  if (!isReadHook) return []
 
   let newText = ''
   let newEnd = prevOffset

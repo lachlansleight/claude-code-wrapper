@@ -136,11 +136,19 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
     try {
       const upstream = await fetch(`${base}/agents/${encodeURIComponent(id)}.json`)
       const text = await upstream.text()
+      
+      const data = JSON.parse(text);
+      const trimData = {
+        working: data.working,
+        lastMessage: { summary: data.lastMessage.summary },
+        starting: data.starting || false,
+      };
+      const payload = JSON.stringify(trimData);
       res.writeHead(upstream.status, {
         'Content-Type': 'application/json; charset=utf-8',
-        'Content-Length': Buffer.byteLength(text),
-      })
-      res.end(text)
+        'Content-Length': Buffer.byteLength(payload),
+      });
+      res.end(payload);
     } catch (err) {
       logger.warn(`firebase proxy err=${String(err)}`)
       json(res, 502, { error: 'upstream_error' })

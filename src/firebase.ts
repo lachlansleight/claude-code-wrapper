@@ -47,6 +47,11 @@ export function startFirebaseSync(): void {
   put('lastAwake', Date.now())
 
   bus.on('hook_event', (ev) => {
+    if (ev.hook_type === 'SessionStart') {
+      put('starting', true)
+      put('lastMessage', null)
+    }
+    if (ev.hook_type === 'UserPromptSubmit') put('starting', false)
     if (WORKING_HOOKS.has(ev.hook_type)) put('working', true)
     if (IDLE_HOOKS.has(ev.hook_type)) {
       put('working', false)
