@@ -25,3 +25,8 @@
 #define OLED_I2C_ADDR  0x3C
 #define OLED_WIDTH     128
 #define OLED_HEIGHT    32
+
+// ---- Motion ----------------------------------------------------------------
+// Primary servo (SG92R or similar hobby servo). Must be a pin that supports
+// ESP32 LEDC PWM — "D5" on most ESP32 dev boards maps to GPIO5.
+#define SERVO_PIN      5

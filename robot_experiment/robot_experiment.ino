@@ -3,23 +3,28 @@
 // the rest of the firmware to react to Claude Code activity.
 //
 // Module map:
-//   config.h        — wifi + bridge credentials (copy from config.example.h)
-//   WiFiManager     — connect & auto-reconnect
-//   BridgeClient    — WebSocket transport, JSON decode, send helpers
-//   ClaudeEvents    — event structs, polled state, callback registry
-//   Display         — OLED renderer (fully state-driven; no imperative API)
-//   DebugLog        — LOG_* macros over Serial
+//   config.h          — wifi + bridge credentials (copy from config.example.h)
+//   WiFiManager       — connect & auto-reconnect
+//   BridgeClient      — WebSocket transport, JSON decode, send helpers
+//   ClaudeEvents      — event structs, polled state, callback registry
+//   Display           — OLED renderer (fully state-driven; no imperative API)
+//   Motion            — servo abstraction + non-blocking keyframe patterns
+//   AttractScheduler  — triggers attention waggles when Claude is idle
+//   DebugLog          — LOG_* macros over Serial
 //
 // Required Arduino libraries (install via Library Manager):
 //   WebSockets       by Markus Sattler
 //   ArduinoJson      by Benoit Blanchon (v7+)
 //   Adafruit GFX Library
 //   Adafruit SSD1306
+//   ESP32Servo       by Kevin Harrington
 
+#include "AttractScheduler.h"
 #include "BridgeClient.h"
 #include "ClaudeEvents.h"
 #include "DebugLog.h"
 #include "Display.h"
+#include "Motion.h"
 #include "WiFiManager.h"
 #include "config.h"
 
@@ -48,6 +53,8 @@ void setup() {
   LOG_INFO("robot_experiment boot");
 
   Display::begin();
+  Motion::begin();
+  AttractScheduler::begin();
 
   WifiMgr::connect(WIFI_SSID, WIFI_PASSWORD);
   ClaudeEvents::setWifiConnected(true);
@@ -71,5 +78,7 @@ void loop() {
   //   const auto& st = ClaudeEvents::state();
   //   if (st.working) {  /* blink an LED, hold a pose, etc. */ }
 
+  AttractScheduler::tick();
+  Motion::tick();
   Display::tick();
 }
