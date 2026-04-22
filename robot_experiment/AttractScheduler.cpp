@@ -16,13 +16,20 @@ static const uint32_t kSchedule[] = {
 static const uint8_t kScheduleLen =
     sizeof(kSchedule) / sizeof(kSchedule[0]);
 
-// Boot → Working avoids firing on the power-on idle window, before Claude has
-// done anything. Only real working→idle transitions should trigger attract.
-enum class Phase : uint8_t { Boot, Working, Idle };
+// Debounce window before we treat a working→idle transition as a real idle
+// entry. Guards against mid-response Stop flaps, brief gaps between tool
+// calls, and similar transients. Any working=true hit during this window
+// bounces us straight back to Working without ever firing a waggle.
+static constexpr uint32_t kIdleGraceMs = 3000;
 
-static Phase    phase     = Phase::Boot;
-static uint32_t idleStart = 0;
-static uint8_t  nextIdx   = 0;
+// Boot → Working avoids firing on the power-on idle window, before Claude
+// has done anything. IdleGrace is the debounce before Idle proper.
+enum class Phase : uint8_t { Boot, Working, IdleGrace, Idle };
+
+static Phase    phase         = Phase::Boot;
+static uint32_t graceStart    = 0;
+static uint32_t idleStart     = 0;
+static uint8_t  nextIdx       = 0;
 
 void begin() {
   phase   = Phase::Boot;
@@ -39,10 +46,21 @@ void tick() {
 
     case Phase::Working:
       if (!working) {
+        phase      = Phase::IdleGrace;
+        graceStart = millis();
+      }
+      return;
+
+    case Phase::IdleGrace:
+      if (working) {
+        phase = Phase::Working;
+        return;
+      }
+      if (millis() - graceStart >= kIdleGraceMs) {
         phase     = Phase::Idle;
         idleStart = millis();
         nextIdx   = 0;
-        LOG_EVT("attract: idle entered");
+        LOG_EVT("attract: idle confirmed");
       }
       return;
 

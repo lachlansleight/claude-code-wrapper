@@ -21,6 +21,9 @@ static constexpr uint8_t kBodyY1 = 24;
 static constexpr uint32_t kMinRedrawMs      = 40;
 static constexpr uint32_t kSpinnerPeriodMs  = 120;
 static constexpr uint32_t kBlinkPeriodMs    = 500;
+// How long the last tool label stays on screen after PostToolUse. New events
+// (tool, message, permission) clear it sooner.
+static constexpr uint32_t kToolLingerMs     = 1000;
 
 static Adafruit_SSD1306 oled(OLED_WIDTH, OLED_HEIGHT, &Wire, -1);
 
@@ -170,6 +173,14 @@ static void drawBody(const char* text) {
   oled.print(line);
 }
 
+// True if the current tool slot is still worth showing — either running
+// (`end_ms == 0`) or within the linger window after PostToolUse.
+static bool toolSlotActive(const ClaudeEvents::ClaudeState& st) {
+  if (!st.current_tool[0]) return false;
+  if (st.current_tool_end_ms == 0) return true;
+  return (millis() - st.current_tool_end_ms) < kToolLingerMs;
+}
+
 static void drawBody() {
   const auto& st = ClaudeEvents::state();
 
@@ -182,7 +193,7 @@ static void drawBody() {
       snprintf(buf, sizeof(buf), "ALLOW? %s", label);
     }
     drawBodyHard(buf);
-  } else if (st.current_tool[0]) {
+  } else if (toolSlotActive(st)) {
     const char* label = toolLabel(st.current_tool);
     if (st.tool_detail[0]) {
       snprintf(buf, sizeof(buf), "%s %s", label, st.tool_detail);

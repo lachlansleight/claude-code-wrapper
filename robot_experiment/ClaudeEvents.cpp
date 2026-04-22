@@ -193,11 +193,14 @@ static void handleHookUpdate(const HookEvent& evt) {
   const char* h = evt.hook_type;
 
   // Turn lifecycle: UserPromptSubmit opens a turn; Stop / SessionEnd close
-  // it. Best-effort — hooks may be dropped.
+  // it. PreToolUse also asserts `working=true` defensively — if Stop flaps
+  // mid-response, a subsequent tool call drags us back out of idle so the
+  // attract scheduler can't latch onto a phantom idle window.
   if (!strcmp(h, "UserPromptSubmit")) {
     g_state.working = true;
     g_state.current_tool[0] = '\0';
     g_state.tool_detail[0] = '\0';
+    g_state.current_tool_end_ms = 0;
     // Wipe the previous turn's summary so the body doesn't display stale
     // text while Claude is thinking about the new prompt.
     g_state.last_summary[0] = '\0';
@@ -205,17 +208,21 @@ static void handleHookUpdate(const HookEvent& evt) {
     g_state.working = false;
     g_state.current_tool[0] = '\0';
     g_state.tool_detail[0] = '\0';
+    g_state.current_tool_end_ms = 0;
   }
 
-  // Tool lifecycle: PreToolUse(X) → current=X; PostToolUse(X) → clear.
+  // Tool lifecycle: PreToolUse(X) → current=X running; PostToolUse(X) →
+  // stamp end time but leave label so the display can linger.
   JsonVariantConst input = evt.payload["tool_input"];
   if (!strcmp(h, "PreToolUse")) {
+    g_state.working = true;
     copyStr(g_state.current_tool, sizeof(g_state.current_tool), evt.tool_name);
     formatToolDetail(evt.tool_name, input,
                      g_state.tool_detail, sizeof(g_state.tool_detail));
+    g_state.current_tool_end_ms = 0;
   } else if (!strcmp(h, "PostToolUse")) {
-    g_state.current_tool[0] = '\0';
-    g_state.tool_detail[0] = '\0';
+    g_state.current_tool_end_ms = millis();
+    if (g_state.current_tool_end_ms == 0) g_state.current_tool_end_ms = 1;
   }
 
   // Capture the most recent assistant snippet for the idle view.
@@ -241,6 +248,10 @@ void dispatch(JsonDocument& doc) {
       doc["chat_id"] | "",
     };
     copyStr(g_state.last_summary, sizeof(g_state.last_summary), e.content);
+    // New displayable content — retire any lingering tool label.
+    g_state.current_tool[0] = '\0';
+    g_state.tool_detail[0] = '\0';
+    g_state.current_tool_end_ms = 0;
     LOG_EVT("inbound chat=%s \"%.40s\"", e.chat_id, e.content);
     if (h_inbound) h_inbound(e);
   }
@@ -250,6 +261,9 @@ void dispatch(JsonDocument& doc) {
       doc["chat_id"] | "",
     };
     copyStr(g_state.last_summary, sizeof(g_state.last_summary), e.content);
+    g_state.current_tool[0] = '\0';
+    g_state.tool_detail[0] = '\0';
+    g_state.current_tool_end_ms = 0;
     LOG_EVT("outbound chat=%s \"%.40s\"", e.chat_id, e.content);
     if (h_outbound) h_outbound(e);
   }

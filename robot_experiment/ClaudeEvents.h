@@ -76,10 +76,12 @@ struct ClaudeState {
   char last_hook[24];                // last hook_type
   char last_tool[32];                // last tool_name from hooks
 
-  // Currently-running tool (set on PreToolUse, cleared on PostToolUse/Stop).
-  // Empty when Claude is idle or between tools.
+  // Currently-running tool (set on PreToolUse). Stays populated after
+  // PostToolUse so the display can linger on the last tool briefly; the
+  // actual clear decision is made in Display based on `current_tool_end_ms`.
   char current_tool[24];
   char tool_detail[48];              // formatted per-tool metadata for display
+  uint32_t current_tool_end_ms;      // millis() at PostToolUse, 0 if running
 
   // Most recent assistant text snippet (captured from hook transcripts).
   char last_summary[128];
