@@ -14,6 +14,7 @@ export interface BusEvents {
   permission_resolved: (payload: { request_id: string; behavior: 'allow' | 'deny'; by: 'remote' }) => void
   session_event: (payload: { event: 'connected' | 'disconnected' }) => void
   hook_event: (payload: { hook_type: string; payload: unknown; ts: number }) => void
+  sessions_changed: (payload: { session_ids: string[] }) => void
 }
 
 class TypedBus extends EventEmitter {

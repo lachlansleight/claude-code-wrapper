@@ -2,7 +2,12 @@ import type { ChatMessage, PendingPermission } from './types.js'
 
 const chats = new Map<string, ChatMessage[]>()
 const pendingPermissions = new Map<string, PendingPermission>()
+const sessions = new Map<string, { lastEventAt: number }>()
 const startedAt = Date.now()
+
+// A session is "active" if we've seen a hook event for it within this window.
+// Covers cases where SessionEnd is dropped (crash, unclean exit, etc.).
+const SESSION_STALE_MS = 10 * 60 * 1000
 
 export const state = {
   startedAt,
@@ -47,5 +52,26 @@ export const state = {
 
   uptimeSeconds(): number {
     return Math.floor((Date.now() - startedAt) / 1000)
+  },
+
+  // Returns true if the active-sessions list changed as a result of this call.
+  trackSession(session_id: string): boolean {
+    if (!session_id) return false
+    const existed = sessions.has(session_id)
+    sessions.set(session_id, { lastEventAt: Date.now() })
+    return !existed
+  },
+
+  endSession(session_id: string): boolean {
+    if (!session_id) return false
+    return sessions.delete(session_id)
+  },
+
+  listActiveSessions(): string[] {
+    const now = Date.now()
+    for (const [id, info] of sessions) {
+      if (now - info.lastEventAt > SESSION_STALE_MS) sessions.delete(id)
+    }
+    return [...sessions.keys()]
   },
 }

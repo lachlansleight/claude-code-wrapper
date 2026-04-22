@@ -7,6 +7,7 @@
 
 #include "ClaudeEvents.h"
 #include "DebugLog.h"
+#include "ToolFormat.h"
 #include "config.h"
 
 namespace Display {
@@ -94,29 +95,6 @@ static void drawHeader() {
 
 // ---- Body text / wrapping --------------------------------------------------
 
-// Upper-case short label for a tool name.
-static const char* toolLabel(const char* tool) {
-  if (!tool || !*tool)               return "";
-  if (!strcmp(tool, "Edit"))         return "EDIT";
-  if (!strcmp(tool, "MultiEdit"))    return "MEDIT";
-  if (!strcmp(tool, "Write"))        return "WRITE";
-  if (!strcmp(tool, "Read"))         return "READ";
-  if (!strcmp(tool, "NotebookEdit")) return "NBEDT";
-  if (!strcmp(tool, "Bash"))         return "BASH";
-  if (!strcmp(tool, "BashOutput"))   return "SHOUT";
-  if (!strcmp(tool, "KillShell"))    return "KILL";
-  if (!strcmp(tool, "Glob"))         return "GLOB";
-  if (!strcmp(tool, "Grep"))         return "GREP";
-  if (!strcmp(tool, "WebFetch"))     return "FETCH";
-  if (!strcmp(tool, "WebSearch"))    return "SEARCH";
-  if (!strcmp(tool, "Task"))         return "TASK";
-  if (!strcmp(tool, "TodoWrite"))    return "TODOS";
-  if (!strcmp(tool, "SlashCommand")) return "CMD";
-  if (!strcmp(tool, "ExitPlanMode")) return "PLAN";
-  if (!strncmp(tool, "mcp__", 5))    return "MCP";
-  return tool;
-}
-
 // Hard-wrap at exactly `kCols` — no attempt to break on spaces. Used for
 // tool labels + filenames / commands where word boundaries don't help and
 // we'd rather show every character than drop mid-filename content.
@@ -186,7 +164,7 @@ static void drawBody() {
 
   char buf[96];
   if (st.pending_permission[0]) {
-    const char* label = toolLabel(st.pending_tool);
+    const char* label = ToolFormat::label(st.pending_tool);
     if (st.pending_detail[0]) {
       snprintf(buf, sizeof(buf), "ALLOW? %s %s", label, st.pending_detail);
     } else {
@@ -194,7 +172,7 @@ static void drawBody() {
     }
     drawBodyHard(buf);
   } else if (toolSlotActive(st)) {
-    const char* label = toolLabel(st.current_tool);
+    const char* label = ToolFormat::label(st.current_tool);
     if (st.tool_detail[0]) {
       snprintf(buf, sizeof(buf), "%s %s", label, st.tool_detail);
     } else {
@@ -205,6 +183,11 @@ static void drawBody() {
     drawBody(st.last_summary);
   } else if (!st.ws_connected) {
     drawBody("waiting for bridge");
+  } else if (st.working) {
+    // Working but nothing concrete to show (between UserPromptSubmit and
+    // the first tool/notification, or after a tool slot lingered out with
+    // no new summary). "Thinking..." is more honest than a blank screen.
+    drawBody("Thinking...");
   } else {
     drawBody("");
   }

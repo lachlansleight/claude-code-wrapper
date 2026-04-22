@@ -16,6 +16,11 @@ static constexpr uint32_t kHeartbeatToutMs =  3000;
 static constexpr uint8_t  kHeartbeatFails  =     2;
 static constexpr uint32_t kReconnectMs     =  2000;
 
+// How often we poll the bridge for an active session to latch onto, while
+// no session is latched. Sent as `{"type":"request_sessions"}`; the bridge
+// replies with an `active_sessions` frame.
+static constexpr uint32_t kSessionPollMs   =  5000;
+
 // Decoded messages can get chunky (hook payloads carry transcript data).
 // 8 KiB is a comfortable ceiling; bump if ArduinoJson reports NoMemory.
 static constexpr size_t kDocCapacity = 16384;
@@ -76,7 +81,21 @@ void begin(const char* host, uint16_t port, const char* token) {
   LOG_INFO("bridge client → %s:%u", host, (unsigned)port);
 }
 
-void tick() { ws.loop(); }
+void tick() {
+  ws.loop();
+
+  // While unlatched, nudge the bridge every 5s for the current session list.
+  // Bridge also pushes on change, but polling catches the case where the
+  // only session existed before we connected and no further changes fire.
+  static uint32_t lastPoll = 0;
+  if (connected && ClaudeEvents::state().latched_session[0] == '\0') {
+    const uint32_t now = millis();
+    if (now - lastPoll >= kSessionPollMs) {
+      lastPoll = now;
+      sendRaw("{\"type\":\"request_sessions\"}");
+    }
+  }
+}
 
 bool isConnected() { return connected; }
 

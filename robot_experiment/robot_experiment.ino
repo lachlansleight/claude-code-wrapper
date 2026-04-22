@@ -2,12 +2,15 @@
 // surfaces state on a 128x32 SSD1306 OLED, and exposes an event-like API for
 // the rest of the firmware to react to Claude Code activity.
 //
-// Module map:
+// Module map (see FIRMWARE_OVERVIEW.md for the full tour):
 //   config.h          — wifi + bridge credentials (copy from config.example.h)
 //   Provisioning      — NVS-backed runtime config + AP-mode config portal
 //   WiFiManager       — connect & auto-reconnect
 //   BridgeClient      — WebSocket transport, JSON decode, send helpers
-//   ClaudeEvents      — event structs, polled state, callback registry
+//   ClaudeEvents      — event structs, polled state, callback registry,
+//                       session latching
+//   ToolFormat        — tool → short label + one-line detail for display
+//   AsciiCopy         — UTF-8 → ASCII string helpers (shared)
 //   Display           — OLED renderer (fully state-driven; no imperative API)
 //   Motion            — servo abstraction + non-blocking keyframe patterns
 //   AttractScheduler  — triggers attention waggles when Claude is idle

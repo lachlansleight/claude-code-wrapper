@@ -165,12 +165,32 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
     const p = body.payload as { session_id?: string; assistant_text?: unknown[] } | null
     const textCount = Array.isArray(p?.assistant_text) ? p!.assistant_text!.length : 0
     logger.info(`hook_event type=${body.hook_type} session=${p?.session_id ?? '?'} text=${textCount}`)
+
+    // Session tracking: every hook touches a session. SessionEnd retires it;
+    // everything else bumps lastEventAt (and registers it if new).
+    let listChanged = false
+    if (typeof p?.session_id === 'string' && p.session_id) {
+      if (body.hook_type === 'SessionEnd') {
+        listChanged = state.endSession(p.session_id)
+      } else {
+        listChanged = state.trackSession(p.session_id)
+      }
+    }
+
     bus.emit('hook_event', {
       hook_type: body.hook_type,
       payload: body.payload ?? null,
       ts: Date.now(),
     })
+    if (listChanged) {
+      bus.emit('sessions_changed', { session_ids: state.listActiveSessions() })
+    }
     res.writeHead(204).end()
+    return
+  }
+
+  if (method === 'GET' && path === '/api/sessions') {
+    json(res, 200, { session_ids: state.listActiveSessions() })
     return
   }
 

@@ -73,6 +73,10 @@ struct ClaudeState {
   bool working;                      // between UserPromptSubmit and Stop
 
   char session_id[40];               // last seen session id
+  // Session this robot has latched onto. While set, hook events from other
+  // sessions are ignored. Empty string means "not latched — latch onto the
+  // next session we learn about."
+  char latched_session[40];
   char last_hook[24];                // last hook_type
   char last_tool[32];                // last tool_name from hooks
 

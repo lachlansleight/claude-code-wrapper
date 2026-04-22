@@ -33,12 +33,14 @@ export function attachWebSocketServer(config: BridgeConfig): (httpServer: HttpSe
   bus.on('permission_resolved', (p) => broadcast({ type: 'permission_resolved', ...p }))
   bus.on('session_event', (p) => broadcast({ type: 'session_event', ...p }))
   bus.on('hook_event', (p) => broadcast({ type: 'hook_event', ...p }))
+  bus.on('sessions_changed', (p) => broadcast({ type: 'active_sessions', ...p }))
 
   wss.on('connection', (ws, req: IncomingMessage) => {
     const client_id = `ws_${randomUUID()}`
     clients.set(ws, { client_id })
     logger.info(`ws connected client_id=${client_id} total=${clients.size}`)
     ws.send(JSON.stringify({ type: 'hello', client_id, server_version: VERSION }))
+    ws.send(JSON.stringify({ type: 'active_sessions', session_ids: state.listActiveSessions() }))
 
     ws.on('message', (raw) => {
       let msg: unknown
@@ -70,6 +72,11 @@ export function attachWebSocketServer(config: BridgeConfig): (httpServer: HttpSe
 
     if (m.type === 'ping') {
       ws.send(JSON.stringify({ type: 'pong' }))
+      return
+    }
+
+    if (m.type === 'request_sessions') {
+      ws.send(JSON.stringify({ type: 'active_sessions', session_ids: state.listActiveSessions() }))
       return
     }
 

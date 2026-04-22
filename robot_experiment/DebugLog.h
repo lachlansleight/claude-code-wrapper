@@ -6,9 +6,6 @@
 
 #include <Arduino.h>
 
-#define OLED_WIDTH 128
-#define OLED_HEIGHT 32
-
 #define LOG_INFO(fmt, ...)  Serial.printf("[INFO ] " fmt "\n", ##__VA_ARGS__)
 #define LOG_WARN(fmt, ...)  Serial.printf("[WARN ] " fmt "\n", ##__VA_ARGS__)
 #define LOG_ERR(fmt, ...)   Serial.printf("[ERROR] " fmt "\n", ##__VA_ARGS__)

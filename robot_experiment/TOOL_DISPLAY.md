@@ -3,8 +3,8 @@
 This document lists every Claude Code tool the firmware may see during a
 `PreToolUse` / `PostToolUse` hook, along with the fields available in
 `tool_input` and what the OLED currently shows for each. Edit the **Shown**
-column, then update `ClaudeEvents.cpp::formatToolDetail()` and the label
-table in `Display.cpp::toolLabel()` to match.
+column, then update `ToolFormat.cpp` — both `label()` and `detail()` live
+there.
 
 Label budget: ~21 chars total on the body row, of which the label takes 3–6
 and the detail the remainder.
@@ -40,12 +40,18 @@ produces something more informative.
 
 ## How to customize
 
-1. **Pick new labels** by editing the `toolLabel()` table in
-   `Display.cpp`. Stick to ≤6 upper-case chars so the detail has room.
-2. **Pick new detail formatting** by editing `formatToolDetail()` in
-   `ClaudeEvents.cpp`. You have the full `tool_input` blob as a
-   `JsonVariantConst` — read any fields you like.
+Everything lives in `ToolFormat.cpp`:
+
+1. **Pick new labels** by editing `ToolFormat::label()`. Stick to ≤6
+   upper-case chars so the detail has room.
+2. **Pick new detail formatting** by editing `ToolFormat::detail()`. You
+   have the full `tool_input` blob as a `JsonVariantConst` — read any
+   fields you like, then write up to `cap` ASCII chars into `out`.
 3. If a tool isn't handled, the detail is empty and only the label shows.
+
+Use `AsciiCopy::copy()` / `AsciiCopy::basename()` for any string that
+originates from Claude — they fold UTF-8 punctuation to ASCII the OLED
+font can render.
 
 ## Hook payload reference
 

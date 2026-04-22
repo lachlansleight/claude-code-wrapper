@@ -1,14 +1,14 @@
 #pragma once
 
-// Fires attention-getting motion whenever Claude becomes idle (i.e. finishes
-// its turn and is waiting on the user). Schedule:
+// Fires attention-getting motion when Claude becomes idle (i.e. finishes its
+// turn and is waiting on the user). Current schedule lives in
+// AttractScheduler.cpp (`kSchedule`). As of writing it's a short two-waggle
+// burst — one at idle entry, one again 60 s later — intended to nudge without
+// becoming annoying. Extend the array (strictly ascending ms offsets) to add
+// more attempts.
 //
-//   t = 0     — immediate nudge
-//   t = 60s   — second nudge in case the first was missed
-//   t = 6min, 11min, ..., 31min — every 5 minutes through the 30-min window
-//
-// After the window, no further waggles until Claude works again. Starting a
-// new turn resets the schedule.
+// Idle entry is debounced by `kIdleGraceMs` so that mid-response Stop flaps
+// or brief gaps between tool calls don't trigger a phantom idle.
 
 namespace AttractScheduler {
 
