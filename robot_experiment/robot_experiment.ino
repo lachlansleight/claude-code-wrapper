@@ -4,6 +4,7 @@
 //
 // Module map:
 //   config.h          — wifi + bridge credentials (copy from config.example.h)
+//   Provisioning      — NVS-backed runtime config + AP-mode config portal
 //   WiFiManager       — connect & auto-reconnect
 //   BridgeClient      — WebSocket transport, JSON decode, send helpers
 //   ClaudeEvents      — event structs, polled state, callback registry
@@ -25,8 +26,11 @@
 #include "DebugLog.h"
 #include "Display.h"
 #include "Motion.h"
+#include "Provisioning.h"
 #include "WiFiManager.h"
 #include "config.h"
+
+static Provisioning::Config cfg;
 
 // ---- Example event handlers ------------------------------------------------
 //
@@ -56,18 +60,27 @@ void setup() {
   Motion::begin();
   AttractScheduler::begin();
 
-  WifiMgr::connect(WIFI_SSID, WIFI_PASSWORD);
+  const bool haveNvs = Provisioning::load(cfg);
+  const bool buttonHeld = Provisioning::shouldEnterPortal();
+  if (buttonHeld || !haveNvs) {
+    LOG_INFO("provisioning: entering portal (button=%d nvs=%d)",
+             buttonHeld, haveNvs);
+    Provisioning::runPortal(cfg);  // blocks; reboots on save/forget
+  }
+
+  WifiMgr::connect(cfg.wifi_ssid.c_str(), cfg.wifi_password.c_str());
   ClaudeEvents::setWifiConnected(true);
   Display::invalidate();
 
   ClaudeEvents::onHook(onHook);
   ClaudeEvents::onPermissionRequest(onPermissionRequest);
 
-  Bridge::begin(BRIDGE_HOST, BRIDGE_PORT, BRIDGE_TOKEN);
+  Bridge::begin(cfg.bridge_host.c_str(), cfg.bridge_port,
+                cfg.bridge_token.c_str());
 }
 
 void loop() {
-  WifiMgr::tick(WIFI_SSID, WIFI_PASSWORD);
+  WifiMgr::tick(cfg.wifi_ssid.c_str(), cfg.wifi_password.c_str());
   ClaudeEvents::setWifiConnected(WifiMgr::isConnected());
 
   Bridge::tick();

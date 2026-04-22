@@ -26,4 +26,8 @@ void begin();
 void invalidate();
 void tick();
 
+// One-shot screen for the provisioning portal. Bypasses the state-driven
+// renderer; the firmware's main loop is blocked while the portal runs.
+void drawPortalScreen(const char* ssid, const char* ip);
+
 }  // namespace Display

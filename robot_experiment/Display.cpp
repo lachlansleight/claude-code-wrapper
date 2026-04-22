@@ -244,6 +244,20 @@ void begin() {
 
 void invalidate() { dirty = true; }
 
+void drawPortalScreen(const char* ssid, const char* ip) {
+  oled.clearDisplay();
+  oled.setTextSize(1);
+  oled.setTextColor(SSD1306_WHITE);
+  oled.setCursor(0, 0);
+  oled.print(F("CONFIG MODE"));
+  oled.drawFastHLine(0, 9, OLED_WIDTH, SSD1306_WHITE);
+  oled.setCursor(0, kBodyY0);
+  oled.print(ssid);
+  oled.setCursor(0, kBodyY1);
+  oled.print(ip);
+  oled.display();
+}
+
 void tick() {
   const uint32_t now = millis();
   if (now - lastRedraw < kMinRedrawMs) return;
