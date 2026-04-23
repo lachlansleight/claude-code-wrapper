@@ -175,17 +175,28 @@ through this module before landing on the OLED.
   forces a repaint.
 
 ### `Motion`
-- Keyframe-based servo playback. Each `Pattern` is an array of
-  `{angle, dwellMs}` keyframes; `tick()` advances frames as their
-  dwells expire.
+- Keyframe-based servo playback for named patterns (`playWaggle`), plus
+  a dedicated software slew path for jogs and a sinusoidal thinking
+  oscillation. `tick()` priority each pass: active jog slew → pattern
+  playback → queued pattern → thinking oscillation.
 - `playWaggle()` starts the built-in attention pattern if nothing is
   playing, otherwise queues it (depth 1 — a second call while already
   queued replaces the first).
-- `playJog(offsetDeg)` darts to `90 + offset`, holds briefly, returns
-  to centre. Preempts any running pattern.
+- `playJog(offsetDeg)` slews to `90 + offset` over ~250 ms with
+  smoothstep easing and **holds there** until the next jog or pattern
+  preempts (no auto-return to centre). Successive jogs interpolate
+  from the last commanded angle (`commandedAngle`) so motion is
+  continuous. Preempts any running pattern.
 - `setThinkingMode(on)` toggles a continuous sinusoidal oscillation
-  (`±5°`, 2 s period). Runs only when no pattern is playing; patterns
-  preempt. Toggling off gently returns the servo to centre.
+  (`±5°`, 2 s period). Runs only when no pattern / jog is active.
+  **On enable**, the base angle eases from the current commanded
+  angle back to 90° over 1 s, and oscillation amplitude ramps in
+  over the same window via smoothstep — so transitions from a jog
+  position don't snap. Toggling off leaves the servo wherever it is;
+  the next jog picks up from there.
+- `commandedAngle` tracks the most recent value written to the servo.
+  Every code path that writes the servo goes through `writeAngle()`
+  to keep it in sync.
 - Adding a new motion pattern: define another `Keyframe[]` + `Pattern`
   constant and a thin `playX()` wrapper. Everything else reuses the
   scheduler.

@@ -1,27 +1,46 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Orientation for Claude Code sessions working on this repo. Read `README.md`
+for user-facing docs and `BUILD_BRIEF.md` for the original design spec (still
+authoritative on architecture and scope). This file calls out what's not
+obvious from those.
 
-## Status
+## Current state
 
-This repo currently contains only `BUILD_BRIEF.md` — the design spec for a project named **Claude Code Bridge** that has not yet been implemented. The brief is authoritative; read it before writing code. This file is a condensed reference so you don't have to re-read all 380 lines for every task.
+The bridge described in `BUILD_BRIEF.md` **is built and installed as a Claude
+Code plugin**. Do not re-implement it. Source lives in `plugin/src/` (TypeScript,
+Node 20+). Compiled output is `plugin/dist/` and is referenced by `plugin/.mcp.json`
+and `plugin/hooks/hooks.json` via `${CLAUDE_PLUGIN_ROOT}`.
 
-## What's being built
+Firmware for the ESP32 companion device lives in `robot_experiment/`. It has
+its own overview doc at `robot_experiment/FIRMWARE_OVERVIEW.md` — start there
+for any firmware task.
 
-A single Node.js process that is simultaneously:
-- An **MCP server** speaking the Claude Code **channel protocol** over stdio (spawned by Claude Code)
-- An **HTTP REST API** on `127.0.0.1:8787` for injecting messages, querying state, and approving/denying permissions
-- A **WebSocket hub** at `/ws` broadcasting live events to clients
+## Repo layout
 
-The core value is **remote permission relay**: external clients can approve/deny Claude Code tool-use prompts. The all-in-one architecture is a deliberate user choice — do NOT split it into a bridge-plugin + separate-server design.
+```
+plugin/              # installable plugin (Node + MCP + hooks)
+  src/               # TypeScript sources
+  dist/              # compiled output — rebuild with `npm run build` inside plugin/
+  hooks/hooks.json   # wires every Claude Code hook to the bridge
+  .mcp.json          # registers the bridge as an MCP server
+  .claude-plugin/plugin.json
+.claude-plugin/marketplace.json   # single-plugin marketplace manifest
+robot_experiment/    # ESP32 Arduino sketch — firmware for the companion device
+examples/            # curl recipes, browser WS client
+example_esp32_client/      # older Firebase-polling ESP32 sketch (legacy reference)
+example_esp32_ws_client/   # older raw-WS ESP32 sketch (legacy reference)
+BUILD_BRIEF.md       # original design spec
+README.md            # user-facing install + usage guide
+```
 
-## Canonical spec
+Note: `robot_v2/` may exist as an untracked directory. It is a user-created
+scratch copy of `robot_experiment/` — ignore unless the user specifically
+points at it.
 
-Before coding, read **https://code.claude.com/docs/en/channels-reference** end-to-end. The fakechat reference implementation (https://github.com/anthropics/claude-plugins-official/tree/main/external_plugins/fakechat) is the closest analog — study its source, but port `Bun.serve` to Node's builtin `http`.
+## Bridge (plugin/)
 
-## Architecture
-
-One process, EventEmitter-based bus wiring three I/O layers to a shared state store:
+Single Node process running three I/O layers on an EventEmitter bus:
 
 ```
   mcp.ts (stdio ↔ Claude Code)   http.ts (:8787/api)   ws.ts (:8787/ws)
@@ -31,22 +50,30 @@ One process, EventEmitter-based bus wiring three I/O layers to a shared state st
                                     state.ts
 ```
 
-Bus events: `inbound_message`, `outbound_reply`, `permission_request`, `permission_verdict`, `claude_message`, `session_meta`. Layer responsibilities and event consumers are spelled out in the brief — follow them.
+### Non-negotiable protocol constraints
 
-Planned layout: `src/{index,mcp,http,ws,bus,auth,state,types}.ts`, plus `plugin.json`, `.mcp.json`, `examples/{curl.md,ws-client.html}`.
+Easy to break; hard to debug once broken:
 
-## Non-negotiable protocol constraints
-
-These are easy to get wrong and break the channel:
-
-1. **Stdout is reserved for MCP JSON frames only.** No `console.log`, no stray prints — stray stdout disconnects the server. Redirect `console.log` → `console.error` at startup. All logging goes to stderr (or an optional file via `BRIDGE_LOG_FILE`).
-2. **Authenticate every client.** The `claude/channel/permission` capability means anyone who can send through the channel can approve tool use. Require a shared `BRIDGE_TOKEN` on all HTTP requests and WS upgrades. Reject WS with close code `4401`.
-3. **Permission `request_id` is 5 lowercase letters `[a-km-z]`** (skips `l`). The terminal dialog doesn't display it — the bridge is the only way clients learn the ID. Include it in every outbound permission event.
-4. **First verdict wins.** If the terminal user answers before a remote client, Claude Code silently drops the remote verdict. Surface `applied: false` honestly; don't retry.
-5. **`meta` keys must be identifiers** (letters, digits, underscores). Hyphens are silently dropped. Use `chat_id`, not `chat-id`. Each meta entry becomes a `<channel>` tag attribute in Claude's context.
-6. **Always include `chat_id` on inbound messages** and instruct Claude (via the `Server` `instructions` string) to echo it back when calling the `reply` tool.
+1. **Stdout is reserved for MCP JSON frames only.** No `console.log`, no stray
+   prints — stray stdout disconnects the channel. All logging goes to stderr
+   (or `BRIDGE_LOG_FILE`). `console.log` is redirected to `console.error` at
+   startup.
+2. **Authenticate every client.** `BRIDGE_TOKEN` is required on all HTTP
+   requests and WS upgrades. WS rejects with close code `4401`. If `BRIDGE_TOKEN`
+   is unset the bridge **refuses to start** — do not auto-generate a fallback.
+3. **Permission `request_id` is 5 lowercase letters `[a-km-z]`** (skips `l`).
+   The terminal dialog doesn't display it — the bridge is the only way remote
+   clients learn it.
+4. **First verdict wins.** If the terminal user answers before a remote client,
+   Claude Code silently drops the remote verdict. Surface `applied: false`
+   honestly; don't retry.
+5. **`meta` keys must be identifiers** (letters, digits, underscores). Hyphens
+   are silently dropped. Use `chat_id`, not `chat-id`.
+6. **Always include `chat_id` on inbound messages** and instruct Claude (via
+   the `Server` `instructions` string) to echo it back via the `reply` tool.
 
 Required `Server` capabilities:
+
 ```js
 capabilities: {
   experimental: { 'claude/channel': {}, 'claude/channel/permission': {} },
@@ -54,27 +81,78 @@ capabilities: {
 }
 ```
 
-## Stack and dependencies
+### Stack constraints
 
-- Node 20+, TypeScript, compiled (`build` + `start` scripts).
-- Dependencies: `@modelcontextprotocol/sdk`, `ws`, `zod`. **No Express/Fastify/Koa** — use builtin `http`. **No Bun APIs.** **No database** (in-memory `Map` only in v1).
+- Node 20+, TypeScript, compiled. `plugin/package.json` has `build` + `start`.
+- Dependencies: `@modelcontextprotocol/sdk`, `ws`, `zod`.
+- **No Express/Fastify/Koa** — builtin `http` only.
+- **No Bun APIs.**
+- **No database.** Chat log is in-memory `Map`; state is a single struct.
+  Optional Firebase sync is write-through only (see README).
 
-## Config (env vars)
+### Config
 
-- `BRIDGE_TOKEN` — required. If unset, generate a random one at startup and log it loudly to stderr. Never silent.
-- `BRIDGE_PORT` — default `8787`.
-- `BRIDGE_HOST` — default `127.0.0.1`. Do NOT default to `0.0.0.0`.
-- `BRIDGE_LOG_FILE` — optional stderr mirror.
+All env vars documented in `README.md`. Most relevant:
 
-## Scope boundaries (don't do these in v1)
+- `BRIDGE_TOKEN` — required, hard-fail if absent.
+- `BRIDGE_PORT` (default `8787`), `BRIDGE_HOST` (default `0.0.0.0` in
+  `plugin/.mcp.json` so the ESP32 can reach it; override to `127.0.0.1` for
+  localhost-only).
+- `BRIDGE_LOG_FILE`, `BRIDGE_DEBUG_FRAMES` — diagnostic.
+- `BRIDGE_DATABASE_URL` + `BRIDGE_AGENT_ID` — optional Firebase RTDB sync.
 
-- No bind to `0.0.0.0` by default, no per-client RBAC, no on-disk persistence, no verdict retries, no bundled web UI, no Express/Fastify, no Bun APIs.
-- Lifecycle events (`PreToolUse`, etc.) come from hooks, not channels — not this project's scope.
+### Rebuilding after bridge changes
 
-## End-to-end test recipe
+Claude Code pins plugins by commit hash. After editing `plugin/src/`:
 
-Once implemented, verify (from the brief's acceptance criteria):
-1. `/mcp` in Claude Code shows the bridge connected after launching with `claude --dangerously-load-development-channels server:bridge --channels server:bridge`.
-2. `curl -H "Authorization: Bearer $BRIDGE_TOKEN" -d '{"content":"hello"}' http://localhost:8787/api/messages` → Claude responds → reply arrives on a connected WS client.
-3. Trigger a tool (e.g. ask Claude to run `ls`) → `permission_request` event on WS with a 5-letter `request_id` → `POST /api/permissions/<id>` with `{"behavior":"allow"}` unblocks it. Same flow via WS `permission_verdict`.
-4. Two WS clients both receive broadcasts; bad token is rejected with 4401; killing a client doesn't crash the server.
+```
+cd plugin && npm run build
+```
+
+Then inside Claude Code:
+
+```
+/plugin marketplace remove claude-code-bridge-local
+/plugin marketplace add <absolute-path-with-forward-slashes>
+/reload-plugins
+```
+
+A Git-Bash-style path (`/c/...`) gets interpreted as a git remote and fails.
+
+## Firmware (robot_experiment/)
+
+See `robot_experiment/FIRMWARE_OVERVIEW.md` for the full tour. Quick map:
+
+- Arduino sketch (ESP32), non-blocking cooperative loop.
+- Modules are one namespace per file, polled-state primary, callbacks optional.
+- `ClaudeEvents` is the central state + dispatch module; everything else
+  reads `ClaudeEvents::state()`.
+- Display is fully state-driven — never call draw functions imperatively.
+- Libraries (install via Arduino Library Manager): WebSockets (Markus Sattler),
+  ArduinoJson v7+, Adafruit GFX, Adafruit SSD1306, ESP32Servo.
+- `config.h` is gitignored; copy `config.example.h` to create it.
+
+Key firmware invariants worth knowing before editing:
+
+- **`AmbientMotion` edge detection.** PreToolUse edges require `current_tool`
+  set AND `current_tool_end_ms == 0` AND (either prevTool was empty OR
+  prevEndMs was nonzero). Dropping any condition causes runaway motion —
+  hard-learned this session.
+- **`Motion::playJog`** slews to a new angle over ~250ms and holds there
+  (does not return to centre). Successive jogs interpolate from the last
+  commanded angle via `commandedAngle`.
+- **Thinking mode** eases the base angle back to centre over 1s on enable
+  and ramps oscillation amplitude over the same window, so transitions from
+  a jog position don't snap.
+
+## Working on this repo
+
+- When editing bridge code, remember the stdout rule: `console.log` anywhere
+  in `plugin/src/` is a latent protocol break.
+- When editing firmware, test behavior on-device if possible — type-checking
+  / compiling isn't enough for servo or display work. If no hardware is
+  available, say so explicitly rather than claiming a behavior change works.
+- There is no test suite. Verification is manual per the "Quick smoke test"
+  section of `README.md` and the end-to-end recipe in `BUILD_BRIEF.md`.
+- Don't bind bridge to `0.0.0.0` in code — that's an env-var choice the user
+  opts into. Defaults in code should stay localhost-safe.
