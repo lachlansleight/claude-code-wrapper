@@ -1,6 +1,6 @@
-// robot_experiment — ESP32 firmware that connects to the Claude Code bridge,
-// surfaces state on a 128x32 SSD1306 OLED, and exposes an event-like API for
-// the rest of the firmware to react to Claude Code activity.
+// robot_v2 — ESP32-S3 firmware that connects to the Claude Code bridge,
+// surfaces state on a 240x240 round GC9A01 TFT, and exposes an event-like
+// API for the rest of the firmware to react to Claude Code activity.
 //
 // Module map (see FIRMWARE_OVERVIEW.md for the full tour):
 //   config.h          — wifi + bridge credentials (copy from config.example.h)
@@ -11,7 +11,7 @@
 //                       session latching
 //   ToolFormat        — tool → short label + one-line detail for display
 //   AsciiCopy         — UTF-8 → ASCII string helpers (shared)
-//   Display           — OLED renderer (fully state-driven; no imperative API)
+//   Display           — TFT renderer (fully state-driven; no imperative API)
 //   Motion            — servo abstraction + non-blocking keyframe patterns
 //   AttractScheduler  — triggers attention waggles when Claude is idle
 //   AmbientMotion     — jogs servo on tool transitions + thinking-osc idle
@@ -20,9 +20,11 @@
 // Required Arduino libraries (install via Library Manager):
 //   WebSockets       by Markus Sattler
 //   ArduinoJson      by Benoit Blanchon (v7+)
-//   Adafruit GFX Library
-//   Adafruit SSD1306
+//   TFT_eSPI         by Bodmer (configure via robot_v2/User_Setup.h —
+//                    see that file's header for install steps)
 //   ESP32Servo       by Kevin Harrington
+//
+// Board: ESP32-S3 with Arduino-ESP32 core 3.x (DMA on S3 needs IDF ≥ 2.0.14).
 
 #include "AmbientMotion.h"
 #include "AttractScheduler.h"

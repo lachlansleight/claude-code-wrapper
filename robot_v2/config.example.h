@@ -20,11 +20,20 @@
 // When false, only decoded event summaries are logged.
 #define DEBUG_WS_VERBOSE  true
 
-// ---- OLED ------------------------------------------------------------------
-// 128x32 SSD1306 on the default ESP32 I2C bus (SDA=21, SCL=22).
-#define OLED_I2C_ADDR  0x3C
-#define OLED_WIDTH     128
-#define OLED_HEIGHT    32
+// ---- Display ---------------------------------------------------------------
+// 1.28" 240x240 round IPS, GC9A01 driver, SPI on ESP32-S3.
+//
+// IMPORTANT: TFT_eSPI reads its pin map from `User_Setup.h` at compile time,
+// not from this file. The values below are documentation only — if you
+// change them here you must also change them in `robot_v2/User_Setup.h`
+// (which you copy into the TFT_eSPI library folder). See the header of that
+// file for instructions.
+#define TFT_PIN_SCK    12
+#define TFT_PIN_MOSI   11
+#define TFT_PIN_DC     13
+#define TFT_PIN_CS     10
+#define TFT_PIN_RST    14
+#define TFT_PIN_BL      9
 
 // ---- Motion ----------------------------------------------------------------
 // Primary servo (SG92R or similar hobby servo). Must be a pin that supports
