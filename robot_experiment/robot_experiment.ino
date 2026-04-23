@@ -14,6 +14,7 @@
 //   Display           — OLED renderer (fully state-driven; no imperative API)
 //   Motion            — servo abstraction + non-blocking keyframe patterns
 //   AttractScheduler  — triggers attention waggles when Claude is idle
+//   AmbientMotion     — jogs servo on tool transitions + thinking-osc idle
 //   DebugLog          — LOG_* macros over Serial
 //
 // Required Arduino libraries (install via Library Manager):
@@ -23,6 +24,7 @@
 //   Adafruit SSD1306
 //   ESP32Servo       by Kevin Harrington
 
+#include "AmbientMotion.h"
 #include "AttractScheduler.h"
 #include "BridgeClient.h"
 #include "ClaudeEvents.h"
@@ -62,6 +64,7 @@ void setup() {
   Display::begin();
   Motion::begin();
   AttractScheduler::begin();
+  AmbientMotion::begin();
 
   const bool haveNvs = Provisioning::load(cfg);
   const bool buttonHeld = Provisioning::shouldEnterPortal();
@@ -94,6 +97,7 @@ void loop() {
   //   const auto& st = ClaudeEvents::state();
   //   if (st.working) {  /* blink an LED, hold a pose, etc. */ }
 
+  AmbientMotion::tick();
   AttractScheduler::tick();
   Motion::tick();
   Display::tick();

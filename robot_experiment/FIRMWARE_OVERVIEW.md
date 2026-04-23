@@ -63,8 +63,9 @@ driver) without touching existing code.
 | Tool display | `ToolFormat.{h,cpp}` | tool name → short label + `tool_input` → 1-line detail |
 | String utility | `AsciiCopy.{h,cpp}` | UTF-8 → ASCII transliteration (shared) |
 | Display | `Display.{h,cpp}` | 128×32 OLED renderer, fully state-driven |
-| Motion | `Motion.{h,cpp}` | servo attach + non-blocking keyframe playback |
+| Motion | `Motion.{h,cpp}` | servo attach + non-blocking keyframe playback + thinking oscillation |
 | Attention | `AttractScheduler.{h,cpp}` | fires waggles on idle entry per a ms-offset schedule |
+| Ambient | `AmbientMotion.{h,cpp}` | jogs servo on tool transitions + thinking-mode idle while working |
 | Logging | `DebugLog.h` | `LOG_INFO` / `LOG_WARN` / `LOG_ERR` / `LOG_WS` / `LOG_EVT` |
 
 ### Docs
@@ -180,9 +181,28 @@ through this module before landing on the OLED.
 - `playWaggle()` starts the built-in attention pattern if nothing is
   playing, otherwise queues it (depth 1 — a second call while already
   queued replaces the first).
+- `playJog(offsetDeg)` darts to `90 + offset`, holds briefly, returns
+  to centre. Preempts any running pattern.
+- `setThinkingMode(on)` toggles a continuous sinusoidal oscillation
+  (`±5°`, 2 s period). Runs only when no pattern is playing; patterns
+  preempt. Toggling off gently returns the servo to centre.
 - Adding a new motion pattern: define another `Keyframe[]` + `Pattern`
   constant and a thin `playX()` wrapper. Everything else reuses the
   scheduler.
+
+### `AmbientMotion`
+Polls `ClaudeEvents::state()` to drive `Motion` during active sessions.
+
+- **PreToolUse jogs.** Detects PreToolUse edges: `current_tool`
+  becomes non-empty, or `current_tool_end_ms` resets from nonzero → 0
+  while a tool stays set. Fires `Motion::playJog(mag × sign)` where
+  `mag` is a random 5–15° and `sign` alternates between `+` and `−`.
+- **Thinking oscillation.** When `working` is true and no jog has
+  fired for 1 s, enables `Motion::setThinkingMode(true)`. Cleared on
+  every jog (grace window restarts) and when `working` goes false.
+- **Polled, not callback-driven.** ClaudeEvents' hook callback has a
+  single slot; AmbientMotion observes state transitions instead so it
+  doesn't steal that slot from user code.
 
 ### `AttractScheduler`
 - State machine with four phases: `Boot`, `Working`, `IdleGrace`,
