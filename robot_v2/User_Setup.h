@@ -34,15 +34,13 @@
 // ---- Pins (ESP32-S3) -------------------------------------------------------
 // MISO unused — display is write-only from the MCU's side.
 #define TFT_MISO  -1
-#define TFT_MOSI  11
-#define TFT_SCLK  12
-#define TFT_DC    13
-#define TFT_CS    10
-#define TFT_RST   14
-// Backlight: PWM-driven from the firmware via LEDC. Wire to a normal GPIO,
-// not a strapping pin.
-#define TFT_BL     9
-#define TFT_BACKLIGHT_ON HIGH
+#define TFT_MOSI   9
+#define TFT_SCLK   7
+#define TFT_DC     4
+#define TFT_CS     2
+#define TFT_RST    1
+// This breakout has no BL pin — backlight is hardwired to VCC, no PWM
+// control. Display::setBrightness() is a no-op.
 
 // ---- Fonts -----------------------------------------------------------------
 // Built-in fonts compiled into TFT_eSPI. Keep the set small until we know

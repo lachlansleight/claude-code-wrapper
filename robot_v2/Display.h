@@ -1,43 +1,41 @@
 #pragma once
 
-// UI for the 240x240 round GC9A01 TFT (RGB565), driven via TFT_eSPI with a
-// full-screen sprite framebuffer pushed over DMA each frame.
+// Low-level display driver. Owns the TFT_eSPI instance and a full-screen
+// sprite framebuffer; exposes both so higher-level modules (Face, future
+// UI overlays) can draw into the sprite and push it via DMA.
 //
-// Layout (inside a 100px-radius safe circle = 20px chord padding from rim):
-//   y ~24-40   header — three 16x16 icons centred horizontally:
-//                wifi (white if connected, dim if not)
-//                bridge connection (cyan check / yellow cross)
-//                working spinner / idle blink dot
-//   y ~46      faint chord separator under the header
-//   y 60-220   body text — default font size 2, word-wrapped per-row to
-//              the chord width at that row's vertical centre, each line
-//              centred horizontally
+// Responsibilities:
+//   - init panel + backlight
+//   - allocate the 240x240x16bpp sprite in internal SRAM
+//   - boot splash + provisioning portal screen (one-shot renders)
+//   - DMA push of the sprite
 //
-// Body priority (same as the SSD1306 version):
-//   1. Pending permission: "ALLOW? TOOL detail"
-//   2. Working + current tool: "TOOL detail"
-//   3. Idle: last assistant summary
+// Not responsible for: deciding *what* to draw. That's Face.cpp / Personality.
 //
-// The display reads ClaudeEvents::state() and redraws itself. Nothing else
-// needs to call into Display except begin() / tick(). invalidate() forces
-// a redraw on the next tick (e.g. after a manual state poke).
-//
-// setBrightness() drives the backlight via LEDC PWM on TFT_BL. No-op if
-// TFT_BL isn't defined in User_Setup.h.
+// setBrightness() is a no-op when TFT_BL isn't defined in User_Setup.h (our
+// current breakout hardwires the backlight to VCC).
 
 #include <Arduino.h>
+
+class TFT_eSprite;   // forward decl — include <TFT_eSPI.h> in callers
 
 namespace Display {
 
 void begin();
-void invalidate();
-void tick();
-
-// 0-100. Defaults to 100 on boot. No auto-dim behaviour wired in yet.
 void setBrightness(uint8_t pct);
 
-// One-shot screen for the provisioning portal. Bypasses the state-driven
-// renderer; the firmware's main loop is blocked while the portal runs.
+// Sprite accessor. Face.cpp renders into this each frame.
+TFT_eSprite& sprite();
+
+// True if the sprite was successfully allocated. Callers should check
+// before rendering — on OOM we bail out of the tick loop rather than draw.
+bool ready();
+
+// DMA-push the sprite to the panel. Call after rendering one frame.
+void pushFrame();
+
+// One-shot portal screen. Bypasses the sprite framebuffer path — renders
+// directly to the panel — since the firmware blocks inside the portal loop.
 void drawPortalScreen(const char* ssid, const char* ip);
 
 }  // namespace Display

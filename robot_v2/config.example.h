@@ -28,12 +28,13 @@
 // change them here you must also change them in `robot_v2/User_Setup.h`
 // (which you copy into the TFT_eSPI library folder). See the header of that
 // file for instructions.
-#define TFT_PIN_SCK    12
-#define TFT_PIN_MOSI   11
-#define TFT_PIN_DC     13
-#define TFT_PIN_CS     10
-#define TFT_PIN_RST    14
-#define TFT_PIN_BL      9
+#define TFT_PIN_SCK     7
+#define TFT_PIN_MOSI    9
+#define TFT_PIN_DC      4
+#define TFT_PIN_CS      2
+#define TFT_PIN_RST     1
+// Some GC9A01 breakouts expose a BL pin for PWM backlight control; others
+// hardwire it to VCC. Define TFT_BL in User_Setup.h if you have one.
 
 // ---- Motion ----------------------------------------------------------------
 // Primary servo (SG92R or similar hobby servo). Must be a pin that supports
