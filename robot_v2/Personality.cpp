@@ -29,7 +29,12 @@ static const StateConfig kStates[kStateCount] = {
   /* READY    */ { "ready",        0,    60u * 1000,      IDLE     },
   /* WAKING   */ { "waking",    1000,    1000,            THINKING },  // protected
   /* SLEEP    */ { "sleep",        0,    0,               IDLE     },
+  /* BLOCKED  */ { "blocked",      0,    0,               IDLE     },  // held while pending_permission set
 };
+
+// State to return to when a pending permission resolves. Captured at the
+// moment we transition into BLOCKED so we can restore prior context.
+static State sPreBlockedState = THINKING;
 
 // How long to linger in a tool state after PostToolUse before falling back
 // to THINKING. Refreshed by any subsequent matching PreToolUse, so bursts
@@ -47,6 +52,10 @@ static uint32_t sEnteredMs  = 0;
 // state should auto-fall-back to THINKING. Only meaningful when the
 // current state is READING or WRITING.
 static uint32_t sToolLingerDeadlineMs = 0;
+
+// Where to land after the WAKING beat. Defaults to THINKING (the original
+// behaviour). SessionStart-from-SLEEP overrides this to READY.
+static State sPostWakeTarget = THINKING;
 
 // ---- Internals ------------------------------------------------------------
 
@@ -85,14 +94,29 @@ static State toolToState(const char* name) {
 // Route incoming activity. Pops SLEEP through WAKING first so the user
 // sees a 1s "oh! they're back" beat before any work state.
 static void routeToActive(State target) {
-  if (sCurrent == SLEEP) request(WAKING);
-  else                   request(target);
+  if (sCurrent == SLEEP) {
+    sPostWakeTarget = target;
+    request(WAKING);
+  } else {
+    request(target);
+  }
 }
 
 // ---- Hook handler ---------------------------------------------------------
 
 static void onHook(const ClaudeEvents::HookEvent& e) {
   LOG_EVT("hook %s tool=%s", e.hook_type, e.tool_name);
+
+  if (strcmp(e.hook_type, "SessionStart") == 0) {
+    // Greet the user based on what state we were already in:
+    //   SLEEP → wake up and land in READY (calmer "back at it" beat)
+    //   IDLE  → perk up to READY
+    //   READY → already up; a fresh session is exciting
+    if (sCurrent == SLEEP)      routeToActive(READY);
+    else if (sCurrent == IDLE)  request(READY);
+    else if (sCurrent == READY) request(EXCITED);
+    return;
+  }
 
   if (strcmp(e.hook_type, "UserPromptSubmit") == 0) {
     routeToActive(THINKING);
@@ -140,6 +164,22 @@ void tick() {
   const uint32_t elapsed = now - sEnteredMs;
   const StateConfig& cfg = kStates[sCurrent];
 
+  // Permission gating, polled (matches the AmbientMotion pattern — the
+  // ClaudeEvents permission callback is single-slot and already taken by
+  // robot_v2.ino, so we observe state instead of stealing it).
+  const bool pending = ClaudeEvents::state().pending_permission[0] != '\0';
+  if (pending && sCurrent != BLOCKED && sCurrent != WAKING) {
+    sPreBlockedState = sCurrent;
+    transitionTo(BLOCKED);
+    return;
+  }
+  if (!pending && sCurrent == BLOCKED) {
+    // Verdict landed — back to whatever we were doing. Claude will
+    // typically follow up with a hook event that overrides this anyway.
+    transitionTo(sPreBlockedState);
+    return;
+  }
+
   // A queued pre-empt becomes eligible once min_ms has passed.
   if (sHasQueued && elapsed >= cfg.min_ms) {
     transitionTo(sQueued);
@@ -154,9 +194,12 @@ void tick() {
     return;
   }
 
-  // max_ms timeout: decay to configured next state.
+  // max_ms timeout: decay to configured next state. WAKING uses the
+  // post-wake target set by routeToActive() instead of its static
+  // on_timeout, so the entry point decides where waking lands.
   if (cfg.max_ms > 0 && elapsed >= cfg.max_ms) {
-    transitionTo(cfg.on_timeout);
+    State next = (sCurrent == WAKING) ? sPostWakeTarget : cfg.on_timeout;
+    transitionTo(next);
   }
 }
 

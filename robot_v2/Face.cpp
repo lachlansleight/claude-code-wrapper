@@ -4,6 +4,7 @@
 #include <esp_random.h>
 #include <math.h>
 
+#include "ClaudeEvents.h"
 #include "Display.h"
 #include "Personality.h"
 
@@ -61,6 +62,7 @@ static const FaceParams kTargets[Personality::kStateCount] = {
   /* READY    */ {  0, 30, 30, 3,   0,  0,  0, 15,  0, 26,  -3,  0, 3,   0 },
   /* WAKING   */ { -2, 34, 34, 3,   0,  0,  0, 18,  0, 14,   0,  9, 3,   0 },
   /* SLEEP    */ {  8, 26,  2, 3,   0,  0,  0,  0,  0, 18,   0,  0, 3,   0 },
+  /* BLOCKED  */ {  2, 30, 22, 3,  -6,  0,  3, 15,  4, 26,   8,  0, 3,   0 },  // sad ∪ eyes, ∩ frown — tune on hw
 };
 
 // Tween duration between state targets.
@@ -357,6 +359,33 @@ static void drawMouth(TFT_eSprite& s, const FaceParams& p,
                cosA, sinA);
 }
 
+// Dot arc along the bottom of the display: one dot per PostToolUse since
+// the last UserPromptSubmit. A vague "ideas had this turn" indicator.
+//
+// Arc geometry: centered on the screen centre, sitting just inside the
+// bezel, spanning kProgressArcDeg total (centered at straight down). Dots
+// are evenly distributed across the span, with edge padding so a single
+// dot lands at the centre.
+static constexpr int16_t kProgressArcRadius = 108;
+static constexpr int16_t kProgressDotRadius = 3;
+static constexpr float   kProgressArcDeg    = 100.0f;
+static constexpr uint16_t kProgressMaxDots  = 12;  // beyond this, dots overlap
+
+static void drawProgressDots(TFT_eSprite& s, uint16_t count) {
+  if (count == 0) return;
+  if (count > kProgressMaxDots) count = kProgressMaxDots;
+
+  const float spanRad = kProgressArcDeg * (float)PI / 180.0f;
+  const float baseRad = (float)PI / 2.0f;  // straight down (screen y+)
+  for (uint16_t i = 0; i < count; ++i) {
+    const float t = ((float)i + 0.5f) / (float)count;        // 0..1 across span
+    const float a = baseRad + (t - 0.5f) * spanRad;
+    const int16_t x = kCx + (int16_t)(cosf(a) * kProgressArcRadius);
+    const int16_t y = kPivotY + (int16_t)(sinf(a) * kProgressArcRadius);
+    s.fillCircle(x, y, kProgressDotRadius, kFg);
+  }
+}
+
 static void renderFrame(TFT_eSprite& s, const FaceParams& p,
                         float blinkAmt, int16_t gdx, int16_t gdy) {
   s.fillSprite(kBg);
@@ -382,6 +411,7 @@ static void renderFrame(TFT_eSprite& s, const FaceParams& p,
   drawEye(s, p, lex, ley, blinkAmt, gdx, gdy, cosA, sinA);
   drawEye(s, p, rex, rey, blinkAmt, gdx, gdy, cosA, sinA);
   drawMouth(s, p, mx, my, cosA, sinA);
+  drawProgressDots(s, ClaudeEvents::state().tools_this_turn);
 }
 
 // ---- Lifecycle ---------------------------------------------------------

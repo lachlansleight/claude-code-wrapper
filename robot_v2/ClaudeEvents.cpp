@@ -110,6 +110,7 @@ static void handleHookUpdate(const HookEvent& evt) {
     g_state.current_tool[0] = '\0';
     g_state.tool_detail[0] = '\0';
     g_state.current_tool_end_ms = 0;
+    g_state.tools_this_turn = 0;
     // Wipe the previous turn's summary so the body doesn't display stale
     // text while Claude is thinking about the new prompt.
     g_state.last_summary[0] = '\0';
@@ -135,6 +136,7 @@ static void handleHookUpdate(const HookEvent& evt) {
   } else if (!strcmp(h, "PostToolUse")) {
     g_state.current_tool_end_ms = millis();
     if (g_state.current_tool_end_ms == 0) g_state.current_tool_end_ms = 1;
+    if (g_state.tools_this_turn < UINT16_MAX) g_state.tools_this_turn++;
   }
 
   captureAssistantSummary(evt.payload,

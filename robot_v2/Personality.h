@@ -30,6 +30,7 @@ enum State : uint8_t {
   READY,      // 60s after EXCITED, calmer smile + occasional waggle
   WAKING,
   SLEEP,
+  BLOCKED,    // awaiting permission verdict — sad-face cousin of EXCITED
   kStateCount,
 };
 

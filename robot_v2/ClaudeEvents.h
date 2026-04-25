@@ -90,6 +90,11 @@ struct ClaudeState {
   // Most recent assistant text snippet (captured from hook transcripts).
   char last_summary[128];
 
+  // PostToolUse count since the last UserPromptSubmit (or Stop). Resets at
+  // the start of each turn. Renderers can use this as a rough "ideas had so
+  // far" progress indicator.
+  uint16_t tools_this_turn;
+
   char pending_permission[8];        // request_id of unresolved permission, or ""
   char pending_tool[32];             // tool_name of unresolved permission
   char pending_detail[48];           // formatted per-tool metadata for permission
