@@ -4,6 +4,7 @@
 
 #include "ClaudeEvents.h"
 #include "DebugLog.h"
+#include "ToolFormat.h"
 
 namespace Personality {
 
@@ -75,20 +76,13 @@ static void transitionTo(State target) {
   sToolLingerDeadlineMs = 0;
 }
 
-// Tool-name → state. Unmapped tools (Bash, Task, MCP tools) fall through
-// to THINKING — we don't over-fragment the state set.
+// Tool-name → state via read/write capability classification.
+// Write-capable tools map to WRITING; everything else maps to READING.
 static State toolToState(const char* name) {
   if (!name || !*name) return THINKING;
-  if (strcmp(name, "Read")      == 0 ||
-      strcmp(name, "Grep")      == 0 ||
-      strcmp(name, "Glob")      == 0 ||
-      strcmp(name, "WebFetch")  == 0 ||
-      strcmp(name, "WebSearch") == 0) return READING;
-  if (strcmp(name, "Write")        == 0 ||
-      strcmp(name, "Edit")         == 0 ||
-      strcmp(name, "MultiEdit")    == 0 ||
-      strcmp(name, "NotebookEdit") == 0) return WRITING;
-  return THINKING;
+  return (ToolFormat::access(name) == ToolFormat::ACCESS_WRITE)
+             ? WRITING
+             : READING;
 }
 
 // Route incoming activity. Pops SLEEP through WAKING first so the user

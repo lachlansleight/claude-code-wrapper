@@ -20,7 +20,7 @@
 
 const BRIDGE_URL = process.env.BRIDGE_URL ?? 'http://127.0.0.1:8787'
 const BRIDGE_TOKEN = process.env.BRIDGE_TOKEN ?? "e0112a5b1f05"
-const SESSION_ID = process.env.SESSION_ID ?? `sim_${Math.random().toString(36).slice(2, 10)}`
+const SESSION_ID = process.env.SESSION_ID ?? `simulator`
 
 if (!BRIDGE_TOKEN) {
   console.error('BRIDGE_TOKEN env var is required')
@@ -83,17 +83,19 @@ async function main() {
   }
 
   console.log('-- thinking pause --')
-  await sleep(10000)
+  await sleep(5000)
 
   for (const file of WRITE_FILES) {
     await preTool('Write', { file_path: file })
     await sleep(400)
     await postTool('Write', { file_path: file })
     await sleep(500)
+    await postTool('Write', { file_path: file })
+    await sleep(500)
   }
 
   console.log('-- pre-stop pause --')
-  await sleep(5000)
+  await sleep(3000)
 
   await postHook('Notification', {
     message: 'All done — wrote two files based on five reads.',

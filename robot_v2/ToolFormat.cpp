@@ -6,6 +6,30 @@
 
 namespace ToolFormat {
 
+ToolAccess access(const char* tool) {
+  if (!tool || !*tool) return ACCESS_READ;
+
+  // Legacy Claude tool names.
+  if (!strcmp(tool, "Write") ||
+      !strcmp(tool, "Edit") ||
+      !strcmp(tool, "MultiEdit") ||
+      !strcmp(tool, "NotebookEdit") ||
+      !strcmp(tool, "TodoWrite") ||
+      !strcmp(tool, "Bash")) return ACCESS_WRITE;
+
+  // Cursor/Codex tool names.
+  if (!strcmp(tool, "ApplyPatch") ||
+      !strcmp(tool, "Delete") ||
+      !strcmp(tool, "EditNotebook") ||
+      !strcmp(tool, "GenerateImage") ||
+      !strcmp(tool, "Shell") ||
+      !strcmp(tool, "CallMcpTool") ||
+      !strcmp(tool, "Subagent")) return ACCESS_WRITE;
+
+  // Read-only tools and unknowns default to read.
+  return ACCESS_READ;
+}
+
 const char* label(const char* tool) {
   if (!tool || !*tool)               return "";
   if (!strcmp(tool, "Edit"))         return "EDIT";

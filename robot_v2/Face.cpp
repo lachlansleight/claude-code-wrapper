@@ -31,10 +31,14 @@ struct FaceParams {
   int16_t mouth_open_h;  // if >0, mouth renders as filled oval of this half-height
   int16_t mouth_thick;
   int16_t face_rot;      // whole-face rotation in degrees, +=clockwise on screen
+  int16_t ring_r;        // mood-ring target RGB (0..255)
+  int16_t ring_g;
+  int16_t ring_b;
 };
 
 // Baseline geometry
 static constexpr int16_t kCx      = 120;
+static constexpr int16_t kCy      = 120;
 static constexpr int16_t kEyeY    = 95;
 static constexpr int16_t kEyeLX   = 85;
 static constexpr int16_t kEyeRX   = 155;
@@ -43,6 +47,9 @@ static constexpr int16_t kPivotY  = 130;   // face rotation pivot (between eyes 
 
 static constexpr uint16_t kFg = TFT_WHITE;
 static constexpr uint16_t kBg = TFT_BLACK;
+static constexpr int16_t kMoodRingOuterR = 115;
+static constexpr int16_t kMoodRingInnerR = 109;
+static constexpr float   kMoodRingTauMs  = 200.0f;
 
 // Per-state target params. Row order must match Personality::State.
 //
@@ -53,16 +60,16 @@ static constexpr uint16_t kBg = TFT_BLACK;
 // face_rot represents the "default" tilt (sign = +1). The thinking
 // modulator periodically flips this sign so the tilt swaps direction.
 static const FaceParams kTargets[Personality::kStateCount] = {
-  /* IDLE     */ {  2, 30, 22, 3,   0,  0,  3, 15,  0, 30,   1,  0, 3,   0 },
-  /* THINKING */ {  0, 30, 30, 3,   0,  7, -9, 15,  0, 22,  -3,  0, 3, -10 },  // tilted left, lil smile
-  /* READING  */ {  0, 32, 16, 3,   0,  0,  0, 12,  0, 18,   0,  0, 3,   0 },
-  /* WRITING  */ {  0, 30, 26, 3,   0,  0,  8, 15,  0, 16,   0,  5, 3,   0 },
-  /* FINISHED */ { -4, 24,  4, 4,   7,  0,  0,  0,  0, 36,  -1, 14, 4,   0 },  // shallower ∩, D smile
-  /* EXCITED  */ {  0, 30, 30, 3,   0,  0,  0, 15,  0, 30,  -8,  0, 3,   0 },
-  /* READY    */ {  0, 30, 30, 3,   0,  0,  0, 15,  0, 26,  -3,  0, 3,   0 },
-  /* WAKING   */ { -2, 34, 34, 3,   0,  0,  0, 18,  0, 14,   0,  9, 3,   0 },
-  /* SLEEP    */ {  8, 26,  2, 3,   0,  0,  0,  0,  0, 18,   0,  0, 3,   0 },
-  /* BLOCKED  */ {  2, 30, 22, 3,  -6,  0,  3, 15,  4, 26,   8,  0, 3,   0 },  // sad ∪ eyes, ∩ frown — tune on hw
+  /* IDLE     */ {  2, 30, 22, 3,   0,  0,  3, 15,  0, 30,   1,  0, 3,   0,    0,   0,   0 },
+  /* THINKING */ {  0, 30, 30, 3,   0,  7, -9, 15,  0, 22,  -3,  0, 3, -10,   36,  56, 120 },  // dark blue
+  /* READING  */ {  0, 32, 16, 3,   0,  0,  0, 12,  0, 18,   0,  0, 3,   0,   78, 146, 210 },  // light blue (greener than thinking)
+  /* WRITING  */ {  0, 30, 26, 3,   0,  0, -8, 15,  0, 30,  -1, 14, 3,   0,  104, 118, 228 },  // light blue (more purple than thinking)
+  /* FINISHED */ { -4, 24,  4, 4,   7,  0,  0,  0,  0, 36,  -1, 14, 4,   0,  255, 228,  32 },  // bright yellow
+  /* EXCITED  */ {  0, 30, 30, 3,   0,  0,  0, 15,  0, 30,  -8,  0, 3,   0,   40, 255,  80 },  // bright green
+  /* READY    */ {  0, 30, 30, 3,   0,  0,  0, 15,  0, 26,  -3,  0, 3,   0,    0,   0,   0 },
+  /* WAKING   */ { -2, 34, 34, 3,   0,  0,  0, 18,  0, 14,   0,  9, 3,   0,    0,   0,   0 },
+  /* SLEEP    */ {  8, 26,  2, 3,   0,  0,  0,  0,  0, 18,   0,  0, 3,   0,    0,   0,   0 },
+  /* BLOCKED  */ {  2, 30, 22, 3,  -6,  0,  3, 15,  4, 26,   8,  0, 3,   0,  255,  48,  24 },  // red
 };
 
 // Tween duration between state targets.
@@ -91,6 +98,13 @@ static uint32_t sBlinkStartMs = 0;
 static bool     sBlinkActive  = false;
 
 static uint32_t sLastTickMs = 0;
+static float    sMoodR = 0.0f;
+static float    sMoodG = 0.0f;
+static float    sMoodB = 0.0f;
+static uint32_t sLastMoodMs = 0;
+static uint32_t sProgressFadeStartMs = 0;
+static uint16_t sFadeReadCount = 0;
+static uint16_t sFadeWriteCount = 0;
 
 // Thinking tilt-flip state.
 static float    sThinkFromSign     = 1.0f;
@@ -129,7 +143,16 @@ static FaceParams lerpParams(const FaceParams& a, const FaceParams& b, float t) 
   r.mouth_open_h = lerpi(a.mouth_open_h, b.mouth_open_h, t);
   r.mouth_thick  = lerpi(a.mouth_thick,  b.mouth_thick,  t);
   r.face_rot     = lerpi(a.face_rot,     b.face_rot,     t);
+  r.ring_r       = lerpi(a.ring_r,       b.ring_r,       t);
+  r.ring_g       = lerpi(a.ring_g,       b.ring_g,       t);
+  r.ring_b       = lerpi(a.ring_b,       b.ring_b,       t);
   return r;
+}
+
+static uint16_t rgb888To565(uint8_t r, uint8_t g, uint8_t b) {
+  return (uint16_t)(((uint16_t)(r & 0xF8) << 8) |
+                    ((uint16_t)(g & 0xFC) << 3) |
+                    ((uint16_t)(b & 0xF8) >> 3));
 }
 
 // ---- Modulators ---------------------------------------------------------
@@ -359,36 +382,57 @@ static void drawMouth(TFT_eSprite& s, const FaceParams& p,
                cosA, sinA);
 }
 
-// Dot arc along the bottom of the display: one dot per PostToolUse since
-// the last UserPromptSubmit. A vague "ideas had this turn" indicator.
-//
-// Arc geometry: centered on the screen centre, sitting just inside the
-// bezel, spanning kProgressArcDeg total (centered at straight down). Dots
-// are evenly distributed across the span, with edge padding so a single
-// dot lands at the centre.
-static constexpr int16_t kProgressArcRadius = 108;
+// Dot arcs for tool activity this turn:
+//   - read tools  -> top arc
+//   - write tools -> bottom arc
+// Counts are driven by PostToolUse tallies in ClaudeEvents.
+static constexpr int16_t kProgressArcRadius = 104;
 static constexpr int16_t kProgressDotRadius = 3;
 static constexpr float   kProgressArcDeg    = 100.0f;
 static constexpr uint16_t kProgressMaxDots  = 12;  // beyond this, dots overlap
+static constexpr uint32_t kProgressFadeMs   = 280;
 
-static void drawProgressDots(TFT_eSprite& s, uint16_t count) {
+static void drawProgressDots(TFT_eSprite& s, uint16_t count, float baseRad, float scale) {
   if (count == 0) return;
   if (count > kProgressMaxDots) count = kProgressMaxDots;
+  if (scale <= 0.01f) return;
+  int16_t r = (int16_t)((float)kProgressDotRadius * scale);
+  if (r < 1) r = 1;
+  const uint16_t dotColor = rgb888To565((uint8_t)sMoodR, (uint8_t)sMoodG, (uint8_t)sMoodB);
 
   const float spanRad = kProgressArcDeg * (float)PI / 180.0f;
-  const float baseRad = (float)PI / 2.0f;  // straight down (screen y+)
   for (uint16_t i = 0; i < count; ++i) {
     const float t = ((float)i + 0.5f) / (float)count;        // 0..1 across span
     const float a = baseRad + (t - 0.5f) * spanRad;
     const int16_t x = kCx + (int16_t)(cosf(a) * kProgressArcRadius);
-    const int16_t y = kPivotY + (int16_t)(sinf(a) * kProgressArcRadius);
-    s.fillCircle(x, y, kProgressDotRadius, kFg);
+    const int16_t y = kCy + (int16_t)(sinf(a) * kProgressArcRadius);
+    s.fillCircle(x, y, r, dotColor);
   }
+}
+
+static bool moodRingEnabledFor(Personality::State st) {
+  return st == Personality::THINKING ||
+         st == Personality::READING ||
+         st == Personality::WRITING ||
+         st == Personality::FINISHED ||
+         st == Personality::EXCITED ||
+         st == Personality::BLOCKED;
+}
+
+static void drawMoodRing(TFT_eSprite& s, uint8_t r, uint8_t g, uint8_t b) {
+  if (r == 0 && g == 0 && b == 0) return;
+  const uint16_t ringColor = rgb888To565(r, g, b);
+  s.fillCircle(kCx, kCy, kMoodRingOuterR, ringColor);
+  s.fillCircle(kCx, kCy, kMoodRingInnerR, kBg);
 }
 
 static void renderFrame(TFT_eSprite& s, const FaceParams& p,
                         float blinkAmt, int16_t gdx, int16_t gdy) {
   s.fillSprite(kBg);
+  const Personality::State st = Personality::current();
+  if (moodRingEnabledFor(st)) {
+    drawMoodRing(s, (uint8_t)sMoodR, (uint8_t)sMoodG, (uint8_t)sMoodB);
+  }
 
   const float angleRad = (float)p.face_rot * (float)PI / 180.0f;
   const float cosA = cosf(angleRad);
@@ -411,7 +455,21 @@ static void renderFrame(TFT_eSprite& s, const FaceParams& p,
   drawEye(s, p, lex, ley, blinkAmt, gdx, gdy, cosA, sinA);
   drawEye(s, p, rex, rey, blinkAmt, gdx, gdy, cosA, sinA);
   drawMouth(s, p, mx, my, cosA, sinA);
-  drawProgressDots(s, ClaudeEvents::state().tools_this_turn);
+  const ClaudeEvents::ClaudeState& cs = ClaudeEvents::state();
+  if (st == Personality::SLEEP) return;
+
+  if (sProgressFadeStartMs != 0) {
+    const uint32_t now = millis();
+    const float t = (float)(now - sProgressFadeStartMs) / (float)kProgressFadeMs;
+    const float scale = 1.0f - smoothstep01(t);
+    drawProgressDots(s, sFadeReadCount,   (float)PI / 2.0f, scale);
+    drawProgressDots(s, sFadeWriteCount, -(float)PI / 2.0f, scale);
+    return;
+  }
+
+  if (st == Personality::IDLE) return;
+  drawProgressDots(s, cs.read_tools_this_turn,   (float)PI / 2.0f, 1.0f);
+  drawProgressDots(s, cs.write_tools_this_turn, -(float)PI / 2.0f, 1.0f);
 }
 
 // ---- Lifecycle ---------------------------------------------------------
@@ -433,6 +491,14 @@ void begin() {
   sThinkToSign      = 1.0f;
   sThinkFlipStartMs = 0;
   sNextThinkFlipMs  = 0;
+
+  sMoodR = (float)kTargets[Personality::SLEEP].ring_r;
+  sMoodG = (float)kTargets[Personality::SLEEP].ring_g;
+  sMoodB = (float)kTargets[Personality::SLEEP].ring_b;
+  sLastMoodMs = millis();
+  sProgressFadeStartMs = 0;
+  sFadeReadCount = 0;
+  sFadeWriteCount = 0;
 }
 
 void invalidate() {
@@ -455,6 +521,16 @@ static void onStateChange(Personality::State newState, uint32_t now) {
   sFrom         = currentFrame;
   sTo           = kTargets[newState];
   sTweenStartMs = now;
+  if (sLastState == Personality::READY && newState == Personality::IDLE) {
+    const ClaudeEvents::ClaudeState& cs = ClaudeEvents::state();
+    sFadeReadCount = cs.read_tools_this_turn;
+    sFadeWriteCount = cs.write_tools_this_turn;
+    sProgressFadeStartMs = now;
+  } else {
+    sProgressFadeStartMs = 0;
+    sFadeReadCount = 0;
+    sFadeWriteCount = 0;
+  }
   sLastState    = newState;
 
   sBlinkActive = false;
@@ -481,6 +557,20 @@ void tick() {
   const float t  = (float)(now - sTweenStartMs) / (float)kTweenMs;
   const float te = smoothstep01(t);
   FaceParams p   = lerpParams(sFrom, sTo, te);
+
+  // Shared mood color easing with a 200ms time constant.
+  const uint32_t moodDt = (sLastMoodMs == 0) ? 0 : (now - sLastMoodMs);
+  const float alpha = 1.0f - expf(-(float)moodDt / kMoodRingTauMs);
+  const FaceParams& moodTarget = kTargets[s];
+  sMoodR += ((float)moodTarget.ring_r - sMoodR) * alpha;
+  sMoodG += ((float)moodTarget.ring_g - sMoodG) * alpha;
+  sMoodB += ((float)moodTarget.ring_b - sMoodB) * alpha;
+  sLastMoodMs = now;
+  if (sProgressFadeStartMs != 0 && now - sProgressFadeStartMs >= kProgressFadeMs) {
+    sProgressFadeStartMs = 0;
+    sFadeReadCount = 0;
+    sFadeWriteCount = 0;
+  }
 
   // Breath
   if (s != Personality::FINISHED && s != Personality::SLEEP) {

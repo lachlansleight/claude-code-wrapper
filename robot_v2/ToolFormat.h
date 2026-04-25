@@ -12,9 +12,18 @@
 
 namespace ToolFormat {
 
+enum ToolAccess : uint8_t {
+  ACCESS_READ = 0,
+  ACCESS_WRITE,
+};
+
 // Short upper-case label for a tool name, e.g. "Edit" → "EDIT".
 // Falls back to the raw tool name if unknown. Always non-null.
 const char* label(const char* tool);
+
+// Categorizes every tool into read-vs-write based on whether it can modify
+// on-disk data. Unknown tools default to read.
+ToolAccess access(const char* tool);
 
 // Writes a best-effort one-line description of a tool call into `out`,
 // sourced from the tool's `tool_input` blob. Empty string if unknown tool,
