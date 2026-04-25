@@ -26,7 +26,8 @@ enum State : uint8_t {
   READING,
   WRITING,
   FINISHED,
-  READY,
+  EXCITED,    // 10s post-finished, big smile + arm oscillation
+  READY,      // 60s after EXCITED, calmer smile + occasional waggle
   WAKING,
   SLEEP,
   kStateCount,

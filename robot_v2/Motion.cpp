@@ -49,13 +49,13 @@ static const Pattern* queued       = nullptr;  // depth-1
 // commanded angle to a new target over `kJogDurationMs`. The servo holds
 // at the target after the slew completes (no return to centre — we leave
 // it wherever it was until the next jog or thinking-mode takes over).
-static bool     jogActive      = false;
-static uint8_t  jogStartAngle  = kCentre;
-static uint8_t  jogTargetAngle = kCentre;
-static uint32_t jogStartMs     = 0;
-static uint32_t lastJogWriteMs = 0;
-static constexpr uint32_t kJogDurationMs = 250;
-static constexpr uint32_t kJogWriteEvery = 20;   // ~50 Hz during slew
+static bool     jogActive       = false;
+static uint8_t  jogStartAngle   = kCentre;
+static uint8_t  jogTargetAngle  = kCentre;
+static uint32_t jogStartMs      = 0;
+static uint32_t lastJogWriteMs  = 0;
+static uint32_t jogDurationMs   = 250;            // set per-call by playJog()
+static constexpr uint32_t kJogWriteEvery = 20;    // ~50 Hz during slew
 
 // Thinking oscillation.
 static bool     thinkingMode     = false;
@@ -103,12 +103,12 @@ void tick() {
   if (jogActive) {
     const uint32_t now     = millis();
     const uint32_t elapsed = now - jogStartMs;
-    if (elapsed >= kJogDurationMs) {
+    if (elapsed >= jogDurationMs) {
       writeAngle(jogTargetAngle);
       jogActive = false;
     } else if (now - lastJogWriteMs >= kJogWriteEvery) {
       lastJogWriteMs = now;
-      const float t      = (float)elapsed / (float)kJogDurationMs;
+      const float t      = (float)elapsed / (float)jogDurationMs;
       const float eased  = t * t * (3.0f - 2.0f * t);       // smoothstep
       const int   delta  = (int)jogTargetAngle - (int)jogStartAngle;
       const int   angle  = (int)jogStartAngle + (int)((float)delta * eased);
@@ -170,7 +170,7 @@ void playWaggle() {
   else                        queued = &kWaggle;
 }
 
-void playJog(int8_t offsetDeg) {
+void playJog(int8_t offsetDeg, uint16_t durationMs) {
   if (!attached) return;
   int target = (int)kCentre + (int)offsetDeg;
   if (target < 0)   target = 0;
@@ -180,6 +180,7 @@ void playJog(int8_t offsetDeg) {
   jogTargetAngle = (uint8_t)target;
   jogStartMs     = millis();
   lastJogWriteMs = 0;
+  jogDurationMs  = durationMs > 0 ? durationMs : 1;
   jogActive      = true;
 
   // Jogs preempt pattern playback — they're timely tool-use reactions.

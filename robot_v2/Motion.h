@@ -16,12 +16,15 @@ void tick();
 // call while already queued replaces the first).
 void playWaggle();
 
-// Slew to `90 + offsetDeg` over ~250ms and hold there until the next jog
-// or pattern takes over. Preempts any currently playing pattern (jogs are
-// tool-use reactions — latency matters). `offsetDeg` is signed; ±5..±15
-// is the intended range. Successive jogs interpolate from the last
-// commanded angle, so motion is continuous rather than snapping home.
-void playJog(int8_t offsetDeg);
+// Slew to `90 + offsetDeg` over `durationMs` and hold there until the
+// next jog or pattern takes over. Preempts any currently playing pattern
+// (jogs are timely reactions — latency matters). `offsetDeg` is signed;
+// successive jogs interpolate from the last commanded angle, so motion
+// is continuous rather than snapping home. `durationMs` defaults to
+// 250 ms — short enough to feel responsive for tool-use jogs, but
+// callers wanting a slower drift (idle resting moves, sleep settle)
+// can pass something larger.
+void playJog(int8_t offsetDeg, uint16_t durationMs = 250);
 
 // When enabled AND no pattern is playing, the servo slowly oscillates
 // around 90° (±5°, 2 s period). On enable, the base angle eases from

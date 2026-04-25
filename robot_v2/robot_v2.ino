@@ -16,10 +16,11 @@
 //   Personality       — 8-state machine driven by bridge hooks
 //   Face              — renders personality state into the Display sprite
 //   Motion            — servo abstraction + non-blocking keyframe patterns
-//   AttractScheduler  — triggers attention waggles when Claude is idle
-//                       (to be folded into Personality's motion behaviours)
-//   AmbientMotion     — jogs servo on tool transitions + thinking-osc idle
-//                       (to be folded into Personality's motion behaviours)
+//   MotionBehaviors   — state-driven arm gestures; reads Personality
+//   AttractScheduler  — (legacy) idle attention waggles, replaced by
+//                       MotionBehaviors. File retained, no longer ticked.
+//   AmbientMotion     — (legacy) tool-edge jogs + thinking osc, replaced
+//                       by MotionBehaviors. File retained, no longer ticked.
 //   DebugLog          — LOG_* macros over Serial
 //
 // Required Arduino libraries (install via Library Manager):
@@ -31,14 +32,13 @@
 //
 // Board: ESP32-S3 with Arduino-ESP32 core 3.x (DMA on S3 needs IDF ≥ 2.0.14).
 
-#include "AmbientMotion.h"
-#include "AttractScheduler.h"
 #include "BridgeClient.h"
 #include "ClaudeEvents.h"
 #include "DebugLog.h"
 #include "Display.h"
 #include "Face.h"
 #include "Motion.h"
+#include "MotionBehaviors.h"
 #include "Personality.h"
 #include "Provisioning.h"
 #include "WiFiManager.h"
@@ -67,8 +67,7 @@ void setup() {
   Display::begin();
   Face::begin();
   Motion::begin();
-  AttractScheduler::begin();
-  AmbientMotion::begin();
+  MotionBehaviors::begin();
 
   const bool haveNvs = Provisioning::load(cfg);
   const bool buttonHeld = Provisioning::shouldEnterPortal();
@@ -95,10 +94,8 @@ void loop() {
 
   Bridge::tick();
 
-  AmbientMotion::tick();
-  AttractScheduler::tick();
-  Motion::tick();
-
   Personality::tick();
+  MotionBehaviors::tick();
+  Motion::tick();
   Face::tick();
 }

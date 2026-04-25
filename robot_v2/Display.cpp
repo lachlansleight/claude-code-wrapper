@@ -39,6 +39,10 @@ void pushFrame() {
   tft.startWrite();
   tft.dmaWait();
   tft.pushImageDMA(0, 0, kW, kH, (uint16_t*)fb.getPointer());
+  // Block until the transfer finishes so callers can safely mutate the
+  // sprite immediately after this returns. At 80 MHz SPI, 115 KB ≈ 12 ms;
+  // with our 33 ms tick budget we're well within headroom.
+  tft.dmaWait();
   tft.endWrite();
 }
 
