@@ -387,25 +387,35 @@ static void drawMouth(TFT_eSprite& s, const FaceParams& p,
 //   - write tools -> bottom arc
 // Counts are driven by PostToolUse tallies in ClaudeEvents.
 static constexpr int16_t kProgressArcRadius = 104;
-static constexpr int16_t kProgressDotRadius = 3;
-static constexpr float   kProgressArcDeg    = 100.0f;
-static constexpr uint16_t kProgressMaxDots  = 12;  // beyond this, dots overlap
+static constexpr int16_t kProgressDotRadiusMin = 5;
+static constexpr int16_t kProgressDotRadiusMax = 2;
+static constexpr float   kProgressArcDegMin    = 40.0f;
+static constexpr float   kProgressArcDegMax    = 170.0f;
+static constexpr uint16_t kProgressMaxDots  = 48;  // beyond this, dots overlap
 static constexpr uint32_t kProgressFadeMs   = 280;
 
 static void drawProgressDots(TFT_eSprite& s, uint16_t count, float baseRad, float scale) {
   if (count == 0) return;
   if (count > kProgressMaxDots) count = kProgressMaxDots;
   if (scale <= 0.01f) return;
-  int16_t r = (int16_t)((float)kProgressDotRadius * scale);
-  if (r < 1) r = 1;
   const uint16_t dotColor = rgb888To565((uint8_t)sMoodR, (uint8_t)sMoodG, (uint8_t)sMoodB);
 
-  const float spanRad = kProgressArcDeg * (float)PI / 180.0f;
+  float countT = (float)count / (float)kProgressMaxDots;
+  if(countT > 1.0f) countT = 1.0f;
   for (uint16_t i = 0; i < count; ++i) {
     const float t = ((float)i + 0.5f) / (float)count;        // 0..1 across span
+    float argDeg = kProgressArcDegMin + (kProgressArcDegMax - kProgressArcDegMin) * countT;
+    const float spanRad = argDeg * (float)PI / 180.0f;
     const float a = baseRad + (t - 0.5f) * spanRad;
-    const int16_t x = kCx + (int16_t)(cosf(a) * kProgressArcRadius);
-    const int16_t y = kCy + (int16_t)(sinf(a) * kProgressArcRadius);
+
+    float currentRadius = kProgressDotRadiusMin + (kProgressDotRadiusMax - kProgressDotRadiusMin) * countT;
+    int16_t r = (int16_t)(currentRadius * scale);
+    if (r < 1) r = 1;
+
+    float arcRadius = (int16_t)(106.0f - currentRadius);
+    const int16_t x = kCx + (int16_t)(cosf(a) * arcRadius);
+    const int16_t y = kCy + (int16_t)(sinf(a) * arcRadius);
+
     s.fillCircle(x, y, r, dotColor);
   }
 }
