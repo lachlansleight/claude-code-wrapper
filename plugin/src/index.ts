@@ -1,39 +1,17 @@
 #!/usr/bin/env node
-// CRITICAL: Stdio is the MCP transport. Anything written to stdout that isn't
-// an MCP JSON frame will disconnect the channel. Redirect stray writes to
-// stderr BEFORE importing anything that might log.
-import { appendFileSync } from 'node:fs'
-
-const _origStdoutWrite = process.stdout.write.bind(process.stdout)
-const _origStderrWrite = process.stderr.write.bind(process.stderr)
-
-// Optional: mirror every outgoing MCP frame to the log file for debugging.
-// Activated by BRIDGE_DEBUG_FRAMES=1.
-if (process.env.BRIDGE_DEBUG_FRAMES === '1' && process.env.BRIDGE_LOG_FILE) {
-  const debugFile = process.env.BRIDGE_LOG_FILE
-  process.stdout.write = ((chunk: unknown, ...rest: unknown[]): boolean => {
-    try {
-      const text = typeof chunk === 'string' ? chunk : Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk)
-      appendFileSync(debugFile, `[${new Date().toISOString()}] [bridge:stdout-frame] ${text}${text.endsWith('\n') ? '' : '\n'}`)
-    } catch {}
-    return _origStdoutWrite(chunk as Parameters<typeof _origStdoutWrite>[0], ...(rest as []))
-  }) as typeof process.stdout.write
-}
-
-console.log = (...args: unknown[]) => {
-  _origStderrWrite('[bridge:stdout-redirect] ' + args.map(String).join(' ') + '\n')
-}
-console.info = console.log
-console.debug = console.log
+// Agent-agnostic robot bridge. Standalone Node service. No MCP transport —
+// agent CLIs (Claude Code, Codex, Cursor, OpenCode) POST hook payloads to
+// /hooks/<agent>; clients subscribe over WebSocket to live events and the
+// derived personality state.
 
 import { configureLogger, logger } from './logger.js'
-import { startMcpServer } from './mcp.js'
 import { startHttpServer } from './http.js'
 import { attachWebSocketServer } from './ws.js'
 import { startFirebaseSync } from './firebase.js'
+import { startPersonality } from './personality.js'
 import type { BridgeConfig } from './types.js'
 
-const VERSION = '0.1.0'
+const VERSION = '0.2.0'
 
 function loadConfig(): BridgeConfig {
   const token = process.env.BRIDGE_TOKEN
@@ -42,7 +20,7 @@ function loadConfig(): BridgeConfig {
       '\n[bridge:fatal] BRIDGE_TOKEN is not set.\n' +
         '  Set it to a strong random string before launching the bridge, e.g.\n' +
         '    export BRIDGE_TOKEN="$(openssl rand -hex 32)"\n' +
-        '  Or set it in your .mcp.json env block. The bridge will not start without it.\n\n',
+        '  The bridge will not start without it.\n\n',
     )
     process.exit(1)
   }
@@ -60,13 +38,13 @@ function loadConfig(): BridgeConfig {
 async function main(): Promise<void> {
   const config = loadConfig()
   configureLogger({ logFile: config.logFile })
-  logger.info(`claude-code-bridge v${VERSION} starting`)
+  logger.info(`agent-bridge v${VERSION} starting`)
   logger.info(`host=${config.host} port=${config.port} log_file=${config.logFile ?? '(stderr only)'}`)
 
+  startPersonality()
   const attachUpgrade = attachWebSocketServer(config)
   startHttpServer(config, attachUpgrade)
   startFirebaseSync()
-  await startMcpServer(VERSION)
 
   process.on('SIGINT', () => {
     logger.info('SIGINT received, exiting')

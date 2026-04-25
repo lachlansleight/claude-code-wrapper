@@ -75,11 +75,13 @@ async function main() {
   })
   await sleep(8000)
 
-  for (const file of READ_FILES) {
-    await preTool('Read', { file_path: file })
-    await sleep(250)
-    await postTool('Read', { file_path: file })
-    await sleep(400)
+  for (let i = 0; i < 5; i++) {
+    for (const file of READ_FILES) {
+      await preTool('Read', { file_path: file })
+      await sleep(250)
+      await postTool('Read', { file_path: file })
+      await sleep(400)
+    }
   }
 
   console.log('-- thinking pause --')
@@ -96,6 +98,14 @@ async function main() {
 
   console.log('-- pre-stop pause --')
   await sleep(3000)
+
+  for (const file of READ_FILES) {
+    await preTool('Read', { file_path: file })
+    await sleep(250)
+    await postTool('Read', { file_path: file })
+    await sleep(400)
+  }
+  await sleep(1500)
 
   await postHook('Notification', {
     message: 'All done — wrote two files based on five reads.',

@@ -4,9 +4,11 @@ import { bus } from './bus.js'
 import { state } from './state.js'
 import { extractTokenFromHeaders, isValidToken } from './auth.js'
 import { logger } from './logger.js'
+import { getAdapter, listAdapterNames } from './adapters/index.js'
+import { handleHook, currentState, timeInStateMs } from './personality.js'
 import type { BridgeConfig } from './types.js'
 
-const VERSION = '0.1.0'
+const VERSION = '0.2.0'
 
 function json(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body)
@@ -47,6 +49,53 @@ function sanitizeMetaKeys(meta: Record<string, string>): Record<string, string> 
   return out
 }
 
+// Common path for both /hooks/:agent and the legacy /api/hook-event alias.
+// Returns {ok:true} or {ok:false, error}.
+function processAgentHook(agent: string, hook_type: string, payload: unknown): { ok: boolean; error?: string; listChanged: boolean } {
+  const adapter = getAdapter(agent)
+  if (!adapter) return { ok: false, error: `unknown_agent:${agent}`, listChanged: false }
+
+  // Session bookkeeping (works regardless of adapter).
+  const p = (payload ?? {}) as Record<string, unknown>
+  const session_id =
+    typeof p.session_id === 'string' ? p.session_id :
+    typeof p.sessionId === 'string' ? p.sessionId :
+    typeof p.conversation_id === 'string' ? p.conversation_id : undefined
+
+  let listChanged = false
+  if (session_id) {
+    const isEnd = /session[._]?end/i.test(hook_type) || hook_type === 'SessionEnd'
+    listChanged = isEnd ? state.endSession(session_id) : state.trackSession(session_id)
+  }
+
+  // Always broadcast the raw event for observability.
+  bus.emit('hook_event', { agent, hook_type, payload: payload ?? null, ts: Date.now() })
+
+  // Normalize and feed personality + permission state.
+  const normalized = adapter.normalize({ hook_type, payload })
+  if (normalized) {
+    if (normalized.kind === 'permission_request') {
+      const entry = state.addPendingPermission({
+        request_id: normalized.request_id,
+        tool_name: normalized.tool,
+        description: normalized.description ?? '',
+        input_preview: normalized.input_preview ?? '',
+      })
+      bus.emit('permission_request', entry)
+    } else if (normalized.kind === 'permission_resolved') {
+      state.resolvePendingPermission(normalized.request_id)
+      bus.emit('permission_resolved', {
+        request_id: normalized.request_id,
+        behavior: normalized.behavior,
+        by: 'remote',
+      })
+    }
+    handleHook(normalized)
+  }
+
+  return { ok: true, listChanged }
+}
+
 export function startHttpServer(
   config: BridgeConfig,
   attachUpgrade: (httpServer: HttpServer) => void,
@@ -75,13 +124,38 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
   const method = req.method ?? 'GET'
 
   if (method === 'GET' && path === '/api/health') {
-    json(res, 200, { ok: true, version: VERSION, uptime_seconds: state.uptimeSeconds() })
+    json(res, 200, {
+      ok: true,
+      version: VERSION,
+      uptime_seconds: state.uptimeSeconds(),
+      agents: listAdapterNames(),
+    })
     return
   }
 
   // All other endpoints require auth.
   if (!isValidToken(extractTokenFromHeaders(req), config.token)) {
     json(res, 401, { error: 'unauthorized' })
+    return
+  }
+
+  // /hooks/:agent — generic per-agent hook receiver.
+  if (method === 'POST' && path.startsWith('/hooks/')) {
+    const agent = decodeURIComponent(path.slice('/hooks/'.length))
+    const body = (await readJsonBody(req)) as { hook_type?: unknown; payload?: unknown }
+    if (typeof body.hook_type !== 'string' || body.hook_type.length === 0) {
+      json(res, 400, { error: 'hook_type_required' })
+      return
+    }
+    const result = processAgentHook(agent, body.hook_type, body.payload ?? null)
+    if (!result.ok) {
+      json(res, 400, { error: result.error })
+      return
+    }
+    if (result.listChanged) {
+      bus.emit('sessions_changed', { session_ids: state.listActiveSessions() })
+    }
+    res.writeHead(204).end()
     return
   }
 
@@ -117,6 +191,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
       chats: state.listChats(),
       pending_permissions: state.listPendingPermissions(),
       uptime_seconds: state.uptimeSeconds(),
+      personality: { state: currentState(), time_in_state_ms: timeInStateMs() },
     })
     return
   }
@@ -136,19 +211,19 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
     try {
       const upstream = await fetch(`${base}/agents/${encodeURIComponent(id)}.json`)
       const text = await upstream.text()
-      
-      const data = JSON.parse(text);
+
+      const data = JSON.parse(text)
       const trimData = {
         working: data.working,
-        lastMessage: { summary: data.lastMessage.summary },
+        lastMessage: { summary: data.lastMessage?.summary },
         starting: data.starting || false,
-      };
-      const payload = JSON.stringify(trimData);
+      }
+      const payload = JSON.stringify(trimData)
       res.writeHead(upstream.status, {
         'Content-Type': 'application/json; charset=utf-8',
         'Content-Length': Buffer.byteLength(payload),
-      });
-      res.end(payload);
+      })
+      res.end(payload)
     } catch (err) {
       logger.warn(`firebase proxy err=${String(err)}`)
       json(res, 502, { error: 'upstream_error' })
@@ -156,33 +231,15 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
     return
   }
 
+  // Legacy alias — Claude Code's hook-forward.js still POSTs here.
   if (method === 'POST' && path === '/api/hook-event') {
     const body = (await readJsonBody(req)) as { hook_type?: unknown; payload?: unknown }
     if (typeof body.hook_type !== 'string' || body.hook_type.length === 0) {
       json(res, 400, { error: 'hook_type_required' })
       return
     }
-    const p = body.payload as { session_id?: string; assistant_text?: unknown[] } | null
-    const textCount = Array.isArray(p?.assistant_text) ? p!.assistant_text!.length : 0
-    logger.info(`hook_event type=${body.hook_type} session=${p?.session_id ?? '?'} text=${textCount}`)
-
-    // Session tracking: every hook touches a session. SessionEnd retires it;
-    // everything else bumps lastEventAt (and registers it if new).
-    let listChanged = false
-    if (typeof p?.session_id === 'string' && p.session_id) {
-      if (body.hook_type === 'SessionEnd') {
-        listChanged = state.endSession(p.session_id)
-      } else {
-        listChanged = state.trackSession(p.session_id)
-      }
-    }
-
-    bus.emit('hook_event', {
-      hook_type: body.hook_type,
-      payload: body.payload ?? null,
-      ts: Date.now(),
-    })
-    if (listChanged) {
+    const result = processAgentHook('claude', body.hook_type, body.payload ?? null)
+    if (result.listChanged) {
       bus.emit('sessions_changed', { session_ids: state.listActiveSessions() })
     }
     res.writeHead(204).end()
@@ -201,9 +258,17 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
       json(res, 400, { error: 'behavior_must_be_allow_or_deny' })
       return
     }
+    // Without an MCP channel back to Claude Code, verdicts can't actually
+    // unblock the agent — they just resolve our local pending entry and
+    // notify clients. Surface this honestly via `applied: false` whenever
+    // we've stopped tracking the request.
     const wasPending = state.getPendingPermission(request_id) !== undefined
+    if (wasPending) {
+      state.resolvePendingPermission(request_id)
+      bus.emit('permission_resolved', { request_id, behavior: body.behavior, by: 'remote' })
+    }
     bus.emit('permission_verdict', { request_id, behavior: body.behavior, client_id: 'http' })
-    json(res, 200, { request_id, behavior: body.behavior, applied: wasPending })
+    json(res, 200, { request_id, behavior: body.behavior, applied: wasPending, note: 'verdict broadcast only; agent CLI still owns the prompt' })
     return
   }
 

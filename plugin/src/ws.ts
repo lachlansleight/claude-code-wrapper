@@ -5,9 +5,10 @@ import { bus } from './bus.js'
 import { state } from './state.js'
 import { extractTokenFromHeaders, extractTokenFromUrl, isValidToken } from './auth.js'
 import { logger } from './logger.js'
+import { currentState, timeInStateMs } from './personality.js'
 import type { BridgeConfig } from './types.js'
 
-const VERSION = '0.1.0'
+const VERSION = '0.2.0'
 const WS_PATH = '/ws'
 
 interface ClientInfo {
@@ -33,6 +34,7 @@ export function attachWebSocketServer(config: BridgeConfig): (httpServer: HttpSe
   bus.on('permission_resolved', (p) => broadcast({ type: 'permission_resolved', ...p }))
   bus.on('session_event', (p) => broadcast({ type: 'session_event', ...p }))
   bus.on('hook_event', (p) => broadcast({ type: 'hook_event', ...p }))
+  bus.on('state_event', (p) => broadcast({ type: 'state_event', ...p }))
   bus.on('sessions_changed', (p) => broadcast({ type: 'active_sessions', ...p }))
 
   wss.on('connection', (ws, req: IncomingMessage) => {
@@ -41,6 +43,12 @@ export function attachWebSocketServer(config: BridgeConfig): (httpServer: HttpSe
     logger.info(`ws connected client_id=${client_id} total=${clients.size}`)
     ws.send(JSON.stringify({ type: 'hello', client_id, server_version: VERSION }))
     ws.send(JSON.stringify({ type: 'active_sessions', session_ids: state.listActiveSessions() }))
+    ws.send(JSON.stringify({
+      type: 'state_event',
+      state: currentState(),
+      prev: currentState(),
+      ts: Date.now() - timeInStateMs(),
+    }))
 
     ws.on('message', (raw) => {
       let msg: unknown

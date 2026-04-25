@@ -5,6 +5,7 @@ import type {
   PendingPermission,
   PermissionVerdictPayload,
 } from './types.js'
+import type { PersonalityState } from './adapters/types.js'
 
 export interface BusEvents {
   inbound_message: (payload: InboundMessagePayload) => void
@@ -13,7 +14,8 @@ export interface BusEvents {
   permission_verdict: (payload: PermissionVerdictPayload) => void
   permission_resolved: (payload: { request_id: string; behavior: 'allow' | 'deny'; by: 'remote' }) => void
   session_event: (payload: { event: 'connected' | 'disconnected' }) => void
-  hook_event: (payload: { hook_type: string; payload: unknown; ts: number }) => void
+  hook_event: (payload: { agent: string; hook_type: string; payload: unknown; ts: number }) => void
+  state_event: (payload: { state: PersonalityState; prev: PersonalityState; ts: number }) => void
   sessions_changed: (payload: { session_ids: string[] }) => void
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "claude-code-bridge",
   "version": "0.1.0",
-  "description": "Remote HTTP/WebSocket bridge for Claude Code — inject messages, stream events, approve tool-use prompts from external clients.",
+  "description": "Forwards Claude Code lifecycle hooks to a separately-running agent-bridge HTTP server (also receives Codex/Cursor/OpenCode hooks).",
   "author": {
     "name": "Lachlan Sleight",
     "email": "lachlan@liquid.city"

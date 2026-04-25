@@ -1,158 +1,131 @@
 # CLAUDE.md
 
 Orientation for Claude Code sessions working on this repo. Read `README.md`
-for user-facing docs and `BUILD_BRIEF.md` for the original design spec (still
-authoritative on architecture and scope). This file calls out what's not
-obvious from those.
+for the full picture. This file calls out what's not obvious.
 
-## Current state
+## Current shape
 
-The bridge described in `BUILD_BRIEF.md` **is built and installed as a Claude
-Code plugin**. Do not re-implement it. Source lives in `plugin/src/` (TypeScript,
-Node 20+). Compiled output is `plugin/dist/` and is referenced by `plugin/.mcp.json`
-and `plugin/hooks/hooks.json` via `${CLAUDE_PLUGIN_ROOT}`.
+This used to be a Claude-Code-only MCP/channel plugin. It is now a
+**standalone agent-agnostic bridge**: a Node HTTP/WS service that ingests
+lifecycle hooks from any agentic CLI (Claude Code, Codex, Cursor,
+OpenCode), normalizes them into a shared event vocabulary, and broadcasts
+both the raw hook payloads and a derived high-level personality state
+over WebSocket.
 
-Firmware for the ESP32 companion device lives in `robot_experiment/`. It has
-its own overview doc at `robot_experiment/FIRMWARE_OVERVIEW.md` — start there
-for any firmware task.
+Source lives in `plugin/src/`. Compiled output is `plugin/dist/`. The
+Claude Code plugin in `plugin/` only registers hooks now — there is no
+MCP server, no `.mcp.json`, no `claude/channel` traffic. The bridge is
+started separately (`node plugin/dist/index.js`).
+
+`BUILD_BRIEF.md` is **historical**. It describes the original
+MCP/channel design that no longer exists. Don't rely on it for
+architecture; it stays for context only.
 
 ## Repo layout
 
 ```
-plugin/              # installable plugin (Node + MCP + hooks)
-  src/               # TypeScript sources
-  dist/              # compiled output — rebuild with `npm run build` inside plugin/
-  hooks/hooks.json   # wires every Claude Code hook to the bridge
-  .mcp.json          # registers the bridge as an MCP server
-  .claude-plugin/plugin.json
-.claude-plugin/marketplace.json   # single-plugin marketplace manifest
-robot_experiment/    # ESP32 Arduino sketch — firmware for the companion device
-examples/            # curl recipes, browser WS client
-example_esp32_client/      # older Firebase-polling ESP32 sketch (legacy reference)
-example_esp32_ws_client/   # older raw-WS ESP32 sketch (legacy reference)
-BUILD_BRIEF.md       # original design spec
-README.md            # user-facing install + usage guide
+plugin/
+  src/
+    index.ts                 # entry: HTTP + WS + Firebase + personality
+    http.ts                  # /hooks/:agent + /api/* surface
+    ws.ts                    # WS hub
+    bus.ts                   # in-process EventEmitter
+    state.ts                 # in-memory chat / permission / session store
+    personality.ts           # state machine (port of robot_v2/Personality.cpp)
+    adapters/
+      types.ts               # NormalizedHook + ToolAccess + PersonalityState
+      claude.ts, codex.ts, cursor.ts, opencode.ts
+      index.ts               # adapter registry
+    hook-forward.ts          # Claude-side stdin→HTTP forwarder
+    auth.ts, logger.ts, firebase.ts, types.ts
+  hooks/hooks.json           # Claude Code hook wiring
+  .claude-plugin/plugin.json # plugin manifest (hooks only — NO mcpServers)
+.claude-plugin/marketplace.json
+robot_experiment/, robot_v2/   # ESP32 firmware
+examples/                       # curl + browser WS client
 ```
 
-Note: `robot_v2/` may exist as an untracked directory. It is a user-created
-scratch copy of `robot_experiment/` — ignore unless the user specifically
-points at it.
+`robot_v2/` is the in-progress firmware successor to `robot_experiment/`.
+Both currently consume raw `hook_event` payloads; the new `state_event`
+is additive, no firmware change required.
 
-## Bridge (plugin/)
-
-Single Node process running three I/O layers on an EventEmitter bus:
+## Bridge architecture
 
 ```
-  mcp.ts (stdio ↔ Claude Code)   http.ts (:8787/api)   ws.ts (:8787/ws)
-              │                        │                     │
-              └────────────── bus.ts (EventEmitter) ──────────┘
-                                       │
-                                    state.ts
+   adapters/<name>.ts ── normalize ──► personality.ts
+                          │                   │
+                          └────► bus.ts ◄─────┘
+                                   │
+              ┌────────────────────┼────────────────────┐
+              ▼                    ▼                    ▼
+            ws.ts              firebase.ts            state.ts
+        (broadcast)          (mirror to RTDB)      (in-mem store)
 ```
 
-### Non-negotiable protocol constraints
+Two events of note on the bus:
 
-Easy to break; hard to debug once broken:
+- `hook_event` — `{ agent, hook_type, payload, ts }` — broadcast as-is.
+- `state_event` — `{ state, prev, ts }` — emitted by `personality.ts`
+  on every transition, plus on every new WS connection.
 
-1. **Stdout is reserved for MCP JSON frames only.** No `console.log`, no stray
-   prints — stray stdout disconnects the channel. All logging goes to stderr
-   (or `BRIDGE_LOG_FILE`). `console.log` is redirected to `console.error` at
-   startup.
-2. **Authenticate every client.** `BRIDGE_TOKEN` is required on all HTTP
-   requests and WS upgrades. WS rejects with close code `4401`. If `BRIDGE_TOKEN`
-   is unset the bridge **refuses to start** — do not auto-generate a fallback.
-3. **Permission `request_id` is 5 lowercase letters `[a-km-z]`** (skips `l`).
-   The terminal dialog doesn't display it — the bridge is the only way remote
-   clients learn it.
-4. **First verdict wins.** If the terminal user answers before a remote client,
-   Claude Code silently drops the remote verdict. Surface `applied: false`
-   honestly; don't retry.
-5. **`meta` keys must be identifiers** (letters, digits, underscores). Hyphens
-   are silently dropped. Use `chat_id`, not `chat-id`.
-6. **Always include `chat_id` on inbound messages** and instruct Claude (via
-   the `Server` `instructions` string) to echo it back via the `reply` tool.
+### Adapters
 
-Required `Server` capabilities:
+`getAdapter(name)` returns `null` for unknown agents. Each adapter
+exposes `normalize({ hook_type, payload }) → NormalizedHook | null`.
+Returning `null` means "I can't classify this; broadcast the raw event
+but don't drive personality."
 
-```js
-capabilities: {
-  experimental: { 'claude/channel': {}, 'claude/channel/permission': {} },
-  tools: {},
-}
-```
+When adding a new agent, copy `claude.ts` and remap. Tool read/write
+classification lives in `adapters/types.ts::toolAccess()` — keep it as
+the single source of truth (it's also mirrored in
+`robot_v2/ToolFormat.cpp::access()` on the firmware side; if the lists
+diverge the robot will mis-classify).
 
-### Stack constraints
+### Personality state machine
 
-- Node 20+, TypeScript, compiled. `plugin/package.json` has `build` + `start`.
-- Dependencies: `@modelcontextprotocol/sdk`, `ws`, `zod`.
-- **No Express/Fastify/Koa** — builtin `http` only.
-- **No Bun APIs.**
-- **No database.** Chat log is in-memory `Map`; state is a single struct.
-  Optional Firebase sync is write-through only (see README).
+Direct port of `robot_v2/Personality.cpp`. State graph + tunables live
+in `personality.ts::CONFIG`. A 100ms `setInterval` ticks for timeouts
+and queue flushes. The `unref()` keeps it from holding the process
+alive on its own.
 
-### Config
+`pendingPermission` is a polled overlay — set on `permission_request`,
+cleared on `permission_resolved`. While set, the state forces to
+`blocked` and remembers `preBlockedState` to restore on resolve.
 
-All env vars documented in `README.md`. Most relevant:
-
-- `BRIDGE_TOKEN` — required, hard-fail if absent.
-- `BRIDGE_PORT` (default `8787`), `BRIDGE_HOST` (default `0.0.0.0` in
-  `plugin/.mcp.json` so the ESP32 can reach it; override to `127.0.0.1` for
-  localhost-only).
-- `BRIDGE_LOG_FILE`, `BRIDGE_DEBUG_FRAMES` — diagnostic.
-- `BRIDGE_DATABASE_URL` + `BRIDGE_AGENT_ID` — optional Firebase RTDB sync.
-
-### Rebuilding after bridge changes
-
-Claude Code pins plugins by commit hash. After editing `plugin/src/`:
-
-```
-cd plugin && npm run build
-```
-
-Then inside Claude Code:
-
-```
-/plugin marketplace remove claude-code-bridge-local
-/plugin marketplace add <absolute-path-with-forward-slashes>
-/reload-plugins
-```
-
-A Git-Bash-style path (`/c/...`) gets interpreted as a git remote and fails.
-
-## Firmware (robot_experiment/)
-
-See `robot_experiment/FIRMWARE_OVERVIEW.md` for the full tour. Quick map:
-
-- Arduino sketch (ESP32), non-blocking cooperative loop.
-- Modules are one namespace per file, polled-state primary, callbacks optional.
-- `ClaudeEvents` is the central state + dispatch module; everything else
-  reads `ClaudeEvents::state()`.
-- Display is fully state-driven — never call draw functions imperatively.
-- Libraries (install via Arduino Library Manager): WebSockets (Markus Sattler),
-  ArduinoJson v7+, Adafruit GFX, Adafruit SSD1306, ESP32Servo.
-- `config.h` is gitignored; copy `config.example.h` to create it.
-
-Key firmware invariants worth knowing before editing:
-
-- **`AmbientMotion` edge detection.** PreToolUse edges require `current_tool`
-  set AND `current_tool_end_ms == 0` AND (either prevTool was empty OR
-  prevEndMs was nonzero). Dropping any condition causes runaway motion —
-  hard-learned this session.
-- **`Motion::playJog`** slews to a new angle over ~250ms and holds there
-  (does not return to centre). Successive jogs interpolate from the last
-  commanded angle via `commandedAngle`.
-- **Thinking mode** eases the base angle back to centre over 1s on enable
-  and ramps oscillation amplitude over the same window, so transitions from
-  a jog position don't snap.
+Permission verdict caveat: without an MCP channel back to Claude Code,
+`POST /api/permissions/:id` cannot actually approve/deny in the agent.
+It clears local state and broadcasts a resolve event for UI parity.
+The terminal user still has to answer the agent's own prompt.
 
 ## Working on this repo
 
-- When editing bridge code, remember the stdout rule: `console.log` anywhere
-  in `plugin/src/` is a latent protocol break.
-- When editing firmware, test behavior on-device if possible — type-checking
-  / compiling isn't enough for servo or display work. If no hardware is
-  available, say so explicitly rather than claiming a behavior change works.
-- There is no test suite. Verification is manual per the "Quick smoke test"
-  section of `README.md` and the end-to-end recipe in `BUILD_BRIEF.md`.
-- Don't bind bridge to `0.0.0.0` in code — that's an env-var choice the user
-  opts into. Defaults in code should stay localhost-safe.
+- Stdout is no longer special. The old `console.log` redirect is gone;
+  any logging goes through `logger.ts` (stderr + optional log file).
+- After editing the bridge: `cd plugin && npm run build`. The Claude
+  Code plugin marketplace pin is keyed by commit hash, so to pick up
+  changes inside Claude Code:
+  ```
+  /plugin marketplace remove claude-code-bridge-local
+  /plugin marketplace add C:/path/to/claude-code-wrapper
+  /reload-plugins
+  ```
+  Use a Windows-style absolute path with forward slashes — Git-Bash
+  paths (`/c/...`) get treated as git remotes and fail.
+- When editing firmware, test on-device. Type-checking / Arduino
+  compile aren't enough for servo or display work. If no hardware is
+  available, say so explicitly.
+- There is no test suite. Verify via the smoke test in `README.md`.
+
+## Firmware quick-map
+
+See `robot_experiment/FIRMWARE_OVERVIEW.md` (and `robot_v2/`) for the
+full tour. Key invariants worth knowing:
+
+- **`AmbientMotion` edge detection.** PreToolUse edges require
+  `current_tool` set AND `current_tool_end_ms == 0` AND (either prevTool
+  was empty OR prevEndMs was nonzero). Dropping any condition causes
+  runaway motion.
+- **`Motion::playJog`** slews to a new angle over ~250ms and holds
+  there. Successive jogs interpolate from the last commanded angle.
+- **Thinking mode** eases the base angle back to centre over 1s on
+  enable and ramps oscillation amplitude over the same window.

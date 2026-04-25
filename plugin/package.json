@@ -1,29 +1,29 @@
 {
-  "name": "claude-code-bridge",
-  "version": "0.1.0",
-  "description": "Claude Code channel plugin that exposes an HTTP + WebSocket bridge for remote message injection and permission relay",
+  "name": "agent-bridge",
+  "version": "0.2.0",
+  "description": "Agent-agnostic HTTP/WebSocket bridge that normalizes lifecycle hooks from Claude Code, Codex, Cursor, and OpenCode into a shared personality-state stream.",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "claude-code-bridge": "dist/index.js"
+    "agent-bridge": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsc --watch"
+    "dev": "tsx watch --clear-screen=false src/index.ts",
+    "build:watch": "tsc --watch"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.4",
-    "ws": "^8.18.0",
-    "zod": "^3.23.8"
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
     "@types/ws": "^8.5.12",
+    "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   }
 }
