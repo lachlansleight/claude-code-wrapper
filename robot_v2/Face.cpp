@@ -87,6 +87,9 @@ static constexpr uint32_t kBlinkOpenMs  = 130;
 static constexpr uint32_t kThinkingFlipDurMs = 600;
 static constexpr uint32_t kThinkingFlipMinMs = 3000;
 static constexpr uint32_t kThinkingFlipMaxMs = 6000;
+// Executing head sway: continuous left-right rotation.
+static constexpr uint32_t kExecSwayPeriodMs   = 1000;
+static constexpr float    kExecSwayAmpDeg     = 10.0f;
 
 // ---- Running state --------------------------------------------------------
 
@@ -643,6 +646,9 @@ void tick() {
     const float sign = currentThinkSign(now);
     p.face_rot = (int16_t)((float)p.face_rot * sign);
     p.pupil_dx = (int16_t)((float)p.pupil_dx * sign);
+  } else if (s == Personality::EXECUTING || s == Personality::EXECUTING_LONG) {
+    const float phase = (float)(now % kExecSwayPeriodMs) / (float)kExecSwayPeriodMs;
+    p.face_rot = (int16_t)(sinf(phase * 2.0f * (float)PI) * kExecSwayAmpDeg);
   }
 
   // Blink scheduler
