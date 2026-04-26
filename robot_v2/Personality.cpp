@@ -24,6 +24,8 @@ static const StateConfig kStates[kStateCount] = {
   /* THINKING */ { "thinking",     0,    0,               IDLE     },
   /* READING  */ { "reading",      0,    0,               IDLE     },
   /* WRITING  */ { "writing",      0,    0,               IDLE     },
+  /* EXECUTING */ { "executing",   0,    5u * 1000,       EXECUTING_LONG },
+  /* EXEC_LONG */ { "executingLong", 0,  30u * 1000,      BLOCKED  },
   /* FINISHED */ { "finished",  1500,    1500,            EXCITED  },  // protected
   /* EXCITED  */ { "excited",      0,    10u * 1000,      READY    },
   /* READY    */ { "ready",        0,    60u * 1000,      IDLE     },
@@ -56,6 +58,10 @@ static uint32_t sToolLingerDeadlineMs = 0;
 // Where to land after the WAKING beat. Defaults to THINKING (the original
 // behaviour). SessionStart-from-SLEEP overrides this to READY.
 static State sPostWakeTarget = THINKING;
+// True when BLOCKED was entered because a permission request is pending.
+// In that case we auto-resume once permission clears; timeout-driven BLOCKED
+// should persist until another explicit event arrives.
+static bool sBlockedByPermission = false;
 
 // ---- Internals ------------------------------------------------------------
 
@@ -73,11 +79,15 @@ static void transitionTo(State target) {
   // Entering any non-tool state clears the linger. Entering a tool state
   // also clears it — PreToolUse will re-arm on PostToolUse.
   sToolLingerDeadlineMs = 0;
+  if (target != BLOCKED) sBlockedByPermission = false;
 }
 
 // Tool-name → state via read/write capability classification.
 // Write-capable tools map to WRITING; everything else maps to READING.
 static State activityToState(const AgentEvents::Event& e) {
+  if (e.activity_kind && !strcmp(e.activity_kind, "shell.exec")) {
+    return EXECUTING;
+  }
   if (AgentEvents::classifyActivity(e.activity_kind, e.activity_tool, e.activity_summary) ==
       AgentEvents::ACTIVITY_WRITE) {
     return WRITING;
@@ -129,7 +139,8 @@ static void onAgentEvent(const AgentEvents::Event& e) {
     // PreToolUse arrives before the deadline, that re-enter resets the
     // timer. If a different-type tool arrives, that pre-empts (which is
     // what we want — Claude has moved on).
-    if (sCurrent == READING || sCurrent == WRITING) {
+    if (sCurrent == READING || sCurrent == WRITING || sCurrent == EXECUTING ||
+        sCurrent == EXECUTING_LONG) {
       sToolLingerDeadlineMs = millis() + kToolLingerMs;
     }
     return;
@@ -150,6 +161,7 @@ void begin() {
   sHasQueued = false;
   sEnteredMs = millis();
   sToolLingerDeadlineMs = 0;
+  sBlockedByPermission = false;
   AgentEvents::onEvent(onAgentEvent);
   LOG_INFO("personality: start state=%s", kStates[sCurrent].name);
 }
@@ -165,12 +177,14 @@ void tick() {
   const bool pending = AgentEvents::state().pending_permission[0] != '\0';
   if (pending && sCurrent != BLOCKED && sCurrent != WAKING) {
     sPreBlockedState = sCurrent;
+    sBlockedByPermission = true;
     transitionTo(BLOCKED);
     return;
   }
-  if (!pending && sCurrent == BLOCKED) {
+  if (!pending && sCurrent == BLOCKED && sBlockedByPermission) {
     // Verdict landed — back to whatever we were doing. Claude will
     // typically follow up with a hook event that overrides this anyway.
+    sBlockedByPermission = false;
     transitionTo(sPreBlockedState);
     return;
   }
@@ -183,7 +197,8 @@ void tick() {
 
   // Tool-linger fallback: expired → back to THINKING.
   if (sToolLingerDeadlineMs != 0 && now >= sToolLingerDeadlineMs &&
-      (sCurrent == READING || sCurrent == WRITING)) {
+      (sCurrent == READING || sCurrent == WRITING ||
+       sCurrent == EXECUTING || sCurrent == EXECUTING_LONG)) {
     sToolLingerDeadlineMs = 0;
     transitionTo(THINKING);
     return;

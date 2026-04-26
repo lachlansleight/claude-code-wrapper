@@ -110,7 +110,11 @@ ActivityAccess classifyActivity(const char* activity_kind,
 }
 
 static bool latchFilter(const char* session_id, const char* event_kind) {
-  if (!session_id || !*session_id) return true;
+  if (!session_id || !*session_id) {
+    // Once latched, ignore unscoped events so stray adapter traffic
+    // (or malformed envelopes) can't overwrite the active session state.
+    return g_state.latched_session[0] == '\0';
+  }
 
   if (g_state.latched_session[0] == '\0') {
     AsciiCopy::copy(g_state.latched_session, sizeof(g_state.latched_session), session_id);

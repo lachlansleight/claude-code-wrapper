@@ -6,9 +6,10 @@
 // expressive modules (Face, Motion behaviours). Exposes one answer to
 // "what's the robot doing right now?" that renderers can dispatch on.
 //
-// Eight states as specced in PERSONALITY_PLAN.md:
+// High-level states:
 //
-//   idle / thinking / reading / writing / finished / ready / waking / sleep
+//   idle / thinking / reading / writing / executing / executingLong /
+//   finished / ready / waking / sleep / blocked
 //
 // v1 wires up idle + thinking only — the state table knows about the rest
 // so adding them later is one row + one event-handler clause.
@@ -25,6 +26,8 @@ enum State : uint8_t {
   THINKING,
   READING,
   WRITING,
+  EXECUTING,
+  EXECUTING_LONG,
   FINISHED,
   EXCITED,    // 10s post-finished, big smile + arm oscillation
   READY,      // 60s after EXCITED, calmer smile + occasional waggle

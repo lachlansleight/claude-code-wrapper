@@ -64,6 +64,8 @@ static const FaceParams kTargets[Personality::kStateCount] = {
   /* THINKING */ {  0, 30, 30, 3,   0,  7, -9, 15,  0, 22,  -3,  0, 3, -10,   36,  56, 120 },  // dark blue
   /* READING  */ {  0, 32, 16, 3,   0,  0,  0, 12,  0, 18,   0,  0, 3,   0,   78, 146, 210 },  // light blue (greener than thinking)
   /* WRITING  */ {  0, 30, 26, 3,   0,  0, -8, 15,  0, 30,  -1, 14, 3,   0,  104, 118, 228 },  // light blue (more purple than thinking)
+  /* EXECUTING */ {  0, 30, 10, 3,   0,  0, -4, 10,  0, 18,  -2,  0, 3,   0,  156,  64, 216 },  // purple, narrow eyes, small smile
+  /* EXEC_LONG */ {  0, 30, 14, 3,   0,  0, -3, 10,  0, 18,   0,  0, 3,   0,  190,  70, 220 },  // slightly redder purple, slightly less narrow eyes
   /* FINISHED */ { -4, 24,  4, 4,   7,  0,  0,  0,  0, 36,  -1, 14, 4,   0,  255, 228,  32 },  // bright yellow
   /* EXCITED  */ {  0, 30, 30, 3,   0,  0,  0, 15,  0, 30,  -8,  0, 3,   0,   40, 255,  80 },  // bright green
   /* READY    */ {  0, 30, 30, 3,   0,  0,  0, 15,  0, 26,  -3,  0, 3,   0,    0,   0,   0 },
@@ -189,6 +191,12 @@ static void gazeFor(Personality::State s, uint32_t now,
       gdx = (int16_t)(sinf(t * 2 * (float)PI) * 2);
       break;
     }
+    case Personality::EXECUTING:
+    case Personality::EXECUTING_LONG: {
+      const float t = (float)(now % 2500) / 2500.0f;
+      gdx = (int16_t)(sinf(t * 2 * (float)PI) * 1);
+      break;
+    }
     case Personality::EXCITED: {
       const float t = (float)(now % 3500) / 3500.0f;
       gdx = (int16_t)(sinf(t * 2 * (float)PI) * 3);
@@ -212,6 +220,9 @@ static uint32_t blinkPeriodMsFor(Personality::State s) {
     case Personality::THINKING: return (uint32_t)random(2000, 3500);
     case Personality::READING:  return (uint32_t)random(4000, 6000);
     case Personality::WRITING:  return (uint32_t)random(3500, 5500);
+    case Personality::EXECUTING:
+    case Personality::EXECUTING_LONG:
+      return (uint32_t)random(4500, 7000);
     case Personality::EXCITED:  return (uint32_t)random(2500, 4000);
     case Personality::READY:    return (uint32_t)random(3000, 4500);
     default:                    return 0;
@@ -365,9 +376,41 @@ static void drawHalfEllipse(TFT_eSprite& s, int16_t cx, int16_t cy,
   }
 }
 
+static void drawZigZagMouth(TFT_eSprite& s, int16_t cx, int16_t cy,
+                            int16_t width, int16_t amp, int16_t thick,
+                            float cosA, float sinA) {
+  if (width < 8) return;
+  if (thick < 1) thick = 1;
+  const int16_t half = width / 2;
+  const int16_t segments = 6;
+  const float step = (float)width / (float)segments;
+  float lx0 = (float)-half;
+  float ly0 = 0.0f;
+  for (int16_t i = 1; i <= segments; ++i) {
+    const float lx1 = -half + step * i;
+    const float ly1 = (i % 2 == 0) ? (float)-amp : (float)amp;
+    const float rx0 = lx0 * cosA - ly0 * sinA;
+    const float ry0 = lx0 * sinA + ly0 * cosA;
+    const float rx1 = lx1 * cosA - ly1 * sinA;
+    const float ry1 = lx1 * sinA + ly1 * cosA;
+    // Thickness via stacked screen-space offsets. For the small face angles
+    // we use, this visually matches other mouth line weights well.
+    for (int16_t o = -(thick / 2); o <= (thick / 2); ++o) {
+      s.drawLine(cx + (int16_t)rx0, cy + (int16_t)ry0 + o,
+                 cx + (int16_t)rx1, cy + (int16_t)ry1 + o, kFg);
+    }
+    lx0 = lx1;
+    ly0 = ly1;
+  }
+}
+
 static void drawMouth(TFT_eSprite& s, const FaceParams& p,
-                      int16_t cx, int16_t cy,
+                      int16_t cx, int16_t cy, Personality::State st,
                       float cosA, float sinA) {
+  if (st == Personality::EXECUTING_LONG) {
+    drawZigZagMouth(s, cx, cy, p.mouth_w * 2, 4, p.mouth_thick, cosA, sinA);
+    return;
+  }
   if (p.mouth_open_h > 0) {
     if (p.mouth_curve < 0) {
       // D-shape: open smile with flat top, curved bottom.
@@ -424,6 +467,8 @@ static bool moodRingEnabledFor(Personality::State st) {
   return st == Personality::THINKING ||
          st == Personality::READING ||
          st == Personality::WRITING ||
+         st == Personality::EXECUTING ||
+         st == Personality::EXECUTING_LONG ||
          st == Personality::FINISHED ||
          st == Personality::EXCITED ||
          st == Personality::BLOCKED;
@@ -464,7 +509,7 @@ static void renderFrame(TFT_eSprite& s, const FaceParams& p,
 
   drawEye(s, p, lex, ley, blinkAmt, gdx, gdy, cosA, sinA);
   drawEye(s, p, rex, rey, blinkAmt, gdx, gdy, cosA, sinA);
-  drawMouth(s, p, mx, my, cosA, sinA);
+  drawMouth(s, p, mx, my, st, cosA, sinA);
   const AgentEvents::AgentState& cs = AgentEvents::state();
   if (st == Personality::SLEEP) return;
 
@@ -477,7 +522,8 @@ static void renderFrame(TFT_eSprite& s, const FaceParams& p,
     return;
   }
 
-  if (st == Personality::IDLE) return;
+  if (st == Personality::IDLE || st == Personality::EXECUTING ||
+      st == Personality::EXECUTING_LONG) return;
   drawProgressDots(s, cs.read_tools_this_turn,   (float)PI / 2.0f, 1.0f);
   drawProgressDots(s, cs.write_tools_this_turn, -(float)PI / 2.0f, 1.0f);
 }
