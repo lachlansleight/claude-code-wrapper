@@ -32,11 +32,16 @@ static const StateConfig kStates[kStateCount] = {
   /* WAKING   */ { "waking",    1000,    1000,            THINKING },  // protected
   /* SLEEP    */ { "sleep",        0,    0,               IDLE     },
   /* BLOCKED  */ { "blocked",      0,    0,               IDLE     },  // held while pending_permission set
+  /* WANTS_ATT*/ { "wantsAttention", 1000, 1000,           IDLE     },  // protected; on_timeout overridden by sPreAttentionState
 };
 
 // State to return to when a pending permission resolves. Captured at the
 // moment we transition into BLOCKED so we can restore prior context.
 static State sPreBlockedState = THINKING;
+
+// State to return to after the WANTS_ATTENTION beat finishes. Captured at
+// the moment we transition into WANTS_ATTENTION.
+static State sPreAttentionState = IDLE;
 
 // How long to linger in a tool state after PostToolUse before falling back
 // to THINKING. Refreshed by any subsequent matching PreToolUse, so bursts
@@ -112,13 +117,14 @@ static void onAgentEvent(const AgentEvents::Event& e) {
   LOG_EVT("agent-event %s tool=%s", e.kind, e.activity_tool);
 
   if (strcmp(e.kind, "session.started") == 0) {
-    // Greet the user based on what state we were already in:
-    //   SLEEP → wake up and land in READY (calmer "back at it" beat)
-    //   IDLE  → perk up to READY
-    //   READY → already up; a fresh session is exciting
-    if (sCurrent == SLEEP)      routeToActive(READY);
-    else if (sCurrent == IDLE)  request(READY);
-    else if (sCurrent == READY) request(EXCITED);
+    // A new session is always exciting — route through WAKING if asleep
+    // so the user gets the "oh!" beat first.
+    routeToActive(EXCITED);
+    return;
+  }
+
+  if (strcmp(e.kind, "session.ended") == 0) {
+    request(SLEEP);
     return;
   }
 
@@ -149,6 +155,21 @@ static void onAgentEvent(const AgentEvents::Event& e) {
   if (strcmp(e.kind, "turn.ended") == 0) {
     // "Hooray! I'm done."
     request(FINISHED);
+    return;
+  }
+
+  if (strcmp(e.kind, "notification") == 0) {
+    // Only treat "Claude needs ..." (permission prompts) as attention-
+    // grabbing. The "Claude is waiting for your input" notification fires
+    // at the end of every turn and would otherwise startle constantly.
+    // Claude has no verdict hook so we can't be told when it's resolved,
+    // but a 1s beat is enough to flag it without getting stuck.
+    const char* text = e.event["text"] | "";
+    if (strncmp(text, "Claude needs", 12) != 0) return;
+    if (sCurrent == SLEEP || sCurrent == WAKING ||
+        sCurrent == WANTS_ATTENTION) return;
+    sPreAttentionState = sCurrent;
+    request(WANTS_ATTENTION);
     return;
   }
 }
@@ -204,11 +225,13 @@ void tick() {
     return;
   }
 
-  // max_ms timeout: decay to configured next state. WAKING uses the
-  // post-wake target set by routeToActive() instead of its static
-  // on_timeout, so the entry point decides where waking lands.
+  // max_ms timeout: decay to configured next state. WAKING and
+  // WANTS_ATTENTION override their static on_timeout — they restore the
+  // state captured on entry instead.
   if (cfg.max_ms > 0 && elapsed >= cfg.max_ms) {
-    State next = (sCurrent == WAKING) ? sPostWakeTarget : cfg.on_timeout;
+    State next = cfg.on_timeout;
+    if (sCurrent == WAKING)               next = sPostWakeTarget;
+    else if (sCurrent == WANTS_ATTENTION) next = sPreAttentionState;
     transitionTo(next);
   }
 }

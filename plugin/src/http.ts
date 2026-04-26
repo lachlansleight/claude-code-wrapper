@@ -92,7 +92,6 @@ function processAgentHook(agent: string, hook_type: string, payload: unknown): {
       session_id: item.session_id ?? session_id,
       turn_id: item.turn_id,
       event: item.event,
-      raw: { hook_type, payload: payload ?? null },
     }
 
     // Mirror permission events into state.

@@ -1,0 +1,67 @@
+---
+title: Personality state machine (robot_v2)
+---
+stateDiagram-v2
+    direction TB
+
+    [*] --> SLEEP : boot
+
+    %% ─── Event-triggered transitions (from bridge events) ───────────────
+    SLEEP --> WAKING : session.started / turn.started / activity.started
+    IDLE --> READY : session.started
+    READY --> EXCITED : session.started
+
+    IDLE --> THINKING : turn.started
+    READY --> THINKING : turn.started
+    EXCITED --> THINKING : turn.started
+    FINISHED --> THINKING : turn.started (after 1.5s)
+    THINKING --> THINKING : turn.started
+    BLOCKED --> THINKING : turn.started
+
+    THINKING --> READING : activity.started (read tool)
+    THINKING --> WRITING : activity.started (write tool)
+    THINKING --> EXECUTING : activity.started (shell.exec)
+    READING --> WRITING : activity.started (write tool)
+    WRITING --> READING : activity.started (read tool)
+    READING --> EXECUTING : activity.started (shell.exec)
+    WRITING --> EXECUTING : activity.started (shell.exec)
+    EXECUTING --> READING : activity.started (read tool)
+    EXECUTING --> WRITING : activity.started (write tool)
+
+    THINKING --> FINISHED : turn.ended
+    READING --> FINISHED : turn.ended
+    WRITING --> FINISHED : turn.ended
+    EXECUTING --> FINISHED : turn.ended
+    EXECUTING_LONG --> FINISHED : turn.ended
+
+    %% ─── Timeout / auto-decay (max_ms in StateConfig) ────────────────────
+    WAKING --> THINKING : 1s timeout (default)
+    WAKING --> READY : 1s timeout (if woke from SLEEP via session.started)
+    EXECUTING --> EXECUTING_LONG : 5s timeout
+    EXECUTING_LONG --> BLOCKED : 30s timeout
+    FINISHED --> EXCITED : 1.5s timeout (protected)
+    EXCITED --> READY : 10s timeout
+    READY --> IDLE : 60s timeout
+    IDLE --> SLEEP : 30min timeout
+
+    %% ─── Tool-linger fallback (1s after activity.finished/failed) ────────
+    READING --> THINKING : tool linger (1s)
+    WRITING --> THINKING : tool linger (1s)
+    EXECUTING --> THINKING : tool linger (1s)
+    EXECUTING_LONG --> THINKING : tool linger (1s)
+
+    %% ─── Permission gating (polled — pre-empts almost any state) ────────
+    state "any state\n(except WAKING / BLOCKED)" as ANY
+    ANY --> BLOCKED : pending_permission set
+    BLOCKED --> ANY : permission resolved\n(restores prior state)
+
+    note right of WAKING
+        WAKING is a 1s
+        protected beat —
+        can't be pre-empted.
+    end note
+
+    note right of FINISHED
+        FINISHED is protected
+        for 1.5s; pre-empts queue.
+    end note

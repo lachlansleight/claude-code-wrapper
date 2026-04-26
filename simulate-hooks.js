@@ -34,7 +34,7 @@ async function postHook(hook_type, payload = {}) {
     hook_type,
     payload: { session_id: SESSION_ID, ...payload },
   }
-  const res = await fetch(`${BRIDGE_URL}/api/hook-event`, {
+  const res = await fetch(`${BRIDGE_URL}/hooks/claude`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${BRIDGE_TOKEN}`,

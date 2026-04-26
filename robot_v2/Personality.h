@@ -34,6 +34,7 @@ enum State : uint8_t {
   WAKING,
   SLEEP,
   BLOCKED,    // awaiting permission verdict — sad-face cousin of EXCITED
+  WANTS_ATTENTION,  // 1s startle to flag the user; decays to whatever was current on entry
   kStateCount,
 };
 

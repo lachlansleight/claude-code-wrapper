@@ -14,10 +14,12 @@ classify it, emit an `AgentEvent`.
 
 ## Design principles
 
-1. **Lossless when possible.** Every event carries a `raw` field with
-   the original payload, so consumers that need vendor-specific detail
-   can reach for it. The classified fields are for consumers that
-   don't.
+1. **Classified, not raw.** The bridge emits a single normalized
+   `AgentEvent` shape across all vendors. Vendor-native payloads are
+   parsed and discarded — consumers (firmware, browser clients) only
+   ever see the classified form. This keeps WebSocket frames small
+   enough for resource-constrained consumers and enforces the
+   abstraction boundary.
 2. **Lifecycle, not state.** Events describe *things that happened*
    (prompt submitted, tool started, turn ended). They never describe
    *what state the agent is in* — that's the consumer's interpretation.
@@ -41,10 +43,6 @@ interface AgentEventEnvelope {
   session_id?: string         // agent's own session/conversation id, if known
   turn_id?: string            // per-turn id when the platform exposes one
   event: AgentEvent           // the classified event (below)
-  raw: {                      // unmodified vendor payload
-    hook_type: string         // vendor-native event/hook name
-    payload: unknown          // exact stdin JSON or plugin args
-  }
 }
 ```
 
@@ -189,7 +187,6 @@ interface ActivityFinishedEvent {
   activity: ActivityRef
   duration_ms?: number
   // When the platform exposes the tool result, a *truncated* preview.
-  // Consumers wanting the full output should use `raw.payload`.
   output_preview?: string
 }
 

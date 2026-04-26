@@ -37,14 +37,6 @@ function buildActivity(toolName: string, toolInput: unknown, toolUseId: string |
   }
 }
 
-// Parse the Notification payload's message field for the bridge's
-// 5-letter request_id token (lowercase a–z minus l). Mirrors the
-// behaviour of the previous adapter.
-function extractRequestId(message: string): string | null {
-  const m = message.match(/\b([a-km-z]{5})\b/i)
-  return m ? m[1].toLowerCase() : null
-}
-
 export const claudeParser: Parser = {
   name: 'claude',
   parse(input: ParserInput): ParsedEvent[] {
@@ -120,16 +112,15 @@ export const claudeParser: Parser = {
       }
 
       case 'Notification': {
+        // Intentionally no permission.requested here. Claude Code fires a
+        // Notification on permission prompts but has no hook for the user's
+        // verdict, so a pending_permission can never be cleared from this
+        // signal alone — leaving consumers stuck in BLOCKED. Instead, treat
+        // a long-running tool (EXECUTING → EXECUTING_LONG → BLOCKED via
+        // timeouts) as the blocked indicator, and PostToolUse arrival as
+        // the implicit "approved" signal.
         const message = asString(p.message)
-        const out: ParsedEvent[] = [{ event: { kind: 'notification', text: message || undefined }, session_id }]
-        const reqId = extractRequestId(message)
-        if (reqId) {
-          out.push({
-            event: { kind: 'permission.requested', request_id: reqId, description: message || undefined },
-            session_id,
-          })
-        }
-        return out
+        return [{ event: { kind: 'notification', text: message || undefined }, session_id }]
       }
 
       default:

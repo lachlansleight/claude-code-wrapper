@@ -173,11 +173,24 @@ static void handleAgentEvent(JsonDocument& doc) {
     g_state.read_tools_this_turn = 0;
     g_state.write_tools_this_turn = 0;
     g_state.last_summary[0] = '\0';
+    // A new turn starting means any prior pending permission is no longer
+    // blocking — clear it so Personality can leave BLOCKED. Bridge can't
+    // reliably relay permission.resolved, so this is our recovery path.
+    g_state.pending_permission[0] = '\0';
+    g_state.pending_tool[0] = '\0';
+    g_state.pending_detail[0] = '\0';
   } else if (!strcmp(kind, "turn.ended") || !strcmp(kind, "session.ended")) {
     g_state.working = false;
     g_state.current_tool[0] = '\0';
     g_state.tool_detail[0] = '\0';
     g_state.current_tool_end_ms = 0;
+    g_state.pending_permission[0] = '\0';
+    g_state.pending_tool[0] = '\0';
+    g_state.pending_detail[0] = '\0';
+    if (!strcmp(kind, "session.ended")) {
+      g_state.read_tools_this_turn = 0;
+      g_state.write_tools_this_turn = 0;
+    }
   } else if (!strcmp(kind, "activity.started")) {
     g_state.working = true;
     AsciiCopy::copy(g_state.current_tool, sizeof(g_state.current_tool), activity_tool);

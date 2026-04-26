@@ -31,10 +31,33 @@ struct FaceParams {
   int16_t mouth_open_h;  // if >0, mouth renders as filled oval of this half-height
   int16_t mouth_thick;
   int16_t face_rot;      // whole-face rotation in degrees, +=clockwise on screen
+  int16_t face_y;        // whole-face vertical offset; + = look down. Eyes and
+                         // mouth are pulled toward the pivot by abs(face_y)/2
+                         // for a foreshortening effect.
   int16_t ring_r;        // mood-ring target RGB (0..255)
   int16_t ring_g;
   int16_t ring_b;
 };
+
+// FaceParams quick tuning map (row values in kTargets follow this exact order):
+//   1) eye_dy       : eye vertical shift
+//   2) eye_rx       : eye half-width (bigger = wider eyes)
+//   3) eye_ry       : eye half-height (bigger = taller eyes)
+//   4) eye_stroke   : white eye ring thickness
+//   5) eye_curve    : curved-eye bend (+ = cap/peak, - = cup/smile)
+//   6) pupil_dx     : pupil horizontal offset (face-local)
+//   7) pupil_dy     : pupil vertical offset (face-local)
+//   8) pupil_r      : pupil radius (0 hides pupil)
+//   9) mouth_dy     : mouth vertical shift
+//  10) mouth_w      : mouth width
+//  11) mouth_curve  : mouth bend (+ = frown, - = smile)
+//  12) mouth_open_h : open-mouth half-height (0 = line/parabola mouth)
+//  13) mouth_thick  : line mouth thickness
+//  14) face_rot     : base face rotation in degrees
+//  15) face_y       : whole-face vertical offset (+ = look down, foreshortened)
+//  16) ring_r       : mood ring red
+//  17) ring_g       : mood ring green
+//  18) ring_b       : mood ring blue
 
 // Baseline geometry
 static constexpr int16_t kCx      = 120;
@@ -60,18 +83,19 @@ static constexpr float   kMoodRingTauMs  = 200.0f;
 // face_rot represents the "default" tilt (sign = +1). The thinking
 // modulator periodically flips this sign so the tilt swaps direction.
 static const FaceParams kTargets[Personality::kStateCount] = {
-  /* IDLE     */ {  2, 30, 22, 3,   0,  0,  3, 15,  0, 30,   1,  0, 3,   0,    0,   0,   0 },
-  /* THINKING */ {  0, 30, 30, 3,   0,  7, -9, 15,  0, 22,  -3,  0, 3, -10,   36,  56, 120 },  // dark blue
-  /* READING  */ {  0, 32, 16, 3,   0,  0,  0, 12,  0, 18,   0,  0, 3,   0,   78, 146, 210 },  // light blue (greener than thinking)
-  /* WRITING  */ {  0, 30, 26, 3,   0,  0, -8, 15,  0, 30,  -1, 14, 3,   0,  104, 118, 228 },  // light blue (more purple than thinking)
-  /* EXECUTING */ {  0, 30, 10, 3,   0,  0, -4, 10,  0, 18,  -2,  0, 3,   0,  156,  64, 216 },  // purple, narrow eyes, small smile
-  /* EXEC_LONG */ {  0, 30, 14, 3,   0,  0, -3, 10,  0, 18,   0,  0, 3,   0,  190,  70, 220 },  // slightly redder purple, slightly less narrow eyes
-  /* FINISHED */ { -4, 24,  4, 4,   7,  0,  0,  0,  0, 36,  -1, 14, 4,   0,  255, 228,  32 },  // bright yellow
-  /* EXCITED  */ {  0, 30, 30, 3,   0,  0,  0, 15,  0, 30,  -8,  0, 3,   0,   40, 255,  80 },  // bright green
-  /* READY    */ {  0, 30, 30, 3,   0,  0,  0, 15,  0, 26,  -3,  0, 3,   0,    0,   0,   0 },
-  /* WAKING   */ { -2, 34, 34, 3,   0,  0,  0, 18,  0, 14,   0,  9, 3,   0,    0,   0,   0 },
-  /* SLEEP    */ {  8, 26,  2, 3,   0,  0,  0,  0,  0, 18,   0,  0, 3,   0,    0,   0,   0 },
-  /* BLOCKED  */ {  2, 30, 22, 3,  -6,  0,  3, 15,  4, 26,   8,  0, 3,   0,  255,  48,  24 },  // red
+  /* IDLE     */ {  2, 30, 22, 3,   0,  0,  3, 15,  0, 30,   1,  0, 3,   0,  0,    0,   0,   0 },
+  /* THINKING */ {  0, 30, 30, 3,   0,  7, -9, 15,  0, 22,  -3,  0, 3, -10,  0,   36,  56, 120 },  // dark blue
+  /* READING  */ {  0, 28, 26, 3,   0,  0,  8, 12,  0, 18,  -3,  0, 3,   0, 12,   78, 146, 210 },  // looks down, round eyes, pupils low, slight smile
+  /* WRITING  */ {  0, 30, 26, 3,   0,  0, -8, 15,  0, 30,  -1, 14, 3,   0,  0,  104, 118, 228 },  // light blue (more purple than thinking)
+  /* EXECUTING */ {  0, 30, 16, 3,   0,  0, -4, 10,  0, 18,  -2,  0, 3,   0,  0,  156,  64, 216 },  // purple, narrow eyes, small smile
+  /* EXEC_LONG */ {  0, 30, 22, 3,   0,  0, -3, 10,  0, 18,   0,  0, 3,   0,  0,  190,  70, 220 },  // slightly redder purple, wider eyes
+  /* FINISHED */ { -4, 24,  4, 4,   7,  0,  0,  0,  0, 36,  -1, 14, 4,   0,  0,  255, 228,  32 },  // bright yellow
+  /* EXCITED  */ {  0, 30, 30, 3,   0,  0,  0, 15,  0, 30,  -8,  0, 3,   0,  0,   40, 255,  80 },  // bright green
+  /* READY    */ {  0, 30, 30, 3,   0,  0,  0, 15,  0, 26,  -3,  0, 3,   0,  0,    0,   0,   0 },
+  /* WAKING   */ { -2, 34, 34, 3,   0,  0,  0, 18,  0, 14,   0,  9, 3,   0,  0,    0,   0,   0 },
+  /* SLEEP    */ {  8, 26,  2, 3,   0,  0,  0,  0,  0, 18,   0,  0, 3,   0,  0,    0,   0,   0 },
+  /* BLOCKED  */ {  2, 30, 22, 3,  -6,  0,  3, 15,  4, 26,   8,  0, 3,   0,  0,  255,  48,  24 },  // red
+  /* WANTS_AT */ { -2, 34, 34, 3,   0,  0,  0, 18,  0, 14,   0,  9, 3,   0,  0,  255, 200,  40 },  // wide eyes + "oh!" mouth + amber ring
 };
 
 // Tween duration between state targets.
@@ -145,6 +169,7 @@ static FaceParams lerpParams(const FaceParams& a, const FaceParams& b, float t) 
   r.mouth_open_h = lerpi(a.mouth_open_h, b.mouth_open_h, t);
   r.mouth_thick  = lerpi(a.mouth_thick,  b.mouth_thick,  t);
   r.face_rot     = lerpi(a.face_rot,     b.face_rot,     t);
+  r.face_y       = lerpi(a.face_y,       b.face_y,       t);
   r.ring_r       = lerpi(a.ring_r,       b.ring_r,       t);
   r.ring_g       = lerpi(a.ring_g,       b.ring_g,       t);
   r.ring_b       = lerpi(a.ring_b,       b.ring_b,       t);
@@ -471,7 +496,8 @@ static bool moodRingEnabledFor(Personality::State st) {
          st == Personality::EXECUTING_LONG ||
          st == Personality::FINISHED ||
          st == Personality::EXCITED ||
-         st == Personality::BLOCKED;
+         st == Personality::BLOCKED ||
+         st == Personality::WANTS_ATTENTION;
 }
 
 static void drawMoodRing(TFT_eSprite& s, uint8_t r, uint8_t g, uint8_t b) {
@@ -493,19 +519,38 @@ static void renderFrame(TFT_eSprite& s, const FaceParams& p,
   const float cosA = cosf(angleRad);
   const float sinA = sinf(angleRad);
 
-  // Rotate face-local element positions around the pivot.
+  // Foreshortening: when face_y shifts the face up/down, eyes and mouth
+  // are pulled toward the pivot by abs(face_y)/2 in face-local Y, then the
+  // whole rotated face translates by face_y in display Y. The combination
+  // reads as the head tilting forward/back rather than just sliding.
+  const int16_t shorten = (int16_t)(abs(p.face_y) / 2);
+  const auto compress = [&](int16_t fy) -> int16_t {
+    const int16_t dy = (int16_t)(fy - kPivotY);
+    if (dy > 0) {
+      const int16_t nd = (int16_t)(dy - shorten);
+      return (int16_t)(kPivotY + (nd > 0 ? nd : 0));
+    }
+    if (dy < 0) {
+      const int16_t nd = (int16_t)(-dy - shorten);
+      return (int16_t)(kPivotY - (nd > 0 ? nd : 0));
+    }
+    return fy;
+  };
+
+  // Rotate face-local element positions around the pivot, then translate
+  // the whole face by face_y.
   const auto rotated = [&](int16_t fx, int16_t fy,
                            int16_t& outx, int16_t& outy) {
     const float dx = (float)(fx - kCx);
     const float dy = (float)(fy - kPivotY);
     outx = kCx     + (int16_t)(dx * cosA - dy * sinA);
-    outy = kPivotY + (int16_t)(dx * sinA + dy * cosA);
+    outy = kPivotY + (int16_t)(dx * sinA + dy * cosA) + p.face_y;
   };
 
   int16_t lex, ley, rex, rey, mx, my;
-  rotated(kEyeLX, kEyeY   + p.eye_dy,   lex, ley);
-  rotated(kEyeRX, kEyeY   + p.eye_dy,   rex, rey);
-  rotated(kCx,    kMouthY + p.mouth_dy, mx,  my);
+  rotated(kEyeLX, compress(kEyeY   + p.eye_dy),   lex, ley);
+  rotated(kEyeRX, compress(kEyeY   + p.eye_dy),   rex, rey);
+  rotated(kCx,    compress(kMouthY + p.mouth_dy), mx,  my);
 
   drawEye(s, p, lex, ley, blinkAmt, gdx, gdy, cosA, sinA);
   drawEye(s, p, rex, rey, blinkAmt, gdx, gdy, cosA, sinA);
@@ -522,8 +567,7 @@ static void renderFrame(TFT_eSprite& s, const FaceParams& p,
     return;
   }
 
-  if (st == Personality::IDLE || st == Personality::EXECUTING ||
-      st == Personality::EXECUTING_LONG) return;
+  if (st == Personality::IDLE) return;
   drawProgressDots(s, cs.read_tools_this_turn,   (float)PI / 2.0f, 1.0f);
   drawProgressDots(s, cs.write_tools_this_turn, -(float)PI / 2.0f, 1.0f);
 }

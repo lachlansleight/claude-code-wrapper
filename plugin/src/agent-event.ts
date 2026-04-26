@@ -172,10 +172,6 @@ export interface AgentEventEnvelope {
   session_id?: string
   turn_id?: string
   event: AgentEvent
-  raw: {
-    hook_type: string
-    payload: unknown
-  }
 }
 
 export interface ParserInput {

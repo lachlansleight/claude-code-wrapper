@@ -133,6 +133,14 @@ static void onEnter(Personality::State s) {
       sNextTimedMs = 0;
       break;
 
+    case Personality::WANTS_ATTENTION:
+      // "Hey!" — waggle to attract attention. State only lasts ~1s so a
+      // single waggle covers it; re-trigger on the same cadence as
+      // FINISHED in case timing varies.
+      Motion::playWaggle();
+      sNextTimedMs = now + kFinishedWagglePeriodMs;
+      break;
+
     case Personality::SLEEP:
       // Settle to centre and hold.
       Motion::playJog(0);
@@ -177,6 +185,7 @@ static void onDuring(Personality::State s) {
       break;
 
     case Personality::FINISHED:
+    case Personality::WANTS_ATTENTION:
       Motion::playWaggle();
       sNextTimedMs = now + kFinishedWagglePeriodMs;
       break;
