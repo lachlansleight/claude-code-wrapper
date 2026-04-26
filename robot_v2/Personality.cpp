@@ -4,7 +4,6 @@
 
 #include "AgentEvents.h"
 #include "DebugLog.h"
-#include "ToolFormat.h"
 
 namespace Personality {
 
@@ -78,21 +77,12 @@ static void transitionTo(State target) {
 
 // Tool-name → state via read/write capability classification.
 // Write-capable tools map to WRITING; everything else maps to READING.
-static State activityToState(const char* activityKind, const char* toolName) {
-  if (activityKind && *activityKind) {
-    if (!strcmp(activityKind, "file.write") ||
-        !strcmp(activityKind, "file.delete") ||
-        !strcmp(activityKind, "notebook.edit")) {
-      return WRITING;
-    }
-    return READING;
+static State activityToState(const AgentEvents::Event& e) {
+  if (AgentEvents::classifyActivity(e.activity_kind, e.activity_tool, e.activity_summary) ==
+      AgentEvents::ACTIVITY_WRITE) {
+    return WRITING;
   }
-  if (toolName && *toolName) {
-    return (ToolFormat::access(toolName) == ToolFormat::ACCESS_WRITE)
-               ? WRITING
-               : READING;
-  }
-  return THINKING;
+  return READING;
 }
 
 // Route incoming activity. Pops SLEEP through WAKING first so the user
@@ -128,7 +118,7 @@ static void onAgentEvent(const AgentEvents::Event& e) {
   }
 
   if (strcmp(e.kind, "activity.started") == 0) {
-    routeToActive(activityToState(e.activity_kind, e.activity_tool));
+    routeToActive(activityToState(e));
     sToolLingerDeadlineMs = 0;  // actively in-tool — not lingering
     return;
   }

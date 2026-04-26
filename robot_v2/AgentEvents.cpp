@@ -1,5 +1,6 @@
 #include "AgentEvents.h"
 
+#include <ctype.h>
 #include <string.h>
 
 #include "AsciiCopy.h"
@@ -40,11 +41,72 @@ void notifyConnection(bool connected) {
   if (h_conn) h_conn(connected);
 }
 
-static bool isWriteActivity(const char* kind) {
-  if (!kind || !*kind) return false;
-  return !strcmp(kind, "file.write") ||
-         !strcmp(kind, "file.delete") ||
-         !strcmp(kind, "notebook.edit");
+static bool startsWithWord(const char* text, const char* word) {
+  if (!text || !word) return false;
+  const size_t n = strlen(word);
+  if (strncmp(text, word, n) != 0) return false;
+  const char c = text[n];
+  return c == '\0' || c == ' ' || c == '\t';
+}
+
+static bool containsToken(const char* text, const char* token) {
+  return text && token && strstr(text, token) != nullptr;
+}
+
+static void lowerCopy(const char* in, char* out, size_t cap) {
+  if (!out || cap == 0) return;
+  out[0] = '\0';
+  if (!in || !*in) return;
+  size_t i = 0;
+  for (; i + 1 < cap && in[i]; ++i) {
+    out[i] = (char)tolower((unsigned char)in[i]);
+  }
+  out[i] = '\0';
+}
+
+static bool shellLikelyWrites(const char* summary) {
+  if (!summary || !*summary) return false;
+  char cmd[128];
+  lowerCopy(summary, cmd, sizeof(cmd));
+
+  // Redirections and tee generally write to files.
+  if (containsToken(cmd, ">>") ||
+      containsToken(cmd, " >") ||
+      startsWithWord(cmd, ">") ||
+      containsToken(cmd, "tee ")) return true;
+
+  // Explicit file-mutating command families.
+  const char* kWriteCmds[] = {
+    "touch", "mkdir", "rmdir", "rm", "mv", "cp", "install", "truncate",
+    "chmod", "chown", "ln", "dd", "sed -i", "perl -i",
+    "npm install", "npm uninstall", "pnpm add", "pnpm remove",
+    "yarn add", "yarn remove", "bun add", "bun remove",
+    "pip install", "pip uninstall",
+  };
+  for (size_t i = 0; i < sizeof(kWriteCmds) / sizeof(kWriteCmds[0]); ++i) {
+    if (startsWithWord(cmd, kWriteCmds[i])) return true;
+  }
+
+  return false;
+}
+
+ActivityAccess classifyActivity(const char* activity_kind,
+                                const char* activity_tool,
+                                const char* activity_summary) {
+  (void)activity_tool;
+  if (!activity_kind || !*activity_kind) return ACTIVITY_READ;
+
+  if (!strcmp(activity_kind, "file.write") ||
+      !strcmp(activity_kind, "file.delete") ||
+      !strcmp(activity_kind, "notebook.edit")) {
+    return ACTIVITY_WRITE;
+  }
+
+  if (!strcmp(activity_kind, "shell.exec")) {
+    return shellLikelyWrites(activity_summary) ? ACTIVITY_WRITE : ACTIVITY_READ;
+  }
+
+  return ACTIVITY_READ;
 }
 
 static bool latchFilter(const char* session_id, const char* event_kind) {
@@ -112,7 +174,7 @@ static void handleAgentEvent(JsonDocument& doc) {
   } else if (!strcmp(kind, "activity.finished") || !strcmp(kind, "activity.failed")) {
     g_state.current_tool_end_ms = millis();
     if (g_state.current_tool_end_ms == 0) g_state.current_tool_end_ms = 1;
-    if (isWriteActivity(activity_kind)) {
+    if (classifyActivity(activity_kind, activity_tool, activity_summary) == ACTIVITY_WRITE) {
       if (g_state.write_tools_this_turn < UINT16_MAX) g_state.write_tools_this_turn++;
     } else {
       if (g_state.read_tools_this_turn < UINT16_MAX) g_state.read_tools_this_turn++;

@@ -11,6 +11,11 @@
 
 namespace AgentEvents {
 
+enum ActivityAccess : uint8_t {
+  ACTIVITY_READ = 0,
+  ACTIVITY_WRITE,
+};
+
 struct PermissionRequestEvent {
   const char* request_id;
   const char* tool_name;
@@ -88,6 +93,12 @@ void onPermissionResolved(PermissionResolvedHandler h);
 void onEvent(EventHandler h);
 void onRaw(RawHandler h);
 void onConnectionChange(ConnectionHandler h);
+
+// Unified read/write classification used for both counters and behavior
+// routing. "Write" means likely to modify on-disk data.
+ActivityAccess classifyActivity(const char* activity_kind,
+                                const char* activity_tool,
+                                const char* activity_summary);
 
 void dispatch(JsonDocument& doc);
 void notifyConnection(bool connected);
