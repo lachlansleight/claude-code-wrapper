@@ -55,30 +55,6 @@ function processAgentHook(agent: string, hook_type: string, payload: unknown): {
   const parser = getParser(agent)
   if (!parser) return { ok: false, error: `unknown_agent:${agent}`, listChanged: false }
 
-  if(agent === "cursor") {
-    //strip newlines and re-parse payload JSON
-    const hookRaw =
-      typeof payload === 'object' &&
-      payload !== null &&
-      typeof (payload as { raw?: unknown }).raw === 'string'
-        ? (payload as { raw: string }).raw
-        : ''
-    /** Strip BOM and all JS line terminators (LF, CR, CRLF, U+2028/U+2029) that can land inside forwarded hook JSON. */
-    const hookJsonText = hookRaw.replace(/^\uFEFF/, '').replace(/\r\n|\r|\n|\u2028|\u2029/g, '')
-    payload = JSON.parse(hookJsonText);
-    hook_type = (payload as any).hook_event_name;
-
-    if(hook_type === "beforeTabFileRead") {
-      return { ok: false, error: `Disallowed tool use`, listChanged: false };
-    }
-  }
-
-  console.log("");
-  console.log("------------------------------------------");
-  console.log("PROCESS AGENT HOOK");
-  console.log(`Agent: ${agent} - Hook Type: ${hook_type}`);
-  console.log(`Payload`, payload);
-
   // Session bookkeeping (works regardless of parser).
   const p = (payload ?? {}) as Record<string, unknown>
   const session_id =
@@ -96,17 +72,16 @@ function processAgentHook(agent: string, hook_type: string, payload: unknown): {
   const parsed = parser.parse({ hook_type, payload })
   const now = Date.now()
 
-  console.log("");
-  console.log(`Parsed Events`, parsed);
-  console.log("------------------------------------------");
-
   //append payload into log file
   fs.appendFileSync('agent-hooks.log', "\n");
   fs.appendFileSync('agent-hooks.log', "------------------------------------------\n");
   fs.appendFileSync('agent-hooks.log', `Agent: ${agent} - Hook Type: ${hook_type}\n`);
   fs.appendFileSync('agent-hooks.log', "------------------------------------------\n");
-  fs.appendFileSync('agent-hooks.log', JSON.stringify(payload, null, 2));
-  fs.appendFileSync('agent-hooks.log', "\n" + JSON.stringify(parsed, null, 2));
+  if(parsed.length === 0) {
+    fs.appendFileSync('agent-hooks.log', "RAW PAYLOAD: " + JSON.stringify(payload, null, 2));
+  } else {
+    fs.appendFileSync('agent-hooks.log', "PARSED EVENTS: " + JSON.stringify(parsed, null, 2));
+  }
   fs.appendFileSync('agent-hooks.log', "\n------------------------------------------\n");
 
   for (const item of parsed) {

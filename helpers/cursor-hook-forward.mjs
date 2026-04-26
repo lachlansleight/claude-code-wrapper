@@ -67,7 +67,8 @@ function post(url, body, token) {
 
 const raw = await readStdin()
 let payload = null
-try { payload = JSON.parse(raw) } catch { payload = { raw } }
+const normalizedRaw = raw.replace(/^\uFEFF/, '')
+try { payload = JSON.parse(normalizedRaw) } catch { payload = { raw } }
 const hookType =
   (payload && typeof payload.hook_event_name === 'string' && payload.hook_event_name) ||
   process.argv[2] ||

@@ -91,7 +91,7 @@ export const claudeParser: Parser = {
       }
 
       case 'Stop': {
-        // hook-forward.ts enriches the payload with assistant_text scraped
+        // claude-hook-forward.mjs enriches the payload with assistant_text scraped
         // from the transcript. Last block is the final reply.
         const blocks = Array.isArray(p.assistant_text)
           ? (p.assistant_text as unknown[]).filter((t): t is string => typeof t === 'string')
