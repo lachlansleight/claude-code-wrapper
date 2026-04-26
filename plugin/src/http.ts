@@ -4,11 +4,11 @@ import { bus } from './bus.js'
 import { state } from './state.js'
 import { extractTokenFromHeaders, isValidToken } from './auth.js'
 import { logger } from './logger.js'
-import { getAdapter, listAdapterNames } from './adapters/index.js'
-import { handleHook, currentState, timeInStateMs } from './personality.js'
+import { getParser, listAdapterNames } from './adapters/index.js'
+import type { AgentEventEnvelope, AgentName } from './agent-event.js'
 import type { BridgeConfig } from './types.js'
 
-const VERSION = '0.2.0'
+const VERSION = '0.3.0'
 
 function json(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body)
@@ -50,47 +50,76 @@ function sanitizeMetaKeys(meta: Record<string, string>): Record<string, string> 
 }
 
 // Common path for both /hooks/:agent and the legacy /api/hook-event alias.
-// Returns {ok:true} or {ok:false, error}.
 function processAgentHook(agent: string, hook_type: string, payload: unknown): { ok: boolean; error?: string; listChanged: boolean } {
-  const adapter = getAdapter(agent)
-  if (!adapter) return { ok: false, error: `unknown_agent:${agent}`, listChanged: false }
+  const parser = getParser(agent)
+  if (!parser) return { ok: false, error: `unknown_agent:${agent}`, listChanged: false }
 
-  // Session bookkeeping (works regardless of adapter).
+  console.log("");
+  console.log("Trying to parse", payload.raw.replace(/\n/g, ''));
+  console.log("");
+  // payload = JSON.parse(payload.raw.replace(/\n/g, ''));
+
+  console.log("");
+  console.log("------------------------------------------");
+  console.log("PROCESS AGENT HOOK");
+  console.log(`Agent: ${agent} - Hook Type: ${hook_type}`);
+  console.log(`Payload`, payload);
+
+  // Session bookkeeping (works regardless of parser).
   const p = (payload ?? {}) as Record<string, unknown>
   const session_id =
     typeof p.session_id === 'string' ? p.session_id :
     typeof p.sessionId === 'string' ? p.sessionId :
+    typeof p.sessionID === 'string' ? p.sessionID :
     typeof p.conversation_id === 'string' ? p.conversation_id : undefined
 
   let listChanged = false
   if (session_id) {
-    const isEnd = /session[._]?end/i.test(hook_type) || hook_type === 'SessionEnd'
+    const isEnd = /session[._]?end/i.test(hook_type) || /session\.deleted/i.test(hook_type)
     listChanged = isEnd ? state.endSession(session_id) : state.trackSession(session_id)
   }
 
-  // Always broadcast the raw event for observability.
-  bus.emit('hook_event', { agent, hook_type, payload: payload ?? null, ts: Date.now() })
+  const parsed = parser.parse({ hook_type, payload })
+  const now = Date.now()
 
-  // Normalize and feed personality + permission state.
-  const normalized = adapter.normalize({ hook_type, payload })
-  if (normalized) {
-    if (normalized.kind === 'permission_request') {
-      const entry = state.addPendingPermission({
-        request_id: normalized.request_id,
-        tool_name: normalized.tool,
-        description: normalized.description ?? '',
-        input_preview: normalized.input_preview ?? '',
+  console.log("");
+  console.log(`Parsed Events`, parsed);
+  console.log("------------------------------------------");
+
+  for (const item of parsed) {
+    const envelope: AgentEventEnvelope = {
+      type: 'agent_event',
+      agent: parser.name as AgentName,
+      ts: now,
+      session_id: item.session_id ?? session_id,
+      turn_id: item.turn_id,
+      event: item.event,
+      raw: { hook_type, payload: payload ?? null },
+    }
+
+    // Mirror permission events into state.
+    if (item.event.kind === 'permission.requested') {
+      state.addPendingPermission({
+        request_id: item.event.request_id,
+        activity: item.event.activity,
+        description: item.event.description,
       })
-      bus.emit('permission_request', entry)
-    } else if (normalized.kind === 'permission_resolved') {
-      state.resolvePendingPermission(normalized.request_id)
+      bus.emit('permission_request', {
+        request_id: item.event.request_id,
+        activity: item.event.activity,
+        description: item.event.description,
+        opened_at: now,
+      })
+    } else if (item.event.kind === 'permission.resolved') {
+      state.resolvePendingPermission(item.event.request_id)
       bus.emit('permission_resolved', {
-        request_id: normalized.request_id,
-        behavior: normalized.behavior,
+        request_id: item.event.request_id,
+        behavior: item.event.decision,
         by: 'remote',
       })
     }
-    handleHook(normalized)
+
+    bus.emit('agent_event', envelope)
   }
 
   return { ok: true, listChanged }
@@ -191,7 +220,6 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
       chats: state.listChats(),
       pending_permissions: state.listPendingPermissions(),
       uptime_seconds: state.uptimeSeconds(),
-      personality: { state: currentState(), time_in_state_ms: timeInStateMs() },
     })
     return
   }

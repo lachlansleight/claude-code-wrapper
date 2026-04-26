@@ -88,8 +88,15 @@ Then restart Cursor so it inherits the env.
 
 Open `examples/ws-client.html`, paste your token, click **Connect**.
 Open Cursor's chat (Cmd+L / Ctrl+L) and ask it to do anything. You
-should see `hook_event` frames with `agent: "cursor"` and corresponding
-`state_event` transitions on the WS feed.
+should see `agent_event` frames with `agent: "cursor"` and a sequence
+of `event.kind` values: `turn.started` → `message.user` →
+`activity.started` / `activity.finished` for each tool call →
+`message.assistant` → `turn.ended`.
+
+The narrow Cursor hooks (`beforeShellExecution`, `afterFileEdit`, etc.)
+fire alongside `preToolUse`/`postToolUse` — the bridge does **not**
+double-emit activities for them. They feed a per-`tool_use_id` summary
+cache that gets attached to the next matching `activity.started`.
 
 If nothing shows up:
 

@@ -131,7 +131,7 @@
 
     <div class="row controls">
       <label><input type="checkbox" id="showRaw" /> show raw JSON</label>
-      <label><input type="checkbox" id="showHooks" checked /> show hooks</label>
+      <label><input type="checkbox" id="showEvents" checked /> show agent events</label>
       <label><input type="checkbox" id="autoscroll" checked /> auto-scroll</label>
       <button id="clear">Clear</button>
     </div>
@@ -224,9 +224,9 @@
           case 'permission_resolved':
             resolvePermission(msg)
             break
-          case 'hook_event':
-            if (!$('showHooks').checked) return
-            renderHook(msg)
+          case 'agent_event':
+            if (!$('showEvents').checked) return
+            renderAgentEvent(msg)
             break
           case 'error':
             addEvent({ cls: 'ev-error', type: 'error', time: Date.now(), body: esc(msg.message || ''), raw })
@@ -239,15 +239,14 @@
       function renderPermission(p) {
         const id = `perm-${p.request_id}`
         if (document.getElementById(id)) return
-        const inputPreview = typeof p.input_preview === 'string'
-          ? p.input_preview
-          : JSON.stringify(p.input_preview, null, 2)
+        const tool = p.activity?.tool || ''
+        const summary = p.activity?.summary || ''
         const el = addEvent({
           id,
           cls: 'ev-permission', type: 'permission requested', time: Date.now(),
-          title: `<span class="tool-name">${esc(p.tool_name)}</span> <code>${esc(p.request_id)}</code>`,
-          body: p.description ? `<em>${esc(p.description)}</em>` : '',
-          kvs: inputPreview ? [['input', `<pre>${esc(inputPreview)}</pre>`]] : [],
+          title: `<span class="tool-name">${esc(tool)}</span> <code>${esc(p.request_id)}</code>`,
+          body: [p.description ? `<em>${esc(p.description)}</em>` : '', summary ? `<code>${esc(summary)}</code>` : ''].filter(Boolean).join(' '),
+          kvs: p.activity?.kind ? [['kind', `<code>${esc(p.activity.kind)}</code>`]] : [],
           raw: p,
         })
         const actions = document.createElement('div')
@@ -284,31 +283,101 @@
         }
       }
 
-      function renderHook(msg) {
-        const p = msg.payload || {}
-        if (Array.isArray(p.assistant_text)) {
-          for (const t of p.assistant_text) {
-            addEvent({ cls: 'ev-assistant', type: 'assistant', time: msg.ts, body: esc(t) })
-          }
-        }
-        if (msg.hook_type === 'UserPromptSubmit' && typeof p.prompt === 'string') {
-          addEvent({ cls: 'ev-user', type: 'user', time: msg.ts, body: esc(p.prompt) })
-          return
-        }
+      function renderAgentEvent(msg) {
+        const ev = msg.event || {}
+        const kind = ev.kind || 'unknown'
         const kvs = []
         const kv = (k, v) => v != null && v !== '' && kvs.push([k, `<code>${esc(v)}</code>`])
-        kv('session', p.session_id)
-        kv('cwd', p.cwd)
-        if (p.tool_name) kv('tool', `<span class="tool-name">${esc(p.tool_name)}</span>`)
-        if (p.tool_input) kvs.push(['input', `<pre>${esc(truncate(JSON.stringify(p.tool_input, null, 2), 600))}</pre>`])
-        if (p.tool_response) kvs.push(['response', `<pre>${esc(truncate(JSON.stringify(p.tool_response, null, 2), 600))}</pre>`])
-        if (p.prompt) kvs.push(['prompt', `<pre>${esc(truncate(p.prompt, 600))}</pre>`])
-        if (p.message) kvs.push(['message', esc(p.message)])
-        if (p.reason) kv('reason', p.reason)
-        if (p.source) kv('source', p.source)
+        kv('agent', msg.agent)
+        kv('session', msg.session_id)
+        kv('turn', msg.turn_id)
+
+        let cls = 'ev-hook'
+        let title = ''
+        let body = ''
+
+        switch (kind) {
+          case 'message.user':
+            cls = 'ev-user'
+            body = esc(ev.text || '')
+            break
+          case 'message.assistant':
+            cls = 'ev-assistant'
+            body = esc(truncate(ev.text || '', 1000))
+            if (ev.final) kv('final', 'true')
+            break
+          case 'thinking':
+            cls = 'ev-system'
+            body = '<em>' + esc(truncate(ev.text || '', 600)) + '</em>'
+            break
+          case 'turn.started':
+            cls = 'ev-user'
+            if (ev.prompt) body = esc(truncate(ev.prompt, 400))
+            break
+          case 'turn.ended':
+            cls = 'ev-session'
+            if (ev.cause) kv('cause', ev.cause)
+            if (ev.last_assistant_text) kvs.push(['last', `<pre>${esc(truncate(ev.last_assistant_text, 400))}</pre>`])
+            break
+          case 'session.started':
+          case 'session.ended':
+            cls = 'ev-session'
+            if (ev.cause) kv('cause', ev.cause)
+            break
+          case 'activity.started':
+          case 'activity.finished':
+          case 'activity.failed':
+            title = `<span class="tool-name">${esc(ev.activity?.tool || '')}</span> <span class="badge">${esc(ev.activity?.kind || '')}</span>`
+            if (ev.activity?.summary) body = `<code>${esc(ev.activity.summary)}</code>`
+            if (ev.activity?.id) kv('id', ev.activity.id)
+            if (ev.duration_ms != null) kv('duration_ms', ev.duration_ms)
+            if (ev.error_message) kvs.push(['error', `<pre>${esc(truncate(ev.error_message, 400))}</pre>`])
+            if (kind === 'activity.failed') cls = 'ev-error'
+            break
+          case 'permission.requested':
+            // Handled by renderPermission via the legacy permission_request frame.
+            cls = 'ev-permission'
+            title = `<code>${esc(ev.request_id)}</code>`
+            if (ev.activity) body = `<span class="tool-name">${esc(ev.activity.tool)}</span> ${esc(ev.activity.summary || '')}`
+            if (ev.description) body += ` <em>${esc(ev.description)}</em>`
+            break
+          case 'permission.resolved':
+            cls = 'ev-resolved'
+            kv('decision', ev.decision)
+            if (ev.scope) kv('scope', ev.scope)
+            break
+          case 'todo.updated': {
+            const items = Array.isArray(ev.items) ? ev.items : []
+            body = '<pre>' + esc(items.map((t) => `[${t.status[0]}] ${t.text}`).join('\n')) + '</pre>'
+            break
+          }
+          case 'subagent.started':
+          case 'subagent.finished':
+            kv('subagent_id', ev.subagent_id)
+            if (ev.subagent_type) kv('type', ev.subagent_type)
+            if (ev.task) body = esc(truncate(ev.task, 400))
+            break
+          case 'agent.question':
+            cls = 'ev-permission'
+            body = `<strong>${esc(ev.text || '')}</strong>`
+            if (Array.isArray(ev.options) && ev.options.length) {
+              kvs.push(['options', ev.options.map((o) => `<code>${esc(o)}</code>`).join(' ')])
+            }
+            break
+          case 'context.compacting':
+            cls = 'ev-session'
+            if (ev.trigger) kv('trigger', ev.trigger)
+            if (ev.context_usage_percent != null) kv('usage', `${ev.context_usage_percent}%`)
+            break
+          case 'notification':
+            cls = 'ev-system'
+            body = esc(ev.text || '')
+            break
+        }
+
         addEvent({
-          cls: 'ev-hook', type: `hook · ${esc(msg.hook_type)}`, time: msg.ts,
-          kvs, raw: msg,
+          cls, type: `${esc(msg.agent)} · ${esc(kind)}`, time: msg.ts,
+          title, body, kvs, raw: msg,
         })
       }
 

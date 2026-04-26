@@ -1,3 +1,5 @@
+import type { ActivityRef } from './agent-event.js'
+
 export type Direction = 'inbound' | 'outbound'
 
 export interface ChatMessage {
@@ -9,9 +11,8 @@ export interface ChatMessage {
 
 export interface PendingPermission {
   request_id: string
-  tool_name: string
-  description: string
-  input_preview: string
+  activity?: ActivityRef
+  description?: string
   opened_at: number
 }
 

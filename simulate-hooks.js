@@ -67,45 +67,46 @@ async function postTool(tool_name, tool_input) {
   await postHook('PostToolUse', { tool_name, tool_input })
 }
 
-async function main() {
-  console.log(`bridge=${BRIDGE_URL}  session=${SESSION_ID}`)
-
-  await postHook('UserPromptSubmit', {
-    prompt: 'Pretend prompt for the simulator.',
-  })
-  await sleep(8000)
-
-  for (let i = 0; i < 5; i++) {
-    for (const file of READ_FILES) {
-      await preTool('Read', { file_path: file })
-      await sleep(250)
-      await postTool('Read', { file_path: file })
-      await sleep(400)
-    }
-  }
-
-  console.log('-- thinking pause --')
-  await sleep(5000)
-
-  for (const file of WRITE_FILES) {
-    await preTool('Write', { file_path: file })
-    await sleep(400)
-    await postTool('Write', { file_path: file })
-    await sleep(500)
-    await postTool('Write', { file_path: file })
-    await sleep(500)
-  }
-
-  console.log('-- pre-stop pause --')
-  await sleep(3000)
-
-  for (const file of READ_FILES) {
+async function simulateReading() {
+  let readCount = Math.floor(Math.random() * 5) + 2;
+  for(let i = 0; i < readCount; i++) {
+    const file = READ_FILES[Math.floor(Math.random() * READ_FILES.length)];
     await preTool('Read', { file_path: file })
     await sleep(250)
     await postTool('Read', { file_path: file })
     await sleep(400)
   }
-  await sleep(1500)
+}
+
+async function simulateWriting() {
+  let writeCount = Math.floor(Math.random() * 3) + 1;
+  for(let i = 0; i < writeCount; i++) {
+    const file = WRITE_FILES[Math.floor(Math.random() * WRITE_FILES.length)];
+    await preTool('Write', { file_path: file })
+    await sleep(400)
+    await postTool('Write', { file_path: file })
+    await sleep(500)
+  }
+}
+
+async function main() {
+  console.log(`bridge=${BRIDGE_URL}  session=${SESSION_ID}`)
+
+  await postHook('UserPromptSubmit', {
+    prompt: 'Pretend prompt for the simulator.',
+  });
+
+  const toolCount = 2 + Math.floor(Math.random() * 2);
+  for(let i = 0; i < toolCount; i++) {
+    await sleep((Math.random() * 4000) + 2000);
+    if(Math.random() < 0.4) {
+      simulateReading();
+    } else {
+      simulateWriting();
+    }
+  }
+
+  await sleep((Math.random() * 4000) + 2000);
 
   await postHook('Notification', {
     message: 'All done — wrote two files based on five reads.',

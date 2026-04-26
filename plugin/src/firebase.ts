@@ -4,8 +4,10 @@ import { URL } from 'node:url'
 import { bus } from './bus.js'
 import { logger } from './logger.js'
 
-const WORKING_HOOKS = new Set(['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PreCompact'])
-const IDLE_HOOKS = new Set(['Stop', 'SessionEnd'])
+// Firebase mirror. Drives a tiny doc that other clients (web UI,
+// older ESP32 sketches) poll. Maps the abstract AgentEvent stream onto
+// the legacy doc shape: { working, starting, lastMessage, preToolUse,
+// postToolUse, permissionRequest }.
 
 export function startFirebaseSync(): void {
   const base = process.env.BRIDGE_DATABASE_URL
@@ -46,30 +48,50 @@ export function startFirebaseSync(): void {
 
   put('lastAwake', Date.now())
 
-  bus.on('hook_event', (ev) => {
-    if (ev.hook_type === 'SessionStart') {
-      put('starting', true)
-      put('lastMessage', null)
-    }
-    if (ev.hook_type === 'UserPromptSubmit') put('starting', false)
-    if (WORKING_HOOKS.has(ev.hook_type)) put('working', true)
-    if (IDLE_HOOKS.has(ev.hook_type)) {
-      put('working', false)
-      if (ev.hook_type === 'Stop') {
-        const p = (ev.payload ?? {}) as { assistant_text?: unknown }
-        if (Array.isArray(p.assistant_text)) {
-          const blocks = p.assistant_text.filter((t): t is string => typeof t === 'string')
-          const summary = blocks.length > 0 ? blocks[blocks.length - 1] : ''
-          put('lastMessage', { summary, blocks })
-        }
+  bus.on('agent_event', (env) => {
+    const ev = env.event
+    switch (ev.kind) {
+      case 'session.started':
+        put('starting', true)
+        put('lastMessage', null)
+        put('working', true)
+        break
+      case 'turn.started':
+        put('starting', false)
+        put('working', true)
+        break
+      case 'activity.started':
+        put('working', true)
+        put('preToolUse', { tool: ev.activity.tool, kind: ev.activity.kind, summary: ev.activity.summary })
+        break
+      case 'activity.finished':
+      case 'activity.failed':
+        put('postToolUse', { tool: ev.activity.tool, kind: ev.activity.kind, summary: ev.activity.summary })
+        break
+      case 'context.compacting':
+        put('working', true)
+        break
+      case 'turn.ended': {
+        put('working', false)
+        const summary = ev.last_assistant_text ?? ''
+        if (summary) put('lastMessage', { summary, blocks: [summary] })
+        break
       }
+      case 'session.ended':
+        put('working', false)
+        break
+      case 'permission.requested':
+        put('permissionRequest', {
+          request_id: ev.request_id,
+          activity: ev.activity ?? null,
+          description: ev.description ?? '',
+        })
+        break
+      case 'permission.resolved':
+        put('permissionRequest', null)
+        break
     }
-    if (ev.hook_type === 'PreToolUse') put('preToolUse', ev.payload)
-    if (ev.hook_type === 'PostToolUse') put('postToolUse', ev.payload)
   })
-
-  bus.on('permission_request', (p) => put('permissionRequest', p))
-  bus.on('permission_resolved', () => put('permissionRequest', null))
 
   logger.info(`firebase sync enabled db=${baseUrl} id=${id}`)
 }

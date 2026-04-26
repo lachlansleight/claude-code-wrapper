@@ -75,8 +75,11 @@ Start OpenCode normally. You should see in its log:
 ```
 
 Open `examples/ws-client.html`, paste your token, click **Connect**.
-Send any prompt in OpenCode — you should see `hook_event` frames with
-`agent: "opencode"` and `state_event` transitions on the WS feed.
+Send any prompt in OpenCode — you should see `agent_event` frames with
+`agent: "opencode"` and a sequence of `event.kind` values:
+`turn.started` → `message.user` → `activity.started` /
+`activity.finished` for each tool call → `message.assistant` →
+`turn.ended`.
 
 If nothing arrives:
 
@@ -92,19 +95,23 @@ If nothing arrives:
 
 ## What the plugin subscribes to
 
-| OpenCode event         | Mapped to   | Drives state         |
-|------------------------|-------------|----------------------|
-| `session.created`      | session_start | `sleep`/`idle` → `waking`/`ready` |
-| `session.deleted`      | session_end | (no transition)      |
-| `session.idle`         | stop        | `finished` → `excited` → `ready` |
-| `tool.execute.before`  | pre_tool    | → `reading` / `writing` |
-| `tool.execute.after`   | post_tool   | linger then → `thinking` |
-| `permission.asked`     | permission_request | → `blocked`   |
-| `permission.replied`   | permission_resolved | restore prior state |
-| `message.updated`      | user_prompt | (only on first sighting of a user-role message) → `thinking` |
+| OpenCode event         | Emitted as                                      |
+|------------------------|-------------------------------------------------|
+| `session.created`      | `session.started`                               |
+| `session.deleted`      | `session.ended`                                 |
+| `session.idle`         | `turn.ended`                                    |
+| `session.compacted`    | `context.compacting`                            |
+| `tool.execute.before`  | `activity.started`                              |
+| `tool.execute.after`   | `activity.finished` (or `activity.failed`)      |
+| `permission.asked`     | `permission.requested`                          |
+| `permission.replied`   | `permission.resolved`                           |
+| `todo.updated`         | `todo.updated`                                  |
+| `message.updated` (user)      | `turn.started` + `message.user` (first sighting per session) |
+| `message.updated` (assistant) | `message.assistant { final: true }`      |
+| `message.part.updated` (thinking) | `thinking`                          |
 
-The plugin dedupes `message.updated` per message id so repeated updates
-to the same user message don't re-emit `user_prompt`.
+The bridge dedupes user-role `message.updated` per session so repeated
+updates to the same user message don't re-emit `turn.started`.
 
 ## Notes
 

@@ -1,23 +1,23 @@
-import type { Adapter } from './types.js'
-import { claudeAdapter } from './claude.js'
-import { codexAdapter } from './codex.js'
-import { cursorAdapter } from './cursor.js'
-import { opencodeAdapter } from './opencode.js'
+import type { Parser } from './types.js'
+import type { AgentName } from '../agent-event.js'
+import { claudeParser } from './claude.js'
+import { codexParser } from './codex.js'
+import { cursorParser } from './cursor.js'
+import { opencodeParser } from './opencode.js'
 
-const adapters: Record<string, Adapter> = {
-  claude: claudeAdapter,
-  codex: codexAdapter,
-  cursor: cursorAdapter,
-  opencode: opencodeAdapter,
+const parsers: Record<AgentName, Parser> = {
+  claude: claudeParser,
+  codex: codexParser,
+  cursor: cursorParser,
+  opencode: opencodeParser,
 }
 
-export function getAdapter(name: string): Adapter | undefined {
-  return adapters[name.toLowerCase()]
+export function getParser(name: string): Parser | undefined {
+  return parsers[name.toLowerCase() as AgentName]
 }
 
 export function listAdapterNames(): string[] {
-  return Object.keys(adapters)
+  return Object.keys(parsers)
 }
 
-export type { Adapter, AdapterInput, NormalizedHook, PersonalityState, ToolAccess } from './types.js'
-export { toolAccess } from './types.js'
+export type { Parser, ParsedEvent } from './types.js'

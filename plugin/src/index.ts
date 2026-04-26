@@ -4,14 +4,16 @@
 // /hooks/<agent>; clients subscribe over WebSocket to live events and the
 // derived personality state.
 
+import { loadDotenv } from './dotenv.js'
+const dotenvPath = loadDotenv()
+
 import { configureLogger, logger } from './logger.js'
 import { startHttpServer } from './http.js'
 import { attachWebSocketServer } from './ws.js'
 import { startFirebaseSync } from './firebase.js'
-import { startPersonality } from './personality.js'
 import type { BridgeConfig } from './types.js'
 
-const VERSION = '0.2.0'
+const VERSION = '0.3.0'
 
 function loadConfig(): BridgeConfig {
   const token = process.env.BRIDGE_TOKEN
@@ -39,9 +41,9 @@ async function main(): Promise<void> {
   const config = loadConfig()
   configureLogger({ logFile: config.logFile })
   logger.info(`agent-bridge v${VERSION} starting`)
+  if (dotenvPath) logger.info(`loaded env from ${dotenvPath}`)
   logger.info(`host=${config.host} port=${config.port} log_file=${config.logFile ?? '(stderr only)'}`)
 
-  startPersonality()
   const attachUpgrade = attachWebSocketServer(config)
   startHttpServer(config, attachUpgrade)
   startFirebaseSync()

@@ -1,40 +1,139 @@
-import type { Adapter, AdapterInput, NormalizedHook } from './types.js'
-import { toolAccess } from './types.js'
+import { randomUUID } from 'node:crypto'
+import type { Parser, ParsedEvent } from './types.js'
+import type { ActivityRef, TodoItem } from '../agent-event.js'
+import type { ParserInput } from '../agent-event.js'
+import { classifyTool } from '../activity-classify.js'
+import { summarize } from '../activity-summary.js'
 
-// Claude Code hook payloads. Shape reference:
+// Claude Code hook payloads. Reference:
 //   https://docs.claude.com/en/docs/claude-code/hooks
-//
-// Every payload includes session_id. PreToolUse/PostToolUse include
-// tool_name. Notification carries permission-related text in `message`.
 
-export const claudeAdapter: Adapter = {
+function asString(v: unknown): string {
+  return typeof v === 'string' ? v : ''
+}
+
+function asTodos(v: unknown): TodoItem[] | null {
+  if (!Array.isArray(v)) return null
+  const out: TodoItem[] = []
+  for (const item of v) {
+    if (!item || typeof item !== 'object') continue
+    const text = asString((item as Record<string, unknown>).content) || asString((item as Record<string, unknown>).text)
+    const rawStatus = asString((item as Record<string, unknown>).status)
+    const status: TodoItem['status'] =
+      rawStatus === 'in_progress' || rawStatus === 'completed' || rawStatus === 'cancelled' || rawStatus === 'pending'
+        ? rawStatus
+        : 'pending'
+    out.push({ text, status })
+  }
+  return out
+}
+
+function buildActivity(toolName: string, toolInput: unknown, toolUseId: string | undefined): ActivityRef {
+  return {
+    id: toolUseId || `act_${randomUUID()}`,
+    kind: classifyTool('claude', toolName),
+    tool: toolName,
+    summary: summarize(toolName, toolInput),
+  }
+}
+
+// Parse the Notification payload's message field for the bridge's
+// 5-letter request_id token (lowercase a–z minus l). Mirrors the
+// behaviour of the previous adapter.
+function extractRequestId(message: string): string | null {
+  const m = message.match(/\b([a-km-z]{5})\b/i)
+  return m ? m[1].toLowerCase() : null
+}
+
+export const claudeParser: Parser = {
   name: 'claude',
-  normalize(input: AdapterInput): NormalizedHook | null {
-    const hook = input.hook_type ?? ''
+  parse(input: ParserInput): ParsedEvent[] {
+    const hook = input.hook_type
     const p = (input.payload ?? {}) as Record<string, unknown>
-    const session_id = typeof p.session_id === 'string' ? p.session_id : undefined
-    const tool_name = typeof p.tool_name === 'string' ? p.tool_name : ''
+    const session_id = asString(p.session_id) || undefined
+    const tool_name = asString(p.tool_name)
+    const tool_input = p.tool_input
+    const tool_use_id = asString(p.tool_use_id) || undefined
 
     switch (hook) {
-      case 'SessionStart':
-        return { kind: 'session_start', session_id }
+      case 'SessionStart': {
+        const source = asString(p.source)
+        const cause: 'startup' | 'resume' | 'clear' | 'unknown' =
+          source === 'startup' || source === 'resume' || source === 'clear' ? source : 'unknown'
+        return [{ event: { kind: 'session.started', cause }, session_id }]
+      }
+
       case 'SessionEnd':
-        return { kind: 'session_end', session_id }
-      case 'UserPromptSubmit':
-        return { kind: 'user_prompt', session_id }
-      case 'PreToolUse':
-        return { kind: 'pre_tool', tool: tool_name, access: toolAccess(tool_name), session_id }
-      case 'PostToolUse':
-        return { kind: 'post_tool', tool: tool_name, access: toolAccess(tool_name), session_id }
-      case 'Stop':
-      case 'SubagentStop':
-        return { kind: 'stop', session_id }
-      case 'Notification':
-        return { kind: 'notification', session_id }
-      case 'PreCompact':
-        return { kind: 'unknown' }
+        return [{ event: { kind: 'session.ended', cause: 'unknown' }, session_id }]
+
+      case 'UserPromptSubmit': {
+        const prompt = asString(p.prompt)
+        return [
+          { event: { kind: 'turn.started', prompt: prompt || undefined }, session_id },
+          { event: { kind: 'message.user', text: prompt }, session_id },
+        ]
+      }
+
+      case 'PreToolUse': {
+        const activity = buildActivity(tool_name, tool_input, tool_use_id)
+        return [{ event: { kind: 'activity.started', activity }, session_id }]
+      }
+
+      case 'PostToolUse': {
+        const activity = buildActivity(tool_name, tool_input, tool_use_id)
+        const out: ParsedEvent[] = [{ event: { kind: 'activity.finished', activity }, session_id }]
+
+        if (tool_name === 'TodoWrite') {
+          const todos = asTodos((tool_input as Record<string, unknown> | null)?.todos)
+          if (todos) out.push({ event: { kind: 'todo.updated', items: todos }, session_id })
+        }
+        return out
+      }
+
+      case 'Stop': {
+        // hook-forward.ts enriches the payload with assistant_text scraped
+        // from the transcript. Last block is the final reply.
+        const blocks = Array.isArray(p.assistant_text)
+          ? (p.assistant_text as unknown[]).filter((t): t is string => typeof t === 'string')
+          : []
+        const last = blocks[blocks.length - 1]
+        const out: ParsedEvent[] = []
+        if (last) {
+          out.push({ event: { kind: 'message.assistant', text: last, final: true }, session_id })
+        }
+        out.push({
+          event: { kind: 'turn.ended', cause: 'completed', last_assistant_text: last || undefined },
+          session_id,
+        })
+        return out
+      }
+
+      case 'SubagentStop': {
+        return [{ event: { kind: 'subagent.finished', subagent_id: session_id ?? '', cause: 'completed' }, session_id }]
+      }
+
+      case 'PreCompact': {
+        const trigger = asString(p.trigger)
+        const t: 'auto' | 'manual' | undefined =
+          trigger === 'auto' || trigger === 'manual' ? trigger : undefined
+        return [{ event: { kind: 'context.compacting', trigger: t }, session_id }]
+      }
+
+      case 'Notification': {
+        const message = asString(p.message)
+        const out: ParsedEvent[] = [{ event: { kind: 'notification', text: message || undefined }, session_id }]
+        const reqId = extractRequestId(message)
+        if (reqId) {
+          out.push({
+            event: { kind: 'permission.requested', request_id: reqId, description: message || undefined },
+            session_id,
+          })
+        }
+        return out
+      }
+
       default:
-        return null
+        return [{ event: { kind: 'unknown' }, session_id }]
     }
   },
 }

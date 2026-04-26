@@ -1,0 +1,17 @@
+{
+    "version": 1,
+    "hooks": {
+      "sessionStart":         [{ "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/helpers/cursor-hook-forward.mjs" }],
+      "sessionEnd":           [{ "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/helpers/cursor-hook-forward.mjs" }],
+      "beforeSubmitPrompt":   [{ "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/helpers/cursor-hook-forward.mjs" }],
+      "preToolUse":           [{ "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/helpers/cursor-hook-forward.mjs" }],
+      "postToolUse":          [{ "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/helpers/cursor-hook-forward.mjs" }],
+      "beforeShellExecution": [{ "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/helpers/cursor-hook-forward.mjs" }],
+      "afterShellExecution":  [{ "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/helpers/cursor-hook-forward.mjs" }],
+      "beforeMCPExecution":   [{ "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/helpers/cursor-hook-forward.mjs" }],
+      "afterMCPExecution":    [{ "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/helpers/cursor-hook-forward.mjs" }],
+      "beforeReadFile":       [{ "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/helpers/cursor-hook-forward.mjs" }],
+      "afterFileEdit":        [{ "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/helpers/cursor-hook-forward.mjs" }],
+      "stop":                 [{ "command": "node C:/Users/Lachlan/Dev/lachlan/claude-code-wrapper/helpers/cursor-hook-forward.mjs" }]
+    }
+  }

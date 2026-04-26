@@ -94,8 +94,11 @@ Restart your terminal so Codex inherits the env.
 ## 4. Verify
 
 Open `examples/ws-client.html`, paste your token, click **Connect**.
-Run `codex` and ask it to do anything. You should see `hook_event`
-frames with `agent: "codex"` and matching `state_event` transitions.
+Run `codex` and ask it to do anything. You should see `agent_event`
+frames with `agent: "codex"` and a sequence of `event.kind` values:
+`turn.started` → `message.user` → `activity.started` /
+`activity.finished` for each tool call → `message.assistant` →
+`turn.ended`.
 
 If nothing arrives:
 
@@ -122,6 +125,7 @@ If nothing arrives:
   500ms via `BRIDGE_HOOK_TIMEOUT_MS`, so a down bridge never holds up
   the agent. The `"timeout": 5` in the JSON is a defensive cap on top
   of that.
-- Codex's `tool_name` values (`Bash`, `apply_patch`, `mcp__*`) are
-  classified by the bridge's shared `toolAccess()` table, so the
-  resulting `state_event` will be `reading` or `writing` correctly.
+- Codex's `tool_name` values (`Bash`, `apply_patch`, `Subagent`,
+  `mcp__*`) are classified into `ActivityKind` by
+  `plugin/src/activity-classify.ts` — add new ids there if Codex
+  introduces a tool the bridge can't classify yet.

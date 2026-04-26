@@ -30,7 +30,7 @@ Sanity check from another terminal:
 
 ```bash
 curl http://127.0.0.1:8787/api/health
-# {"ok":true,"version":"0.2.0",...,"agents":["claude","codex","cursor","opencode"]}
+# {"ok":true,"version":"0.3.0",...,"agents":["claude","codex","cursor","opencode"]}
 ```
 
 ## 3. Install the plugin (auto-wires every hook)
@@ -67,9 +67,12 @@ Restart Claude Code so the env block propagates to the hook subprocesses.
 Open `examples/ws-client.html` in a browser, paste your token, click
 **Connect**. Type anything in Claude. You should see:
 
-- `hook_event` with `agent: "claude"` and `hook_type: "UserPromptSubmit"`
-- `state_event` with `state: "thinking"` (or `waking` first if the
-  bridge just started)
+- `agent_event` with `agent: "claude"` and `event.kind: "turn.started"`
+- followed by `event.kind: "message.user"` carrying the prompt text
+- as Claude works, `event.kind: "activity.started"` /
+  `"activity.finished"` for each tool call
+- on completion, `event.kind: "turn.ended"` (with optional
+  `last_assistant_text`)
 
 If hooks aren't arriving, check `~/.claude/debug/*.txt` — `hook-forward.js`
 logs failures to stderr and Claude Code captures them there. The most
