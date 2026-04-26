@@ -6,7 +6,7 @@
 //
 // Reads the hook's JSON payload from stdin, wraps it as
 //   { hook_type, payload }
-// and POSTs it to $BRIDGE_URL/api/hook-event with $BRIDGE_TOKEN.
+// and POSTs it to $BRIDGE_URL/hooks/claude with $BRIDGE_TOKEN.
 //
 // Exits 0 on success and on ANY failure — this process is wired into
 // Claude Code's hook pipeline, and a non-zero exit would interfere with
@@ -158,7 +158,8 @@ async function main(): Promise<void> {
     ? { ...(payload as Record<string, unknown>), assistant_text }
     : payload
   const body = JSON.stringify({ hook_type: HOOK_TYPE, payload: enrichedPayload })
-  const url = new URL('/api/hook-event', BRIDGE_URL)
+  // Claude now uses the same generic endpoint shape as all agents.
+  const url = new URL('/hooks/claude', BRIDGE_URL)
   await post(url, body, BRIDGE_TOKEN!)
 }
 

@@ -34,15 +34,17 @@ const CODEX: Record<string, ActivityKind> = {
 }
 
 const CURSOR: Record<string, ActivityKind> = {
-  read_file: 'file.read',
-  edit_file: 'file.write',
-  run_terminal_cmd: 'shell.exec',
-  grep_search: 'search.code',
-  semantic_search: 'search.code',
-  search_files: 'search.files',
-  web_search: 'web.search',
-  browser: 'web.fetch',
-  image_generation: 'image.generate',
+  Read: 'file.read',
+  Write: 'file.write',
+  Delete: 'file.delete',
+  Shell: 'shell.exec',
+  Grep: 'search.code',
+  Task: 'subagent.spawn',
+  SemanticSearch: 'search.code',
+  SearchFiles: 'search.files',
+  WebSearch: 'web.search',
+  Browser: 'web.fetch',
+  ImageGeneration: 'image.generate',
   // ask_question is intercepted upstream and emitted as agent.question.
   // fetch_rules is dropped upstream.
 }

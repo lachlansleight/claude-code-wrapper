@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { bus } from './bus.js'
@@ -54,10 +55,23 @@ function processAgentHook(agent: string, hook_type: string, payload: unknown): {
   const parser = getParser(agent)
   if (!parser) return { ok: false, error: `unknown_agent:${agent}`, listChanged: false }
 
-  console.log("");
-  console.log("Trying to parse", payload.raw.replace(/\n/g, ''));
-  console.log("");
-  // payload = JSON.parse(payload.raw.replace(/\n/g, ''));
+  if(agent === "cursor") {
+    //strip newlines and re-parse payload JSON
+    const hookRaw =
+      typeof payload === 'object' &&
+      payload !== null &&
+      typeof (payload as { raw?: unknown }).raw === 'string'
+        ? (payload as { raw: string }).raw
+        : ''
+    /** Strip BOM and all JS line terminators (LF, CR, CRLF, U+2028/U+2029) that can land inside forwarded hook JSON. */
+    const hookJsonText = hookRaw.replace(/^\uFEFF/, '').replace(/\r\n|\r|\n|\u2028|\u2029/g, '')
+    payload = JSON.parse(hookJsonText);
+    hook_type = (payload as any).hook_event_name;
+
+    if(hook_type === "beforeTabFileRead") {
+      return { ok: false, error: `Disallowed tool use`, listChanged: false };
+    }
+  }
 
   console.log("");
   console.log("------------------------------------------");
@@ -85,6 +99,15 @@ function processAgentHook(agent: string, hook_type: string, payload: unknown): {
   console.log("");
   console.log(`Parsed Events`, parsed);
   console.log("------------------------------------------");
+
+  //append payload into log file
+  fs.appendFileSync('agent-hooks.log', "\n");
+  fs.appendFileSync('agent-hooks.log', "------------------------------------------\n");
+  fs.appendFileSync('agent-hooks.log', `Agent: ${agent} - Hook Type: ${hook_type}\n`);
+  fs.appendFileSync('agent-hooks.log', "------------------------------------------\n");
+  fs.appendFileSync('agent-hooks.log', JSON.stringify(payload, null, 2));
+  fs.appendFileSync('agent-hooks.log', "\n" + JSON.stringify(parsed, null, 2));
+  fs.appendFileSync('agent-hooks.log', "\n------------------------------------------\n");
 
   for (const item of parsed) {
     const envelope: AgentEventEnvelope = {
@@ -256,21 +279,6 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
       logger.warn(`firebase proxy err=${String(err)}`)
       json(res, 502, { error: 'upstream_error' })
     }
-    return
-  }
-
-  // Legacy alias — Claude Code's hook-forward.js still POSTs here.
-  if (method === 'POST' && path === '/api/hook-event') {
-    const body = (await readJsonBody(req)) as { hook_type?: unknown; payload?: unknown }
-    if (typeof body.hook_type !== 'string' || body.hook_type.length === 0) {
-      json(res, 400, { error: 'hook_type_required' })
-      return
-    }
-    const result = processAgentHook('claude', body.hook_type, body.payload ?? null)
-    if (result.listChanged) {
-      bus.emit('sessions_changed', { session_ids: state.listActiveSessions() })
-    }
-    res.writeHead(204).end()
     return
   }
 
