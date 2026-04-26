@@ -123,6 +123,15 @@ static bool latchFilter(const char* session_id, const char* event_kind) {
   }
 
   if (strcmp(g_state.latched_session, session_id) != 0) {
+    // If a new foreground turn/session starts on a different session id,
+    // follow it immediately instead of waiting for stale-session cleanup.
+    if (event_kind &&
+        (!strcmp(event_kind, "turn.started") || !strcmp(event_kind, "session.started"))) {
+      LOG_EVT("session relatched via event: %s -> %s",
+              g_state.latched_session, session_id);
+      AsciiCopy::copy(g_state.latched_session, sizeof(g_state.latched_session), session_id);
+      return true;
+    }
     return false;
   }
 
