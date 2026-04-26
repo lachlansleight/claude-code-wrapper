@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 
-#include "ClaudeEvents.h"
+#include "AgentEvents.h"
 #include "DebugLog.h"
 #include "Motion.h"
 
@@ -37,7 +37,7 @@ void begin() {
 }
 
 void tick() {
-  const bool working = ClaudeEvents::state().working;
+  const bool working = AgentEvents::state().working;
 
   switch (phase) {
     case Phase::Boot:

@@ -7,7 +7,7 @@
 //   Provisioning      — NVS-backed runtime config + AP-mode config portal
 //   WiFiManager       — connect & auto-reconnect
 //   BridgeClient      — WebSocket transport, JSON decode, send helpers
-//   ClaudeEvents      — event structs, polled state, callback registry,
+//   AgentEvents       — event structs, polled state, callback registry,
 //                       session latching
 //   ToolFormat        — tool → short label + one-line detail (legacy, unused
 //                       by Face; kept for future overlays)
@@ -33,7 +33,7 @@
 // Board: ESP32-S3 with Arduino-ESP32 core 3.x (DMA on S3 needs IDF ≥ 2.0.14).
 
 #include "BridgeClient.h"
-#include "ClaudeEvents.h"
+#include "AgentEvents.h"
 #include "DebugLog.h"
 #include "Display.h"
 #include "Face.h"
@@ -46,12 +46,7 @@
 
 static Provisioning::Config cfg;
 
-// Personality::begin() registers the ClaudeEvents::onHook handler — only
-// one hook handler is allowed at a time, so any other per-hook side effects
-// should live inside Personality's handler (or we add a lightweight
-// multi-dispatch later). Non-hook events can still register separately.
-
-static void onPermissionRequest(const ClaudeEvents::PermissionRequestEvent& e) {
+static void onPermissionRequest(const AgentEvents::PermissionRequestEvent& e) {
   LOG_EVT("perm request id=%s tool=%s", e.request_id, e.tool_name);
   // Bridge::sendPermissionVerdict(e.request_id, "allow");  // auto-approve demo
 }
@@ -78,11 +73,11 @@ void setup() {
   }
 
   WifiMgr::connect(cfg.wifi_ssid.c_str(), cfg.wifi_password.c_str());
-  ClaudeEvents::setWifiConnected(true);
+  AgentEvents::setWifiConnected(true);
   Face::invalidate();
 
   Personality::begin();
-  ClaudeEvents::onPermissionRequest(onPermissionRequest);
+  AgentEvents::onPermissionRequest(onPermissionRequest);
 
   Bridge::begin(cfg.bridge_host.c_str(), cfg.bridge_port,
                 cfg.bridge_token.c_str());
@@ -90,7 +85,7 @@ void setup() {
 
 void loop() {
   WifiMgr::tick(cfg.wifi_ssid.c_str(), cfg.wifi_password.c_str());
-  ClaudeEvents::setWifiConnected(WifiMgr::isConnected());
+  AgentEvents::setWifiConnected(WifiMgr::isConnected());
 
   Bridge::tick();
 

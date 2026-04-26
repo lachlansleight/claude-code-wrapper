@@ -3,7 +3,7 @@
 #include <ArduinoJson.h>
 #include <WebSocketsClient.h>
 
-#include "ClaudeEvents.h"
+#include "AgentEvents.h"
 #include "DebugLog.h"
 #include "config.h"
 
@@ -41,7 +41,7 @@ static void handleText(uint8_t* payload, size_t length) {
     LOG_WARN("json parse failed: %s", err.c_str());
     return;
   }
-  ClaudeEvents::dispatch(doc);
+  AgentEvents::dispatch(doc);
 }
 
 static void onWsEvent(WStype_t type, uint8_t* payload, size_t length) {
@@ -49,12 +49,12 @@ static void onWsEvent(WStype_t type, uint8_t* payload, size_t length) {
     case WStype_CONNECTED:
       connected = true;
       LOG_WS("connected url=%s", (const char*)payload);
-      ClaudeEvents::notifyConnection(true);
+      AgentEvents::notifyConnection(true);
       break;
     case WStype_DISCONNECTED:
       connected = false;
       LOG_WS("disconnected");
-      ClaudeEvents::notifyConnection(false);
+      AgentEvents::notifyConnection(false);
       break;
     case WStype_TEXT:
       handleText(payload, length);
@@ -88,7 +88,7 @@ void tick() {
   // Bridge also pushes on change, but polling catches the case where the
   // only session existed before we connected and no further changes fire.
   static uint32_t lastPoll = 0;
-  if (connected && ClaudeEvents::state().latched_session[0] == '\0') {
+  if (connected && AgentEvents::state().latched_session[0] == '\0') {
     const uint32_t now = millis();
     if (now - lastPoll >= kSessionPollMs) {
       lastPoll = now;

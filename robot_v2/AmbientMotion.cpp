@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include <string.h>
 
-#include "ClaudeEvents.h"
+#include "AgentEvents.h"
 #include "DebugLog.h"
 #include "Motion.h"
 
@@ -54,7 +54,7 @@ void begin() {
 }
 
 void tick() {
-  const auto& st = ClaudeEvents::state();
+  const auto& st = AgentEvents::state();
 
   // PreToolUse edge detection. Fires exactly once when we see a newly-set
   // current_tool in its "running" state (end_ms == 0). Either the first

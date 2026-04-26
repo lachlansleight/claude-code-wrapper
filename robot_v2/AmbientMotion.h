@@ -11,7 +11,7 @@
 //   - When not working, ambient motion is off and the attract scheduler
 //     takes over (waggle on idle entry).
 //
-// Drives Motion directly; observes ClaudeEvents::state() via polling so we
+// Drives Motion directly; observes AgentEvents::state() via polling so we
 // don't burn the single hook-callback slot.
 
 namespace AmbientMotion {

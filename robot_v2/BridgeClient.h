@@ -3,7 +3,7 @@
 // WebSocket client to the Claude Code bridge at ws://<host>:<port>/ws
 //
 // Handles auth, auto-reconnect, JSON parsing, and forwards every decoded
-// message to ClaudeEvents::dispatch(). Sending is also exposed here so the
+// message to AgentEvents::dispatch(). Sending is also exposed here so the
 // firmware can approve/deny permissions or inject chat messages.
 
 #include <Arduino.h>

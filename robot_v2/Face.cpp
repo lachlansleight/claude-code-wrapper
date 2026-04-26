@@ -4,7 +4,7 @@
 #include <esp_random.h>
 #include <math.h>
 
-#include "ClaudeEvents.h"
+#include "AgentEvents.h"
 #include "Display.h"
 #include "Personality.h"
 
@@ -385,7 +385,7 @@ static void drawMouth(TFT_eSprite& s, const FaceParams& p,
 // Dot arcs for tool activity this turn:
 //   - read tools  -> top arc
 //   - write tools -> bottom arc
-// Counts are driven by PostToolUse tallies in ClaudeEvents.
+// Counts are driven by activity.finished tallies in AgentEvents.
 static constexpr int16_t kProgressArcRadius = 104;
 static constexpr int16_t kProgressDotRadiusMin = 5;
 static constexpr int16_t kProgressDotRadiusMax = 2;
@@ -465,7 +465,7 @@ static void renderFrame(TFT_eSprite& s, const FaceParams& p,
   drawEye(s, p, lex, ley, blinkAmt, gdx, gdy, cosA, sinA);
   drawEye(s, p, rex, rey, blinkAmt, gdx, gdy, cosA, sinA);
   drawMouth(s, p, mx, my, cosA, sinA);
-  const ClaudeEvents::ClaudeState& cs = ClaudeEvents::state();
+  const AgentEvents::AgentState& cs = AgentEvents::state();
   if (st == Personality::SLEEP) return;
 
   if (sProgressFadeStartMs != 0) {
@@ -532,7 +532,7 @@ static void onStateChange(Personality::State newState, uint32_t now) {
   sTo           = kTargets[newState];
   sTweenStartMs = now;
   if (sLastState == Personality::READY && newState == Personality::IDLE) {
-    const ClaudeEvents::ClaudeState& cs = ClaudeEvents::state();
+    const AgentEvents::AgentState& cs = AgentEvents::state();
     sFadeReadCount = cs.read_tools_this_turn;
     sFadeWriteCount = cs.write_tools_this_turn;
     sProgressFadeStartMs = now;
