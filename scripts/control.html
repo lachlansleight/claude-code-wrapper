@@ -14,13 +14,16 @@
       --muted: #8b93a7;
       --accent: #6ea8ff;
       --good: #58d68d;
+      --good-alt: #d658b9;
       --bad: #ff7b7b;
       --warn: #f0c000;
+      --tool: #c792ea;
+      --hook: #82aaff;
     }
     * { box-sizing: border-box; }
     body {
       font-family: system-ui, -apple-system, sans-serif;
-      max-width: 900px;
+      max-width: 1040px;
       margin: 1em auto;
       padding: 0 1em;
       background: var(--bg);
@@ -98,8 +101,198 @@
     }
     #dropZone.loaded { border-style: solid; border-color: var(--good); color: var(--text); }
     #logFile { display: none; }
+    .controls-bridge {
+      display: flex;
+      gap: 0.75em;
+      align-items: center;
+      flex-wrap: wrap;
+      font-size: 0.85em;
+      color: var(--muted);
+    }
+    .controls-bridge label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35em;
+      cursor: pointer;
+    }
+    #bridgeTimeline {
+      height: min(52vh, 560px);
+      overflow-y: auto;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5em;
+    }
+    .ev-card {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--muted);
+      border-radius: 4px;
+      margin: 0.45em 0;
+      padding: 0.55em 0.75em;
+      font-size: 0.9em;
+    }
+    .ev-card .ev-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.5em;
+      color: var(--muted);
+      font-size: 0.72em;
+      margin-bottom: 0.35em;
+      flex-wrap: wrap;
+    }
+    .ev-card .ev-lane {
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .ev-card .ev-head {
+      font-weight: 650;
+      font-size: 0.98em;
+      margin-bottom: 0.15em;
+    }
+    .ev-card .ev-robot {
+      font-size: 0.8em;
+      color: var(--accent);
+      margin-bottom: 0.35em;
+      line-height: 1.35;
+    }
+    .ev-card .ev-body {
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 0.88em;
+      line-height: 1.4;
+    }
+    .ev-card code,
+    .ev-card .ev-kv-val {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.82em;
+      background: rgba(255, 255, 255, 0.06);
+      padding: 0.05em 0.35em;
+      border-radius: 3px;
+    }
+    .ev-card .ev-kvs {
+      display: grid;
+      grid-template-columns: minmax(5em, auto) 1fr;
+      gap: 0.2em 0.65em;
+      margin-top: 0.45em;
+      font-size: 0.82em;
+    }
+    .ev-card .ev-kvs .ev-k {
+      color: var(--muted);
+    }
+    .ev-card details {
+      margin-top: 0.45em;
+    }
+    .ev-card summary {
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.75em;
+      user-select: none;
+    }
+    .ev-card pre {
+      margin: 0.35em 0 0;
+      padding: 0.5em;
+      background: #0b0d12;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 0.78em;
+      line-height: 1.4;
+    }
+    .ev-card .tool-name {
+      color: var(--tool);
+      font-weight: 600;
+    }
+    .ev-card .badge {
+      display: inline-block;
+      padding: 0.08em 0.45em;
+      border-radius: 10px;
+      font-size: 0.72em;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--muted);
+      margin-left: 0.25em;
+      vertical-align: middle;
+    }
+    .ev-hello {
+      border-left-color: var(--accent);
+    }
+    .ev-hello .ev-lane {
+      color: var(--accent);
+    }
+    .ev-sessions {
+      border-left-color: var(--muted);
+    }
+    .ev-config {
+      border-left-color: var(--warn);
+    }
+    .ev-config .ev-lane {
+      color: var(--warn);
+    }
+    .ev-agent {
+      border-left-color: var(--hook);
+    }
+    .ev-agent .ev-lane {
+      color: var(--hook);
+    }
+    .ev-user {
+      border-left-color: var(--good-alt);
+    }
+    .ev-user .ev-lane {
+      color: var(--good-alt);
+    }
+    .ev-assistant {
+      border-left-color: var(--good);
+    }
+    .ev-assistant .ev-lane {
+      color: var(--good);
+    }
+    .ev-session {
+      border-left-color: var(--muted);
+    }
+    .ev-perm {
+      border-left-color: var(--warn);
+      background: #221c12;
+    }
+    .ev-perm .ev-lane {
+      color: var(--warn);
+    }
+    .ev-perm-resolved {
+      border-left-color: var(--muted);
+      opacity: 0.88;
+    }
+    .ev-error {
+      border-left-color: var(--bad);
+    }
+    .ev-error .ev-lane {
+      color: var(--bad);
+    }
+    .ev-system {
+      border-left-color: var(--muted);
+      font-size: 0.86em;
+    }
+    .perm-actions {
+      margin-top: 0.5em;
+      display: flex;
+      gap: 0.4em;
+    }
+    .perm-actions button.allow {
+      background: #1f3d2b;
+      border-color: var(--good);
+      color: var(--good);
+    }
+    .perm-actions button.deny {
+      background: #3d1f1f;
+      border-color: var(--bad);
+      color: var(--bad);
+    }
+    .perm-actions button:disabled {
+      background: var(--panel);
+      color: var(--muted);
+      border-color: var(--border);
+    }
     #log {
-      height: 50vh;
+      height: min(22vh, 220px);
       overflow-y: auto;
       background: var(--panel);
       border: 1px solid var(--border);
@@ -150,7 +343,14 @@
     <button id="playLogBtn" disabled>Play Log</button>
     <button id="stopLogBtn" disabled>Stop Replay</button>
   </div>
-  <h3>Log</h3>
+  <h3>Bridge feed</h3>
+  <div class="row controls-bridge">
+    <label><input type="checkbox" id="timelineShowRaw" /> Raw JSON</label>
+    <label><input type="checkbox" id="timelineAutoscroll" checked /> Auto-scroll</label>
+    <button type="button" id="timelineClearBtn">Clear feed</button>
+  </div>
+  <div id="bridgeTimeline" aria-live="polite"></div>
+  <h3>Control log</h3>
   <div id="log"></div>
 
   <script>
@@ -172,6 +372,538 @@
     };
     const getSessionId = () => document.getElementById("sessionIdInput").value.trim() || "simulator";
     const getTurnId = () => document.getElementById("turnIdInput").value.trim() || "turn_1";
+
+    const BRIDGE_WS_DEV_TOKEN_KEY = "claude-code-wrapper.bridge_ws_dev_token";
+    const tokenFromBridgeWsUrl = (urlStr) => {
+      try {
+        return new URL(urlStr).searchParams.get("token") || "";
+      } catch {
+        return "";
+      }
+    };
+    const applyStoredBridgeTokenToWsInput = () => {
+      let stored = "";
+      try {
+        stored = localStorage.getItem(BRIDGE_WS_DEV_TOKEN_KEY) || "";
+      } catch {
+        return;
+      }
+      if (!stored) return;
+      const el = document.getElementById("wsUrl");
+      const cur = el.value.trim();
+      try {
+        const u = new URL(cur);
+        u.searchParams.set("token", stored);
+        el.value = u.toString();
+      } catch {
+        el.value = `ws://localhost:8787/ws?token=${encodeURIComponent(stored)}`;
+      }
+    };
+    applyStoredBridgeTokenToWsInput();
+
+    const bridgeTimeline = () => document.getElementById("bridgeTimeline");
+    const esc = (s) =>
+      String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]),
+      );
+    const truncate = (s, n = 480) => {
+      s = String(s || "");
+      return s.length > n ? s.slice(0, n) + "…" : s;
+    };
+    const fmtLocal = (ms) => {
+      const t = typeof ms === "number" && Number.isFinite(ms) ? ms : Date.now();
+      return new Date(t).toLocaleString();
+    };
+
+    const activityTitleForRobot = (activityKind) => {
+      if (!activityKind) return "Reading";
+      if (activityKind === "shell.exec" || activityKind === "shell.background") return "Executing";
+      if (activityKind.startsWith("file.") || activityKind === "notebook.edit") return "Reading";
+      return "Executing";
+    };
+
+    const formatBytesShort = (n) => {
+      const x = Number(n);
+      if (!Number.isFinite(x) || x < 0) return "";
+      if (x < 1000) return `${Math.round(x)} B`;
+      if (x >= 1e6) return `${Number((x / 1e6).toPrecision(3))}MB`;
+      return `${Number((x / 1e3).toPrecision(3))}kB`;
+    };
+
+    /** Mirrors robot_v2 AgentEvents text UI mapping for quick scanning. */
+    const robotTextUiHint = (kind, ev) => {
+      const act = ev.activity;
+      switch (kind) {
+        case "turn.started":
+          return "Robot text UI: Thinking · empty body";
+        case "message.user":
+          return "Robot text UI: unchanged (message.user does not override title/body)";
+        case "thinking":
+          return `Robot text UI: Thinking · body — ${truncate(ev.text || "", 140)}`;
+        case "activity.started": {
+          const t = activityTitleForRobot(act?.kind);
+          return `Robot text UI: ${t} · body — ${truncate(act?.summary || "—", 200)}`;
+        }
+        case "activity.finished":
+        case "activity.failed": {
+          const t = activityTitleForRobot(act?.kind);
+          const sum = act?.summary || "";
+          const cl = ev.content_length;
+          const hasLen =
+            (act?.kind === "file.read" || act?.kind === "file.write") &&
+            cl != null &&
+            String(cl) !== "";
+          const tail = hasLen ? ` - ${formatBytesShort(cl)}` : "";
+          return `Robot text UI: ${t} · body — ${truncate(sum, 160)}${tail} (then 1s linger → Thinking · empty)`;
+        }
+        case "message.assistant":
+          return `Robot text UI: Done · body — ${truncate(ev.text || "", 160)}`;
+        case "turn.ended":
+        case "session.started":
+        case "session.ended":
+          return "Robot text UI: not driven solely by this event (see firmware)";
+        case "permission.requested":
+          return "Robot text UI: Awaiting permission · body — tool summary or description";
+        case "permission.resolved":
+          return "Robot text UI: permission cleared (see firmware)";
+        case "agent.question":
+          return "Robot text UI: treated like permission-style prompt (firmware)";
+        default:
+          return "";
+      }
+    };
+
+    const appendBridgeCard = ({
+      cls,
+      lane,
+      receivedAt,
+      bridgeTs,
+      headline,
+      robotHint,
+      bodyHtml,
+      kvs,
+      raw,
+      cardId,
+    }) => {
+      const div = document.createElement("div");
+      div.className = `ev-card ${cls}`;
+      if (cardId) div.id = cardId;
+      const recv = fmtLocal(receivedAt);
+      const bts =
+        bridgeTs != null && Number.isFinite(bridgeTs)
+          ? `<span title="envelope ts">bridge ${fmtLocal(bridgeTs)}</span>`
+          : "";
+      const meta = `<div class="ev-meta"><span class="ev-lane">${esc(lane)}</span><span>${esc(recv)} ${bts ? "· " + bts : ""}</span></div>`;
+      const head = headline ? `<div class="ev-head">${headline}</div>` : "";
+      const rh =
+        robotHint && String(robotHint).trim()
+          ? `<div class="ev-robot">${esc(robotHint)}</div>`
+          : "";
+      const body = bodyHtml || "";
+      let kvsHtml = "";
+      if (kvs && kvs.length) {
+        kvsHtml =
+          '<div class="ev-kvs">' +
+          kvs.map(([k, v]) => `<div class="ev-k">${esc(k)}</div><div class="ev-kv-val">${v}</div>`).join("") +
+          "</div>";
+      }
+      const rawOpen = document.getElementById("timelineShowRaw")?.checked;
+      const rawHtml = raw
+        ? `<details${rawOpen ? " open" : ""}><summary>Full JSON</summary><pre>${esc(JSON.stringify(raw, null, 2))}</pre></details>`
+        : "";
+      div.innerHTML = meta + head + rh + body + kvsHtml + rawHtml;
+      bridgeTimeline().appendChild(div);
+      if (document.getElementById("timelineAutoscroll")?.checked) {
+        const tl = bridgeTimeline();
+        tl.scrollTop = tl.scrollHeight;
+      }
+      return div;
+    };
+
+    const kvPush = (arr, k, v) => {
+      if (v != null && v !== "") arr.push([k, `<code>${esc(String(v))}</code>`]);
+    };
+
+    const renderPermissionCard = (p) => {
+      const id = "perm-" + String(p.request_id || "").replace(/[^a-zA-Z0-9_-]/g, "_");
+      if (document.getElementById(id)) return;
+      const tool = p.activity?.tool || "";
+      const summary = p.activity?.summary || "";
+      const kvs = [];
+      kvPush(kvs, "request_id", p.request_id);
+      kvPush(kvs, "activity.kind", p.activity?.kind);
+      kvPush(kvs, "opened_at", p.opened_at != null ? fmtLocal(p.opened_at) : "");
+      const head = `<span class="tool-name">${esc(tool)}</span> <code>${esc(p.request_id)}</code>`;
+      const bodyBits = [
+        p.description ? `<em>${esc(p.description)}</em>` : "",
+        summary ? `<code>${esc(summary)}</code>` : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const bodyHtml = bodyBits ? `<div class="ev-body">${bodyBits}</div>` : "";
+      const el = appendBridgeCard({
+        cls: "ev-perm",
+        lane: "permission_request",
+        receivedAt: Date.now(),
+        bridgeTs: p.opened_at,
+        headline: head,
+        robotHint: robotTextUiHint("permission.requested", {}),
+        bodyHtml,
+        kvs,
+        raw: p,
+        cardId: id,
+      });
+      const actions = document.createElement("div");
+      actions.className = "perm-actions";
+      actions.innerHTML =
+        '<button type="button" class="allow" data-behavior="allow">Allow</button>' +
+        '<button type="button" class="deny" data-behavior="deny">Deny</button>';
+      actions.querySelectorAll("button").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          if (!ws || ws.readyState !== WebSocket.OPEN) return;
+          ws.send(
+            JSON.stringify({
+              type: "permission_verdict",
+              request_id: p.request_id,
+              behavior: btn.dataset.behavior,
+            }),
+          );
+          log(`>> permission_verdict ${btn.dataset.behavior} ${p.request_id}`);
+          actions.querySelectorAll("button").forEach((b) => {
+            b.disabled = true;
+          });
+          btn.textContent = `${btn.dataset.behavior} sent…`;
+        });
+      });
+      el.appendChild(actions);
+    };
+
+    const resolvePermissionCard = (msg) => {
+      const safeId = "perm-" + String(msg.request_id || "").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const el = document.getElementById(safeId);
+      if (el) {
+        el.classList.remove("ev-perm");
+        el.classList.add("ev-perm-resolved");
+        const lane = el.querySelector(".ev-lane");
+        if (lane) lane.textContent = "permission_resolved";
+        const head = el.querySelector(".ev-head");
+        if (head)
+          head.innerHTML = `<code>${esc(msg.request_id)}</code> · <strong>${esc(msg.behavior || "")}</strong>`;
+        const actions = el.querySelector(".perm-actions");
+        if (actions) actions.remove();
+      } else {
+        const kvs = [];
+        kvPush(kvs, "request_id", msg.request_id);
+        kvPush(kvs, "behavior", msg.behavior);
+        kvPush(kvs, "by", msg.by);
+        appendBridgeCard({
+          cls: "ev-perm-resolved",
+          lane: "permission_resolved",
+          receivedAt: Date.now(),
+          bridgeTs: null,
+          headline: `Permission <code>${esc(msg.request_id)}</code>`,
+          robotHint: "",
+          bodyHtml: `<div class="ev-body">Resolved as <strong>${esc(msg.behavior)}</strong> (${esc(msg.by || "")})</div>`,
+          kvs,
+          raw: msg,
+        });
+      }
+    };
+
+    const renderAgentEventCard = (msg) => {
+      const ev = msg.event || {};
+      const kind = ev.kind || "unknown";
+      const kvs = [];
+      kvPush(kvs, "event.kind", kind);
+      kvPush(kvs, "envelope.agent", msg.agent);
+      kvPush(kvs, "envelope.session_id", msg.session_id);
+      kvPush(kvs, "envelope.turn_id", msg.turn_id);
+      kvPush(kvs, "envelope.ts", msg.ts != null ? String(msg.ts) : "");
+
+      const robotHint = robotTextUiHint(kind, ev);
+
+      let cls = "ev-agent";
+      let headline = `<code>${esc(kind)}</code>`;
+      let bodyHtml = "";
+
+      const act = ev.activity;
+
+      switch (kind) {
+        case "turn.started":
+          cls = "ev-user";
+          headline = "Turn started";
+          if (ev.prompt) bodyHtml = `<div class="ev-body">${esc(truncate(ev.prompt, 800))}</div>`;
+          break;
+        case "message.user":
+          cls = "ev-user";
+          headline = "User message";
+          if (ev.text) bodyHtml = `<div class="ev-body">${esc(truncate(ev.text, 800))}</div>`;
+          break;
+        case "thinking":
+          cls = "ev-system";
+          headline = "Agent thought";
+          if (ev.text) bodyHtml = `<div class="ev-body"><em>${esc(truncate(ev.text, 900))}</em></div>`;
+          break;
+        case "activity.started":
+        case "activity.finished":
+        case "activity.failed": {
+          const tool = act?.tool || "";
+          const ak = act?.kind || "";
+          headline = `<span class="tool-name">${esc(tool)}</span> <span class="badge">${esc(ak)}</span> <span class="badge">${esc(
+            kind.replace("activity.", ""),
+          )}</span>`;
+          if (act?.summary)
+            bodyHtml = `<div class="ev-body"><code>${esc(truncate(act.summary, 900))}</code></div>`;
+          kvPush(kvs, "activity.id", act?.id);
+          if (ev.duration_ms != null) kvPush(kvs, "duration_ms", ev.duration_ms);
+          if (ev.content_length != null) kvPush(kvs, "content_length (bytes)", ev.content_length);
+          if (ev.failure_kind) kvPush(kvs, "failure_kind", ev.failure_kind);
+          if (ev.error_message)
+            kvs.push(["error_message", `<pre>${esc(truncate(ev.error_message, 600))}</pre>`]);
+          if (kind === "activity.failed") cls = "ev-error";
+          break;
+        }
+        case "message.assistant":
+          cls = "ev-assistant";
+          headline = "Assistant message";
+          if (ev.final) kvPush(kvs, "final", "true");
+          if (ev.text) bodyHtml = `<div class="ev-body">${esc(truncate(ev.text, 4000))}</div>`;
+          break;
+        case "turn.ended":
+          cls = "ev-session";
+          headline = "Turn ended";
+          kvPush(kvs, "cause", ev.cause);
+          if (ev.last_assistant_text)
+            kvs.push(["last_assistant_text", `<pre>${esc(truncate(ev.last_assistant_text, 500))}</pre>`]);
+          break;
+        case "session.started":
+        case "session.ended":
+          cls = "ev-session";
+          headline = kind === "session.started" ? "Session started" : "Session ended";
+          kvPush(kvs, "cause", ev.cause);
+          if (ev.duration_ms != null) kvPush(kvs, "duration_ms", ev.duration_ms);
+          break;
+        case "permission.requested":
+          cls = "ev-perm";
+          headline = "Permission requested (agent_event)";
+          kvPush(kvs, "request_id", ev.request_id);
+          if (act?.tool) headline += ` · <span class="tool-name">${esc(act.tool)}</span>`;
+          if (act?.summary || ev.description) {
+            bodyHtml = `<div class="ev-body">${act?.summary ? `<code>${esc(act.summary)}</code> ` : ""}${
+              ev.description ? `<em>${esc(ev.description)}</em>` : ""
+            }</div>`;
+          }
+          break;
+        case "permission.resolved":
+          cls = "ev-perm-resolved";
+          headline = "Permission resolved (agent_event)";
+          kvPush(kvs, "request_id", ev.request_id);
+          kvPush(kvs, "decision", ev.decision);
+          kvPush(kvs, "scope", ev.scope);
+          break;
+        case "todo.updated": {
+          const items = Array.isArray(ev.items) ? ev.items : [];
+          bodyHtml =
+            '<div class="ev-body"><pre>' +
+            esc(items.map((t) => `[${(t.status || "?")[0]}] ${t.text || ""}`).join("\n")) +
+            "</pre></div>";
+          break;
+        }
+        case "subagent.started":
+        case "subagent.finished":
+          headline = kind;
+          kvPush(kvs, "subagent_id", ev.subagent_id);
+          kvPush(kvs, "subagent_type", ev.subagent_type);
+          kvPush(kvs, "cause", ev.cause);
+          if (ev.task) bodyHtml = `<div class="ev-body">${esc(truncate(ev.task, 600))}</div>`;
+          break;
+        case "agent.question":
+          cls = "ev-perm";
+          headline = "Agent question";
+          if (ev.text) bodyHtml = `<div class="ev-body"><strong>${esc(ev.text)}</strong></div>`;
+          if (Array.isArray(ev.options) && ev.options.length) {
+            kvs.push(["options", ev.options.map((o) => `<code>${esc(o)}</code>`).join(" ")]);
+          }
+          break;
+        case "context.compacting":
+          cls = "ev-session";
+          headline = "Context compacting";
+          kvPush(kvs, "trigger", ev.trigger);
+          if (ev.context_usage_percent != null) kvPush(kvs, "context_usage_percent", `${ev.context_usage_percent}%`);
+          break;
+        case "notification":
+          cls = "ev-system";
+          headline = "Notification";
+          if (ev.text) bodyHtml = `<div class="ev-body">${esc(truncate(ev.text, 1200))}</div>`;
+          break;
+        default:
+          cls = "ev-system";
+          headline = `Event · ${esc(kind)}`;
+          bodyHtml = `<div class="ev-body"><pre>${esc(truncate(JSON.stringify(ev, null, 2), 2000))}</pre></div>`;
+      }
+
+      appendBridgeCard({
+        cls,
+        lane: "agent_event",
+        receivedAt: Date.now(),
+        bridgeTs: msg.ts,
+        headline,
+        robotHint,
+        bodyHtml,
+        kvs,
+        raw: msg,
+      });
+    };
+
+    const handleBridgeInbound = (msg) => {
+      const raw = msg;
+      const t = msg.ts != null ? msg.ts : null;
+      switch (msg.type) {
+        case "hello":
+          appendBridgeCard({
+            cls: "ev-hello",
+            lane: "hello",
+            receivedAt: Date.now(),
+            bridgeTs: null,
+            headline: `Connected · server v${esc(msg.server_version || "?")}`,
+            robotHint: "",
+            bodyHtml: `<div class="ev-body">client_id <code>${esc(msg.client_id || "")}</code></div>`,
+            kvs: [],
+            raw,
+          });
+          break;
+        case "pong":
+          appendBridgeCard({
+            cls: "ev-system",
+            lane: "pong",
+            receivedAt: Date.now(),
+            bridgeTs: null,
+            headline: "Pong",
+            robotHint: "",
+            bodyHtml: "",
+            kvs: [],
+            raw: null,
+          });
+          break;
+        case "active_sessions": {
+          const ids = Array.isArray(msg.session_ids) ? msg.session_ids : [];
+          const preview = ids.length ? truncate(ids.join(", "), 900) : "(none)";
+          const kvs = [];
+          kvPush(kvs, "session_count", ids.length);
+          appendBridgeCard({
+            cls: "ev-sessions",
+            lane: "active_sessions",
+            receivedAt: Date.now(),
+            bridgeTs: t,
+            headline: `Active sessions (${ids.length})`,
+            robotHint: "Robot may latch session from this list when unlatched.",
+            bodyHtml: `<div class="ev-body"><code>${esc(preview)}</code></div>`,
+            kvs,
+            raw,
+          });
+          break;
+        }
+        case "config_change": {
+          const kvs = [];
+          kvPush(kvs, "display_mode", msg.display_mode);
+          kvPush(kvs, "by", msg.by);
+          kvPush(kvs, "ts", msg.ts);
+          appendBridgeCard({
+            cls: "ev-config",
+            lane: "config_change",
+            receivedAt: Date.now(),
+            bridgeTs: msg.ts,
+            headline: `Display mode → ${esc(msg.display_mode || "")}`,
+            robotHint: "",
+            bodyHtml: "",
+            kvs,
+            raw,
+          });
+          break;
+        }
+        case "agent_event": {
+          const k = msg.event && msg.event.kind;
+          if (k === "permission.requested") break;
+          renderAgentEventCard(msg);
+          break;
+        }
+        case "permission_request":
+          renderPermissionCard(msg);
+          break;
+        case "permission_resolved":
+          resolvePermissionCard(msg);
+          break;
+        case "session_event":
+          appendBridgeCard({
+            cls: "ev-session",
+            lane: "session_event",
+            receivedAt: Date.now(),
+            bridgeTs: t,
+            headline: `Session event · ${esc(msg.event || "")}`,
+            robotHint: "",
+            bodyHtml: msg.detail ? `<div class="ev-body">${esc(truncate(msg.detail, 600))}</div>` : "",
+            kvs: [],
+            raw,
+          });
+          break;
+        case "inbound_message": {
+          const kvs = [];
+          kvPush(kvs, "chat_id", msg.chat_id);
+          kvPush(kvs, "client_id", msg.client_id);
+          appendBridgeCard({
+            cls: "ev-user",
+            lane: "inbound_message",
+            receivedAt: Date.now(),
+            bridgeTs: msg.ts,
+            headline: "Inbound message",
+            robotHint: "",
+            bodyHtml: msg.content ? `<div class="ev-body">${esc(truncate(msg.content, 1200))}</div>` : "",
+            kvs,
+            raw,
+          });
+          break;
+        }
+        case "outbound_reply":
+          appendBridgeCard({
+            cls: "ev-assistant",
+            lane: "outbound_reply",
+            receivedAt: Date.now(),
+            bridgeTs: msg.ts,
+            headline: "Outbound reply",
+            robotHint: "",
+            bodyHtml: msg.content ? `<div class="ev-body">${esc(truncate(msg.content, 1200))}</div>` : "",
+            kvs: [["chat_id", `<code>${esc(msg.chat_id || "")}</code>`]],
+            raw,
+          });
+          break;
+        case "error":
+          appendBridgeCard({
+            cls: "ev-error",
+            lane: "error",
+            receivedAt: Date.now(),
+            bridgeTs: null,
+            headline: "Error",
+            robotHint: "",
+            bodyHtml: `<div class="ev-body">${esc(msg.message || "")}</div>`,
+            kvs: [],
+            raw,
+          });
+          break;
+        default:
+          appendBridgeCard({
+            cls: "ev-system",
+            lane: String(msg.type || "unknown"),
+            receivedAt: Date.now(),
+            bridgeTs: t,
+            headline: `Frame · ${esc(msg.type || "unknown")}`,
+            robotHint: "",
+            bodyHtml: "",
+            kvs: [],
+            raw,
+          });
+      }
+    };
+
     const refreshToggleLabels = () => {
       document.getElementById("readToggleBtn").textContent = activeActivities["file.read"] ? "Stop Read" : "Start Read";
       document.getElementById("writeToggleBtn").textContent = activeActivities["file.write"] ? "Stop Write" : "Start Write";
@@ -256,6 +988,14 @@
         return;
       }
       ws.onopen = () => {
+        const tok = tokenFromBridgeWsUrl(url);
+        if (tok) {
+          try {
+            localStorage.setItem(BRIDGE_WS_DEV_TOKEN_KEY, tok);
+          } catch {
+            /* quota / private mode */
+          }
+        }
         log("Connected: " + url);
         setEnabled(true);
       };
@@ -264,7 +1004,27 @@
         setEnabled(false);
       };
       ws.onerror = () => log("WebSocket error");
-      ws.onmessage = (ev) => log("<< " + ev.data);
+      ws.onmessage = (ev) => {
+        let msg;
+        try {
+          msg = JSON.parse(ev.data);
+        } catch {
+          appendBridgeCard({
+            cls: "ev-error",
+            lane: "parse_error",
+            receivedAt: Date.now(),
+            bridgeTs: null,
+            headline: "Non-JSON frame",
+            robotHint: "",
+            bodyHtml: `<div class="ev-body">${esc(truncate(ev.data, 2000))}</div>`,
+            kvs: [],
+            raw: null,
+          });
+          log("(non-json inbound)");
+          return;
+        }
+        handleBridgeInbound(msg);
+      };
     });
 
     document.getElementById("faceBtn").addEventListener("click", () => sendMode("face"));
@@ -410,15 +1170,46 @@
 
     document.getElementById("playLogBtn").addEventListener("click", () => {
       if (!replayLoaded || replayLoaded.length === 0) return;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        log("WebSocket is not connected.");
+        return;
+      }
       cancelReplay();
       const speed = Math.max(0.1, parseFloat(document.getElementById("speedInput").value) || 1);
       const baseTs = replayLoaded[0].ts;
-      const startWall = performance.now();
-      log(`Replaying ${replayLoaded.length} entries at ${speed}x ...`);
+      const replayLeadMs = 1000;
+      let replayAgent = replayLoaded[0].agent || "simulator";
+      let replaySessionId = getSessionId();
+      outer: for (const entry of replayLoaded) {
+        if (entry.agent) replayAgent = entry.agent;
+        const parsed = Array.isArray(entry.parsed) ? entry.parsed : [];
+        for (const pe of parsed) {
+          if (pe && typeof pe.session_id === "string" && pe.session_id) {
+            replaySessionId = pe.session_id;
+            break outer;
+          }
+        }
+        const p = entry.payload || {};
+        const sid =
+          typeof p.conversation_id === "string" && p.conversation_id
+            ? p.conversation_id
+            : typeof p.session_id === "string" && p.session_id
+              ? p.session_id
+              : "";
+        if (sid) replaySessionId = sid;
+      }
+      log(
+        `Replaying ${replayLoaded.length} entries at ${speed}x (session.started now, hooks after +${replayLeadMs}ms) ...`,
+      );
       document.getElementById("stopLogBtn").disabled = false;
 
+      sendRawAgentEvent(replayAgent, replaySessionId, undefined, {
+        kind: "session.started",
+        cause: "startup",
+      });
+
       replayLoaded.forEach((entry, i) => {
-        const offset = (entry.ts - baseTs) / speed;
+        const offset = (entry.ts - baseTs) / speed + replayLeadMs;
         const t = setTimeout(() => {
           const parsed = Array.isArray(entry.parsed) ? entry.parsed : [];
           if (parsed.length === 0) {
@@ -441,6 +1232,16 @@
     document.getElementById("stopLogBtn").addEventListener("click", () => {
       cancelReplay();
       log("Replay stopped.");
+    });
+
+    document.getElementById("timelineClearBtn").addEventListener("click", () => {
+      bridgeTimeline().innerHTML = "";
+    });
+    document.getElementById("timelineShowRaw").addEventListener("change", () => {
+      const on = document.getElementById("timelineShowRaw").checked;
+      bridgeTimeline().querySelectorAll("details").forEach((d) => {
+        d.open = on;
+      });
     });
   </script>
 </body>

@@ -1,12 +1,15 @@
 #include "AgentEvents.h"
 
 #include <ctype.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "AsciiCopy.h"
 #include "DebugLog.h"
 
 namespace AgentEvents {
+
+static constexpr uint32_t kTextToolLingerMs = 1000;
 
 static AgentState g_state = {};
 
@@ -41,6 +44,7 @@ void notifyConnection(bool connected) {
     g_state.latched_session[0] = '\0';
     g_state.status_line[0] = '\0';
     g_state.body_text[0] = '\0';
+    g_state.text_tool_linger_until_ms = 0;
     g_state.latest_shell_command[0] = '\0';
     g_state.latest_read_target[0] = '\0';
     g_state.latest_write_target[0] = '\0';
@@ -104,21 +108,51 @@ static bool shellLikelyWrites(const char* summary) {
 }
 
 static void copyBody(const char* src) {
-  AsciiCopy::copy(g_state.body_text, sizeof(g_state.body_text), src);
+  AsciiCopy::copy(g_state.body_text, sizeof(g_state.body_text), src ? src : "");
   g_state.body_updated_ms = millis();
 }
 
-static void pushThoughtLine(const char* src) {
-  if (g_state.thought_count < 4) {
-    g_state.thought_count++;
+static void formatByteSize(char* out, size_t cap, uint32_t bytes) {
+  if (!out || cap < 8) {
+    if (out && cap) out[0] = '\0';
+    return;
   }
-  for (uint8_t i = 0; i + 1 < g_state.thought_count; ++i) {
-    AsciiCopy::copy(g_state.thought_lines[i], sizeof(g_state.thought_lines[i]),
-                    g_state.thought_lines[i + 1]);
+  if (bytes < 1000u) {
+    snprintf(out, cap, "%lu B", (unsigned long)bytes);
+    return;
   }
-  const uint8_t idx = g_state.thought_count - 1;
-  AsciiCopy::copy(g_state.thought_lines[idx], sizeof(g_state.thought_lines[idx]), src);
-  g_state.thought_updated_ms = millis();
+  if (bytes >= 1000000u) {
+    const double mb = (double)bytes / 1000000.0;
+    snprintf(out, cap, "%.3gMB", mb);
+    return;
+  }
+  const double kb = (double)bytes / 1000.0;
+  snprintf(out, cap, "%.3gkB", kb);
+}
+
+/** Cursor/bridge: file read and write use the same on-screen title. */
+static const char* titleForToolActivity(const char* activity_kind) {
+  if (!activity_kind || !*activity_kind) return "Reading";
+  if (!strcmp(activity_kind, "shell.exec") || !strcmp(activity_kind, "shell.background")) {
+    return "Executing";
+  }
+  if (!strncmp(activity_kind, "file.", 5) || !strcmp(activity_kind, "notebook.edit")) {
+    return "Reading";
+  }
+  return "Executing";
+}
+
+static void armTextToolLinger() {
+  const uint32_t t = millis();
+  g_state.text_tool_linger_until_ms = t + kTextToolLingerMs;
+  if (g_state.text_tool_linger_until_ms < t) g_state.text_tool_linger_until_ms = (uint32_t)-1;
+}
+
+static void clearTextToolLinger() { g_state.text_tool_linger_until_ms = 0; }
+
+static bool fileActivityWantsByteSuffix(const char* activity_kind) {
+  return activity_kind &&
+         (!strcmp(activity_kind, "file.read") || !strcmp(activity_kind, "file.write"));
 }
 
 static void deriveTargets(const char* activity_kind, const char* summary) {
@@ -142,43 +176,6 @@ static void deriveTargets(const char* activity_kind, const char* summary) {
   } else if (containsText(summary, "write ") || containsText(summary, "Write ")) {
     AsciiCopy::copy(g_state.latest_write_target, sizeof(g_state.latest_write_target),
                     summary);
-  }
-}
-
-static void deriveStatusLine(const char* kind, const char* activity_tool,
-                             const char* activity_summary) {
-  if (!strcmp(kind, "turn.started")) {
-    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Turn started");
-    return;
-  }
-  if (!strcmp(kind, "turn.ended")) {
-    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Turn complete");
-    return;
-  }
-  if (!strcmp(kind, "activity.started")) {
-    if (activity_tool && *activity_tool) {
-      char line[96];
-      snprintf(line, sizeof(line), "Running %s", activity_tool);
-      AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), line);
-    } else {
-      AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Running tool");
-    }
-    return;
-  }
-  if (!strcmp(kind, "permission.requested")) {
-    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Awaiting permission");
-    return;
-  }
-  if (!strcmp(kind, "message.assistant")) {
-    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Assistant message");
-    return;
-  }
-  if (!strcmp(kind, "thinking")) {
-    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Thinking");
-    return;
-  }
-  if (activity_summary && *activity_summary) {
-    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), activity_summary);
   }
 }
 
@@ -271,8 +268,28 @@ static void handleAgentEvent(JsonDocument& doc) {
     AsciiCopy::copy(g_state.last_tool, sizeof(g_state.last_tool), activity_tool);
   }
 
+  if (!strcmp(kind, "message.user")) {
+    if (h_event) {
+      Event e = {
+        kind,
+        doc["agent"] | "",
+        doc["session_id"] | "",
+        doc["turn_id"] | "",
+        activity_kind,
+        activity_tool,
+        activity_summary,
+        evt,
+        doc.as<JsonVariantConst>(),
+      };
+      h_event(e);
+    }
+    return;
+  }
+
   if (!strcmp(kind, "turn.started")) {
     g_state.working = true;
+    clearTextToolLinger();
+    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Thinking");
     g_state.current_tool[0] = '\0';
     g_state.tool_detail[0] = '\0';
     g_state.current_tool_end_ms = 0;
@@ -280,6 +297,7 @@ static void handleAgentEvent(JsonDocument& doc) {
     g_state.write_tools_this_turn = 0;
     g_state.last_summary[0] = '\0';
     g_state.body_text[0] = '\0';
+    g_state.body_updated_ms = millis();
     g_state.latest_shell_command[0] = '\0';
     g_state.latest_read_target[0] = '\0';
     g_state.latest_write_target[0] = '\0';
@@ -304,9 +322,12 @@ static void handleAgentEvent(JsonDocument& doc) {
     }
   } else if (!strcmp(kind, "activity.started")) {
     g_state.working = true;
+    clearTextToolLinger();
     AsciiCopy::copy(g_state.current_tool, sizeof(g_state.current_tool), activity_tool);
     AsciiCopy::copy(g_state.tool_detail, sizeof(g_state.tool_detail), activity_summary);
     deriveTargets(activity_kind, activity_summary);
+    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line),
+                    titleForToolActivity(activity_kind));
     copyBody(activity_summary);
     g_state.current_tool_end_ms = 0;
     g_state.last_summary[0] = '\0';
@@ -318,11 +339,55 @@ static void handleAgentEvent(JsonDocument& doc) {
     } else {
       if (g_state.read_tools_this_turn < UINT16_MAX) g_state.read_tools_this_turn++;
     }
+
+    clearTextToolLinger();
+    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line),
+                    titleForToolActivity(activity_kind));
+
+    JsonVariantConst clv = evt["content_length"];
+    uint32_t content_len = 0;
+    bool have_len = false;
+    if (!clv.isNull()) {
+      const int v = clv.as<int>();
+      if (v >= 0) {
+        content_len = (uint32_t)v;
+        have_len = true;
+      }
+    }
+
+    char sizeBuf[28];
+    sizeBuf[0] = '\0';
+    if (have_len && fileActivityWantsByteSuffix(activity_kind)) {
+      formatByteSize(sizeBuf, sizeof(sizeBuf), content_len);
+    }
+
+    if (sizeBuf[0] && activity_summary && *activity_summary) {
+      char line[sizeof(g_state.body_text)];
+      snprintf(line, sizeof(line), "%s - %s", activity_summary, sizeBuf);
+      copyBody(line);
+    } else if (sizeBuf[0]) {
+      copyBody(sizeBuf);
+    } else {
+      copyBody(activity_summary);
+    }
+
+    armTextToolLinger();
   } else if (!strcmp(kind, "permission.requested")) {
     const char* request_id = evt["request_id"] | "";
     AsciiCopy::copy(g_state.pending_permission, sizeof(g_state.pending_permission), request_id);
     AsciiCopy::copy(g_state.pending_tool, sizeof(g_state.pending_tool), activity_tool);
     AsciiCopy::copy(g_state.pending_detail, sizeof(g_state.pending_detail), activity_summary);
+
+    clearTextToolLinger();
+    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Awaiting permission");
+    const char* desc = evt["description"] | "";
+    if (activity_summary && *activity_summary) {
+      copyBody(activity_summary);
+    } else if (desc && *desc) {
+      copyBody(desc);
+    } else {
+      copyBody("");
+    }
 
     if (h_permReq) {
       PermissionRequestEvent e = { request_id, activity_tool, activity };
@@ -342,16 +407,19 @@ static void handleAgentEvent(JsonDocument& doc) {
     }
   } else if (!strcmp(kind, "message.assistant")) {
     AsciiCopy::copy(g_state.last_summary, sizeof(g_state.last_summary), evt["text"] | "");
+    clearTextToolLinger();
+    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Done");
     copyBody(evt["text"] | "");
   } else if (!strcmp(kind, "notification")) {
     AsciiCopy::copy(g_state.last_summary, sizeof(g_state.last_summary), evt["text"] | "");
+    clearTextToolLinger();
     copyBody(evt["text"] | "");
   } else if (!strcmp(kind, "thinking")) {
     AsciiCopy::copy(g_state.last_summary, sizeof(g_state.last_summary), evt["text"] | "");
-    pushThoughtLine(evt["text"] | "");
+    clearTextToolLinger();
+    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Thinking");
+    copyBody(evt["text"] | "");
   }
-
-  deriveStatusLine(kind, activity_tool, activity_summary);
 
   if (h_event) {
     Event e = {
@@ -392,6 +460,20 @@ static void onActiveSessionsFrame(JsonDocument& doc) {
   if (!found) {
     LOG_EVT("session unlatched (not in active list): %s", g_state.latched_session);
     g_state.latched_session[0] = '\0';
+  }
+}
+
+void tick() {
+  const uint32_t now = millis();
+  const uint32_t until = g_state.text_tool_linger_until_ms;
+  if (until == 0) return;
+  if ((int32_t)(now - until) < 0) return;
+
+  g_state.text_tool_linger_until_ms = 0;
+  if (strcmp(g_state.status_line, "Done") != 0) {
+    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Thinking");
+    g_state.body_text[0] = '\0';
+    g_state.body_updated_ms = now;
   }
 }
 

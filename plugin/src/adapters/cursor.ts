@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { Parser, ParsedEvent } from './types.js'
-import type { ActivityRef, ParserInput } from '../agent-event.js'
+import type { ActivityFinishedEvent, ActivityRef, ParserInput } from '../agent-event.js'
 import { classifyTool } from '../activity-classify.js'
 import { summarize } from '../activity-summary.js'
 
@@ -69,6 +69,20 @@ function pickToolUseId(p: Record<string, unknown>): string | undefined {
     asString(p.toolCallId) ||
     undefined
   )
+}
+
+/** Cursor postToolUse `tool_output` JSON may include `content_length` (bytes) for Read/Write. */
+function parseContentLengthFromToolOutput(tool_output: unknown): number | undefined {
+  if (typeof tool_output !== 'string' || !tool_output) return undefined
+  try {
+    const o = JSON.parse(tool_output) as Record<string, unknown>
+    const n = o.content_length
+    if (typeof n === 'number' && Number.isFinite(n)) return Math.max(0, Math.floor(n))
+    if (typeof n === 'string' && /^\d+$/.test(n)) return parseInt(n, 10)
+  } catch {
+    return undefined
+  }
+  return undefined
 }
 
 export const cursorParser: Parser = {
@@ -142,7 +156,19 @@ export const cursorParser: Parser = {
       case 'postToolUse': {
         if (tool_name === 'fetch_rules' || tool_name === 'ask_question') return []
         const activity = buildActivity(tool_name, tool_input, tool_use_id)
-        return [{ event: { kind: 'activity.finished', activity }, session_id, turn_id }]
+        const content_length = parseContentLengthFromToolOutput(p.tool_output)
+        const durationRaw = p.duration
+        const duration_ms =
+          typeof durationRaw === 'number' && Number.isFinite(durationRaw)
+            ? Math.max(0, Math.round(durationRaw))
+            : undefined
+        const finished: ActivityFinishedEvent = {
+          kind: 'activity.finished',
+          activity,
+          ...(duration_ms !== undefined ? { duration_ms } : {}),
+          ...(content_length !== undefined ? { content_length } : {}),
+        }
+        return [{ event: finished, session_id, turn_id }]
       }
 
       case 'postToolUseFailure': {

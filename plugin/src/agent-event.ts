@@ -76,6 +76,8 @@ export interface ActivityFinishedEvent {
   activity: ActivityRef
   duration_ms?: number
   output_preview?: string
+  /** Byte length from tool output (e.g. Cursor Read `content_length`), for display only */
+  content_length?: number
 }
 
 export interface ActivityFailedEvent {

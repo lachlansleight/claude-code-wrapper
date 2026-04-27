@@ -170,6 +170,8 @@ static void drawCenteredSingleLineInBox(TFT_eSprite& s, const char* text, int16_
 void renderTextScene(TFT_eSprite& s, const SceneRenderState& renderState,
                      const AgentEvents::AgentState& agentState, uint32_t now) {
   (void)now;
+  // Title line = AgentEvents::status_line; body = AgentEvents::body_text (hook mapping in
+  // AgentEvents.cpp). Empty body after e.g. beforeSubmitPrompt draws no lines in the body box.
   s.fillSprite(kBg);
   s.setTextFont(2);  // visually larger than default (about +50%-ish readability jump)
   s.setTextSize(1);
@@ -185,8 +187,9 @@ void renderTextScene(TFT_eSprite& s, const SceneRenderState& renderState,
   const int16_t bodyY = statusY + statusH + 10;
   const int16_t bodyH = 160;
   drawCircleAwareBoxTopBottom(s, kInset, bodyY, kInnerW, bodyH, TFT_DARKGREY);
-  const char* body = agentState.body_text[0] ? agentState.body_text : "(no message yet)";
-  drawWrappedInBox(s, body, kInset, kInnerW, bodyY + 8, 10);
+  if (agentState.body_text[0]) {
+    drawWrappedInBox(s, agentState.body_text, kInset, kInnerW, bodyY + 8, 10);
+  }
 
   if (moodRingEnabledFor(renderState.state)) {
     drawMoodRing(s, (uint8_t)renderState.mood_r, (uint8_t)renderState.mood_g,

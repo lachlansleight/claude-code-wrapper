@@ -4,6 +4,7 @@
 
 #include "DebugLog.h"
 #include "config.h"
+#include "SceneTypes.h"
 
 namespace Display {
 
@@ -73,11 +74,16 @@ void begin() {
   fb.fillSprite(TFT_BLACK);
   fb.setTextDatum(MC_DATUM);
   fb.setTextColor(TFT_WHITE, TFT_BLACK);
+  fb.setTextSize(3);
+  fb.drawString("Sultana", kW / 2, kH / 2 - 10);
   fb.setTextSize(2);
-  fb.drawString("robot_v2", kW / 2, kH / 2 - 12);
-  fb.setTextSize(1);
-  fb.drawString("booting...", kW / 2, kH / 2 + 14);
+  fb.drawString("Booting", kW / 2, kH / 2 + 15);
   fb.setTextDatum(TL_DATUM);
+
+  const uint16_t ringColor = Face::rgb888To565(73, 245, 173);
+  for (int16_t rad = 109 + 1; rad <= 115; ++rad) {
+    fb.drawCircle(120, 120, rad, ringColor);
+  }
   pushFrame();
 }
 

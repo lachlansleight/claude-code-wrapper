@@ -88,6 +88,7 @@ void loop() {
   AgentEvents::setWifiConnected(WifiMgr::isConnected());
 
   Bridge::tick();
+  AgentEvents::tick();
 
   Personality::tick();
   MotionBehaviors::tick();

@@ -80,6 +80,8 @@ struct AgentState {
   uint8_t thought_count;
   uint32_t body_updated_ms;
   uint32_t thought_updated_ms;
+  /** After `activity.finished`, hold tool title/body until this time (millis), then Thinking + empty body */
+  uint32_t text_tool_linger_until_ms;
   RenderMode render_mode;
 
   // Activity counters since the last turn.started, split by read/write.
@@ -118,6 +120,7 @@ RenderMode renderMode();
 void setRenderMode(RenderMode mode);
 
 void dispatch(JsonDocument& doc);
+void tick();
 void notifyConnection(bool connected);
 
 }  // namespace AgentEvents
