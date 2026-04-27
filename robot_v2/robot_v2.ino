@@ -36,7 +36,7 @@
 #include "AgentEvents.h"
 #include "DebugLog.h"
 #include "Display.h"
-#include "Face.h"
+#include "FrameController.h"
 #include "Motion.h"
 #include "MotionBehaviors.h"
 #include "Personality.h"

@@ -16,6 +16,11 @@ enum ActivityAccess : uint8_t {
   ACTIVITY_WRITE,
 };
 
+enum RenderMode : uint8_t {
+  RENDER_FACE = 0,
+  RENDER_TEXT,
+};
+
 struct PermissionRequestEvent {
   const char* request_id;
   const char* tool_name;
@@ -66,6 +71,16 @@ struct AgentState {
 
   // Most recent assistant-facing text snippet.
   char last_summary[128];
+  char status_line[80];
+  char body_text[512];
+  char latest_shell_command[160];
+  char latest_read_target[160];
+  char latest_write_target[160];
+  char thought_lines[4][96];
+  uint8_t thought_count;
+  uint32_t body_updated_ms;
+  uint32_t thought_updated_ms;
+  RenderMode render_mode;
 
   // Activity counters since the last turn.started, split by read/write.
   uint16_t read_tools_this_turn;
@@ -99,6 +114,8 @@ void onConnectionChange(ConnectionHandler h);
 ActivityAccess classifyActivity(const char* activity_kind,
                                 const char* activity_tool,
                                 const char* activity_summary);
+RenderMode renderMode();
+void setRenderMode(RenderMode mode);
 
 void dispatch(JsonDocument& doc);
 void notifyConnection(bool connected);

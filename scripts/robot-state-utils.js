@@ -181,6 +181,19 @@ export async function startSessionAndTurn(prompt = 'Robot state simulation') {
   )
 }
 
+export async function sendAgentResponse(text) {
+  await postEvents(
+    [
+      {
+        event: { kind: 'message.assistant', text },
+        session_id: context.sessionId,
+        turn_id: context.turnId,
+      },
+    ],
+    'message.assistant',
+  )
+}
+
 export async function endTurn() {
   await postEvents(
     [

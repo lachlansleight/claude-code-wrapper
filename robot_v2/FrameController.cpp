@@ -1,4 +1,4 @@
-#include "Face.h"
+#include "FrameController.h"
 
 #include <esp_random.h>
 #include <math.h>
@@ -8,6 +8,7 @@
 #include "Personality.h"
 #include "Scene.h"
 #include "SceneTypes.h"
+#include "TextScene.h"
 
 namespace Face {
 
@@ -438,7 +439,11 @@ void tick() {
   SceneRenderState renderState = {
       s,       sMoodR, sMoodG, sMoodB, sTextStreamAlpha, sWriteStreamAlpha,
       sProgressFadeStartMs, sFadeReadCount, sFadeWriteCount};
-  renderScene(spr, p, blinkAmt, gdx, gdy, renderState, AgentEvents::state(), now);
+  if (AgentEvents::renderMode() == AgentEvents::RENDER_TEXT) {
+    renderTextScene(spr, renderState, AgentEvents::state(), now);
+  } else {
+    renderScene(spr, p, blinkAmt, gdx, gdy, renderState, AgentEvents::state(), now);
+  }
   Display::pushFrame();
 }
 

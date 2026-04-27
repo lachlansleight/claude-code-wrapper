@@ -17,6 +17,8 @@ static RawHandler                 h_raw     = nullptr;
 static ConnectionHandler          h_conn    = nullptr;
 
 const AgentState& state() { return g_state; }
+RenderMode renderMode() { return g_state.render_mode; }
+void setRenderMode(RenderMode mode) { g_state.render_mode = mode; }
 
 void setWifiConnected(bool v) { g_state.wifi_connected = v; }
 void setWsConnected(bool v)   { g_state.ws_connected   = v; }
@@ -37,6 +39,12 @@ void notifyConnection(bool connected) {
     g_state.pending_tool[0] = '\0';
     g_state.pending_detail[0] = '\0';
     g_state.latched_session[0] = '\0';
+    g_state.status_line[0] = '\0';
+    g_state.body_text[0] = '\0';
+    g_state.latest_shell_command[0] = '\0';
+    g_state.latest_read_target[0] = '\0';
+    g_state.latest_write_target[0] = '\0';
+    g_state.thought_count = 0;
   }
   if (h_conn) h_conn(connected);
 }
@@ -51,6 +59,11 @@ static bool startsWithWord(const char* text, const char* word) {
 
 static bool containsToken(const char* text, const char* token) {
   return text && token && strstr(text, token) != nullptr;
+}
+
+static bool containsText(const char* text, const char* needle) {
+  if (!text || !needle) return false;
+  return strstr(text, needle) != nullptr;
 }
 
 static void lowerCopy(const char* in, char* out, size_t cap) {
@@ -88,6 +101,99 @@ static bool shellLikelyWrites(const char* summary) {
   }
 
   return false;
+}
+
+static void copyBody(const char* src) {
+  AsciiCopy::copy(g_state.body_text, sizeof(g_state.body_text), src);
+  g_state.body_updated_ms = millis();
+}
+
+static void pushThoughtLine(const char* src) {
+  if (g_state.thought_count < 4) {
+    g_state.thought_count++;
+  }
+  for (uint8_t i = 0; i + 1 < g_state.thought_count; ++i) {
+    AsciiCopy::copy(g_state.thought_lines[i], sizeof(g_state.thought_lines[i]),
+                    g_state.thought_lines[i + 1]);
+  }
+  const uint8_t idx = g_state.thought_count - 1;
+  AsciiCopy::copy(g_state.thought_lines[idx], sizeof(g_state.thought_lines[idx]), src);
+  g_state.thought_updated_ms = millis();
+}
+
+static void deriveTargets(const char* activity_kind, const char* summary) {
+  if (!summary || !*summary) return;
+  if (activity_kind && containsText(activity_kind, "shell.exec")) {
+    AsciiCopy::copy(g_state.latest_shell_command, sizeof(g_state.latest_shell_command),
+                    summary);
+    return;
+  }
+  if (activity_kind && containsText(activity_kind, "file.read")) {
+    AsciiCopy::copy(g_state.latest_read_target, sizeof(g_state.latest_read_target), summary);
+    return;
+  }
+  if (activity_kind && containsText(activity_kind, "file.write")) {
+    AsciiCopy::copy(g_state.latest_write_target, sizeof(g_state.latest_write_target),
+                    summary);
+    return;
+  }
+  if (containsText(summary, "read ") || containsText(summary, "Read ")) {
+    AsciiCopy::copy(g_state.latest_read_target, sizeof(g_state.latest_read_target), summary);
+  } else if (containsText(summary, "write ") || containsText(summary, "Write ")) {
+    AsciiCopy::copy(g_state.latest_write_target, sizeof(g_state.latest_write_target),
+                    summary);
+  }
+}
+
+static void deriveStatusLine(const char* kind, const char* activity_tool,
+                             const char* activity_summary) {
+  if (!strcmp(kind, "turn.started")) {
+    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Turn started");
+    return;
+  }
+  if (!strcmp(kind, "turn.ended")) {
+    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Turn complete");
+    return;
+  }
+  if (!strcmp(kind, "activity.started")) {
+    if (activity_tool && *activity_tool) {
+      char line[96];
+      snprintf(line, sizeof(line), "Running %s", activity_tool);
+      AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), line);
+    } else {
+      AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Running tool");
+    }
+    return;
+  }
+  if (!strcmp(kind, "permission.requested")) {
+    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Awaiting permission");
+    return;
+  }
+  if (!strcmp(kind, "message.assistant")) {
+    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Assistant message");
+    return;
+  }
+  if (!strcmp(kind, "thinking")) {
+    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Thinking");
+    return;
+  }
+  if (activity_summary && *activity_summary) {
+    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), activity_summary);
+  }
+}
+
+static void applyConfigChange(JsonDocument& doc) {
+  JsonVariantConst modeVar = doc["display_mode"];
+  if (modeVar.isNull()) {
+    modeVar = doc["config"]["display_mode"];
+  }
+  const char* mode = modeVar | "";
+  if (!mode || !*mode) return;
+  if (!strcmp(mode, "text")) {
+    g_state.render_mode = RENDER_TEXT;
+  } else if (!strcmp(mode, "face")) {
+    g_state.render_mode = RENDER_FACE;
+  }
 }
 
 ActivityAccess classifyActivity(const char* activity_kind,
@@ -173,6 +279,11 @@ static void handleAgentEvent(JsonDocument& doc) {
     g_state.read_tools_this_turn = 0;
     g_state.write_tools_this_turn = 0;
     g_state.last_summary[0] = '\0';
+    g_state.body_text[0] = '\0';
+    g_state.latest_shell_command[0] = '\0';
+    g_state.latest_read_target[0] = '\0';
+    g_state.latest_write_target[0] = '\0';
+    g_state.thought_count = 0;
     // A new turn starting means any prior pending permission is no longer
     // blocking — clear it so Personality can leave BLOCKED. Bridge can't
     // reliably relay permission.resolved, so this is our recovery path.
@@ -195,6 +306,8 @@ static void handleAgentEvent(JsonDocument& doc) {
     g_state.working = true;
     AsciiCopy::copy(g_state.current_tool, sizeof(g_state.current_tool), activity_tool);
     AsciiCopy::copy(g_state.tool_detail, sizeof(g_state.tool_detail), activity_summary);
+    deriveTargets(activity_kind, activity_summary);
+    copyBody(activity_summary);
     g_state.current_tool_end_ms = 0;
     g_state.last_summary[0] = '\0';
   } else if (!strcmp(kind, "activity.finished") || !strcmp(kind, "activity.failed")) {
@@ -229,11 +342,16 @@ static void handleAgentEvent(JsonDocument& doc) {
     }
   } else if (!strcmp(kind, "message.assistant")) {
     AsciiCopy::copy(g_state.last_summary, sizeof(g_state.last_summary), evt["text"] | "");
+    copyBody(evt["text"] | "");
   } else if (!strcmp(kind, "notification")) {
     AsciiCopy::copy(g_state.last_summary, sizeof(g_state.last_summary), evt["text"] | "");
+    copyBody(evt["text"] | "");
   } else if (!strcmp(kind, "thinking")) {
     AsciiCopy::copy(g_state.last_summary, sizeof(g_state.last_summary), evt["text"] | "");
+    pushThoughtLine(evt["text"] | "");
   }
+
+  deriveStatusLine(kind, activity_tool, activity_summary);
 
   if (h_event) {
     Event e = {
@@ -284,6 +402,8 @@ void dispatch(JsonDocument& doc) {
 
   if (!strcmp(type, "agent_event")) {
     handleAgentEvent(doc);
+  } else if (!strcmp(type, "config_change")) {
+    applyConfigChange(doc);
   } else if (!strcmp(type, "active_sessions")) {
     onActiveSessionsFrame(doc);
   } else if (!strcmp(type, "pong")) {

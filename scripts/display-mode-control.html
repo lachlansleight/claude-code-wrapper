@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Robot Display Mode Control</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #161a22;
+      --panel-2: #1d222c;
+      --border: #2a3140;
+      --text: #e6e8ee;
+      --muted: #8b93a7;
+      --accent: #6ea8ff;
+      --good: #58d68d;
+      --bad: #ff7b7b;
+      --warn: #f0c000;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 900px;
+      margin: 1em auto;
+      padding: 0 1em;
+      background: var(--bg);
+      color: var(--text);
+    }
+    h1 {
+      font-size: 1.2em;
+      margin: 0.5em 0;
+    }
+    h3 {
+      margin: 1em 0 0.4em;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.85em;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    input, button {
+      font: inherit;
+      padding: 0.45em 0.7em;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+    button { cursor: pointer; }
+    button:hover:not(:disabled) { background: var(--panel-2); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    input[type="text"] { flex: 1; min-width: 0; }
+    .row {
+      display: flex;
+      gap: 0.5em;
+      margin: 0.5em 0;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .status {
+      font-size: 0.85em;
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4em;
+    }
+    .status .dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--bad);
+    }
+    .status.connected .dot { background: var(--good); }
+    .btn-face { border-color: var(--accent); }
+    .btn-text { border-color: var(--warn); }
+    #log {
+      height: 50vh;
+      overflow-y: auto;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.75em;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.86em;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <h1>Display Mode Control</h1>
+  <div class="row">
+    <input id="wsUrl" type="text" value="ws://localhost:8787/ws?token=dev-token" />
+    <button id="connectBtn">Connect</button>
+    <span id="status" class="status"><span class="dot"></span><span id="statusText">disconnected</span></span>
+  </div>
+  <div class="row">
+    <button id="faceBtn" class="btn-face" disabled>Face Mode</button>
+    <button id="textBtn" class="btn-text" disabled>Text Mode</button>
+  </div>
+  <h3>Session Context</h3>
+  <div class="row">
+    <input id="sessionIdInput" type="text" value="simulator" />
+    <input id="turnIdInput" type="text" value="turn_1" />
+  </div>
+  <h3>Lifecycle Controls</h3>
+  <div class="row">
+    <button id="sessionToggleBtn" disabled>Session Start</button>
+    <button id="turnToggleBtn" disabled>Turn Start</button>
+  </div>
+  <h3>Activity Controls</h3>
+  <div class="row">
+    <button id="readToggleBtn" disabled>Start Read</button>
+    <button id="writeToggleBtn" disabled>Start Write</button>
+    <button id="executeToggleBtn" disabled>Start Execute</button>
+  </div>
+  <h3>Log</h3>
+  <div id="log"></div>
+
+  <script>
+    let ws = null;
+    const activeActivities = {
+      "file.read": null,
+      "file.write": null,
+      "shell.exec": null,
+    };
+    let sessionActive = false;
+    let turnActive = false;
+    const ts = () => new Date().toLocaleTimeString();
+    const uid = (prefix) =>
+      prefix + "_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+    const log = (msg) => {
+      const el = document.getElementById("log");
+      el.textContent += `[${ts()}] ${msg}\n`;
+      el.scrollTop = el.scrollHeight;
+    };
+    const getSessionId = () => document.getElementById("sessionIdInput").value.trim() || "simulator";
+    const getTurnId = () => document.getElementById("turnIdInput").value.trim() || "turn_1";
+    const refreshToggleLabels = () => {
+      document.getElementById("readToggleBtn").textContent = activeActivities["file.read"] ? "Stop Read" : "Start Read";
+      document.getElementById("writeToggleBtn").textContent = activeActivities["file.write"] ? "Stop Write" : "Start Write";
+      document.getElementById("executeToggleBtn").textContent = activeActivities["shell.exec"] ? "Stop Execute" : "Start Execute";
+      document.getElementById("sessionToggleBtn").textContent = sessionActive ? "Session End" : "Session Start";
+      document.getElementById("turnToggleBtn").textContent = turnActive ? "Turn End" : "Turn Start";
+    };
+    const setEnabled = (connected, text = connected ? "connected" : "disconnected") => {
+      const buttonIds = [
+        "faceBtn",
+        "textBtn",
+        "readToggleBtn",
+        "writeToggleBtn",
+        "executeToggleBtn",
+        "sessionToggleBtn",
+        "turnToggleBtn",
+      ];
+      buttonIds.forEach((id) => {
+        document.getElementById(id).disabled = !connected;
+      });
+      if (!connected) {
+        activeActivities["file.read"] = null;
+        activeActivities["file.write"] = null;
+        activeActivities["shell.exec"] = null;
+        sessionActive = false;
+        turnActive = false;
+      }
+      refreshToggleLabels();
+      document.getElementById("connectBtn").textContent = connected ? "Disconnect" : "Connect";
+      document.getElementById("status").classList.toggle("connected", connected);
+      document.getElementById("statusText").textContent = text;
+    };
+    const sendMode = (mode) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        log("WebSocket is not connected.");
+        return;
+      }
+      const payload = { type: "config_change", display_mode: mode };
+      ws.send(JSON.stringify(payload));
+      log(">> " + JSON.stringify(payload));
+    };
+    const sendAgentEvent = (event, sessionId = getSessionId(), turnId = getTurnId()) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        log("WebSocket is not connected.");
+        return;
+      }
+      const payload = {
+        type: "emit_agent_event",
+        agent: "simulator",
+        session_id: sessionId,
+        turn_id: turnId,
+        event,
+      };
+      ws.send(JSON.stringify(payload));
+      log(">> " + JSON.stringify(payload));
+    };
+    const startActivity = (kind, tool, summary) => {
+      const activity = { id: uid("act"), kind, tool, summary };
+      activeActivities[kind] = activity;
+      sendAgentEvent({ kind: "activity.started", activity });
+      refreshToggleLabels();
+    };
+    const stopActivity = (kind, fallbackTool, fallbackSummary) => {
+      const activity = activeActivities[kind] || { id: uid("act"), kind, tool: fallbackTool, summary: fallbackSummary };
+      activeActivities[kind] = null;
+      sendAgentEvent({ kind: "activity.finished", activity });
+      refreshToggleLabels();
+    };
+
+    document.getElementById("connectBtn").addEventListener("click", () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close(1000, "manual disconnect");
+        return;
+      }
+      const url = document.getElementById("wsUrl").value.trim();
+      setEnabled(false, "connecting...");
+      try {
+        ws = new WebSocket(url);
+      } catch (err) {
+        log("Invalid websocket URL: " + (err?.message || String(err)));
+        setEnabled(false);
+        return;
+      }
+      ws.onopen = () => {
+        log("Connected: " + url);
+        setEnabled(true);
+      };
+      ws.onclose = (ev) => {
+        log("Disconnected (" + ev.code + (ev.reason ? ", " + ev.reason : "") + ")");
+        setEnabled(false);
+      };
+      ws.onerror = () => log("WebSocket error");
+      ws.onmessage = (ev) => log("<< " + ev.data);
+    });
+
+    document.getElementById("faceBtn").addEventListener("click", () => sendMode("face"));
+    document.getElementById("textBtn").addEventListener("click", () => sendMode("text"));
+    document.getElementById("readToggleBtn").addEventListener("click", () => {
+      if (activeActivities["file.read"]) {
+        stopActivity("file.read", "Read", "Read file");
+      } else {
+        startActivity("file.read", "Read", "Read file");
+      }
+    });
+    document.getElementById("writeToggleBtn").addEventListener("click", () => {
+      if (activeActivities["file.write"]) {
+        stopActivity("file.write", "Edit", "Write file");
+      } else {
+        startActivity("file.write", "Edit", "Write file");
+      }
+    });
+    document.getElementById("executeToggleBtn").addEventListener("click", () => {
+      if (activeActivities["shell.exec"]) {
+        stopActivity("shell.exec", "Bash", "Run command");
+      } else {
+        startActivity("shell.exec", "Bash", "Run command");
+      }
+    });
+    document.getElementById("sessionToggleBtn").addEventListener("click", () => {
+      if (sessionActive) {
+        sendAgentEvent({ kind: "session.ended", cause: "unknown" }, getSessionId(), undefined);
+        sessionActive = false;
+        turnActive = false;
+      } else {
+        sendAgentEvent({ kind: "session.started", cause: "startup" }, getSessionId(), undefined);
+        sessionActive = true;
+      }
+      refreshToggleLabels();
+    });
+    document.getElementById("turnToggleBtn").addEventListener("click", () => {
+      if (turnActive) {
+        sendAgentEvent({ kind: "turn.ended", cause: "completed" });
+        turnActive = false;
+      } else {
+        sendAgentEvent({ kind: "turn.started", prompt: "Manual control" });
+        turnActive = true;
+      }
+      refreshToggleLabels();
+    });
+    setEnabled(false);
+  </script>
+</body>
+</html>

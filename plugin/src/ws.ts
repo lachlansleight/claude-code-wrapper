@@ -6,6 +6,7 @@ import { state } from './state.js'
 import { extractTokenFromHeaders, extractTokenFromUrl, isValidToken } from './auth.js'
 import { logger } from './logger.js'
 import type { BridgeConfig } from './types.js'
+import type { AgentEvent, AgentName, AgentEventEnvelope } from './agent-event.js'
 
 const VERSION = '0.3.0'
 const WS_PATH = '/ws'
@@ -107,6 +108,57 @@ export function attachWebSocketServer(config: BridgeConfig): (httpServer: HttpSe
         behavior: m.behavior,
         client_id,
       })
+      return
+    }
+
+    if (m.type === 'config_change') {
+      if (typeof m.display_mode !== 'string' || (m.display_mode !== 'face' && m.display_mode !== 'text')) {
+        ws.send(JSON.stringify({ type: 'error', message: 'invalid_config_change' }))
+        return
+      }
+      broadcast({ type: 'config_change', display_mode: m.display_mode, by: client_id, ts: Date.now() })
+      return
+    }
+
+    if (m.type === 'emit_agent_event') {
+      if (typeof m.event !== 'object' || m.event === null || typeof (m.event as { kind?: unknown }).kind !== 'string') {
+        ws.send(JSON.stringify({ type: 'error', message: 'invalid_emit_agent_event' }))
+        return
+      }
+      const agent: AgentName =
+        typeof m.agent === 'string' &&
+        (m.agent === 'claude' ||
+          m.agent === 'cursor' ||
+          m.agent === 'codex' ||
+          m.agent === 'opencode' ||
+          m.agent === 'simulator')
+          ? m.agent
+          : 'simulator'
+      const sessionId = typeof m.session_id === 'string' && m.session_id.length > 0 ? m.session_id : undefined
+      const turnId = typeof m.turn_id === 'string' && m.turn_id.length > 0 ? m.turn_id : undefined
+      const event = m.event as AgentEvent
+
+      let listChanged = false
+      if (sessionId) {
+        if (event.kind === 'session.ended') {
+          listChanged = state.endSession(sessionId)
+        } else {
+          listChanged = state.trackSession(sessionId)
+        }
+      }
+
+      const envelope: AgentEventEnvelope = {
+        type: 'agent_event',
+        agent,
+        ts: Date.now(),
+        session_id: sessionId,
+        turn_id: turnId,
+        event,
+      }
+      bus.emit('agent_event', envelope)
+      if (listChanged) {
+        bus.emit('sessions_changed', { session_ids: state.listActiveSessions() })
+      }
       return
     }
 

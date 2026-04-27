@@ -175,7 +175,7 @@ void drawReady(TFT_eSprite& s);
 void drawSleep(TFT_eSprite& s);
 ```
 
-`Face::tick()` dispatches on `Personality::current()`. No tweening, no
+`FrameController::tick()` dispatches on `Personality::current()`. No tweening, no
 procedural modulators. Snap-change on state transition.
 
 When we later add animation, these become "compute FaceParams for this

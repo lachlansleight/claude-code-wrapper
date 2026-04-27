@@ -12,6 +12,7 @@ import {
     shellFinishedItem,
     shellStartedItem,
     buildShellActivity,
+    sendAgentResponse,
   } from './robot-state-utils.js'
   
   const WRITE_FILES = [
@@ -119,8 +120,7 @@ async function simulateExecuting() {
     //     }
     // }
   
-    
-  
+    await sendAgentResponse('All done!\nWrote two files based on five reads, and did a few function calls. This is some slightly longer text that should wrap.\n\nHere is some text on a new line.')
     await endTurn()
   }
   
