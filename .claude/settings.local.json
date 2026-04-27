@@ -10,7 +10,8 @@
       "Read(//c/Users/Lachlan/.claude/plugins/marketplaces/**)",
       "WebFetch(domain:cursor.com)",
       "WebFetch(domain:developers.openai.com)",
-      "WebFetch(domain:opencode.ai)"
+      "WebFetch(domain:opencode.ai)",
+      "WebFetch(domain:docs.claude.com)"
     ]
   },
   "enabledMcpjsonServers": [

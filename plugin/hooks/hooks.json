@@ -1,69 +1,88 @@
 {
   "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs UserPromptSubmit" }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "*",
-        "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs PreToolUse" }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "*",
-        "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs PostToolUse" }
-        ]
-      }
-    ],
-    "Notification": [
-      {
-        "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs Notification" }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs Stop" }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs SubagentStop" }
-        ]
-      }
-    ],
     "SessionStart": [
-      {
-        "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs SessionStart" }
-        ]
-      }
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs SessionStart" } ] }
     ],
     "SessionEnd": [
-      {
-        "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs SessionEnd" }
-        ]
-      }
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs SessionEnd" } ] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs UserPromptSubmit" } ] }
+    ],
+    "UserPromptExpansion": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs UserPromptExpansion" } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "*", "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs PreToolUse" } ] }
+    ],
+    "PermissionRequest": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs PermissionRequest" } ] }
+    ],
+    "PermissionDenied": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs PermissionDenied" } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "*", "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs PostToolUse" } ] }
+    ],
+    "PostToolUseFailure": [
+      { "matcher": "*", "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs PostToolUseFailure" } ] }
+    ],
+    "PostToolBatch": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs PostToolBatch" } ] }
+    ],
+    "Notification": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs Notification" } ] }
+    ],
+    "SubagentStart": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs SubagentStart" } ] }
+    ],
+    "SubagentStop": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs SubagentStop" } ] }
+    ],
+    "TaskCreated": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs TaskCreated" } ] }
+    ],
+    "TaskCompleted": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs TaskCompleted" } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs Stop" } ] }
+    ],
+    "StopFailure": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs StopFailure" } ] }
+    ],
+    "TeammateIdle": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs TeammateIdle" } ] }
+    ],
+    "InstructionsLoaded": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs InstructionsLoaded" } ] }
+    ],
+    "ConfigChange": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs ConfigChange" } ] }
+    ],
+    "CwdChanged": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs CwdChanged" } ] }
+    ],
+    "FileChanged": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs FileChanged" } ] }
+    ],
+    "WorktreeCreate": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs WorktreeCreate" } ] }
+    ],
+    "WorktreeRemove": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs WorktreeRemove" } ] }
     ],
     "PreCompact": [
-      {
-        "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs PreCompact" }
-        ]
-      }
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs PreCompact" } ] }
+    ],
+    "PostCompact": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs PostCompact" } ] }
+    ],
+    "Elicitation": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs Elicitation" } ] }
+    ],
+    "ElicitationResult": [
+      { "hooks": [ { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/helpers/claude-hook-forward.mjs ElicitationResult" } ] }
     ]
   }
 }

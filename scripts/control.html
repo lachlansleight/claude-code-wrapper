@@ -74,6 +74,30 @@
     .status.connected .dot { background: var(--good); }
     .btn-face { border-color: var(--accent); }
     .btn-text { border-color: var(--warn); }
+    #dropZone {
+      flex: 1;
+      min-height: 3em;
+      padding: 0.7em 1em;
+      border: 2px dashed var(--border);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      transition: background 0.1s, border-color 0.1s, color 0.1s;
+      user-select: none;
+    }
+    #dropZone:hover { border-color: var(--accent); color: var(--text); }
+    #dropZone.dragging {
+      border-color: var(--accent);
+      background: var(--panel-2);
+      color: var(--text);
+    }
+    #dropZone.loaded { border-style: solid; border-color: var(--good); color: var(--text); }
+    #logFile { display: none; }
     #log {
       height: 50vh;
       overflow-y: auto;
@@ -115,6 +139,16 @@
     <button id="readToggleBtn" disabled>Start Read</button>
     <button id="writeToggleBtn" disabled>Start Write</button>
     <button id="executeToggleBtn" disabled>Start Execute</button>
+  </div>
+  <h3>Replay Log File</h3>
+  <div class="row">
+    <div id="dropZone">Drop a log file here, or click to choose</div>
+    <input id="logFile" type="file" accept=".log,.jsonl,.txt" />
+  </div>
+  <div class="row">
+    <label class="status"><input id="speedInput" type="number" min="0.1" step="0.1" value="1" style="width:5em" /> &times; speed</label>
+    <button id="playLogBtn" disabled>Play Log</button>
+    <button id="stopLogBtn" disabled>Stop Replay</button>
   </div>
   <h3>Log</h3>
   <div id="log"></div>
@@ -278,6 +312,136 @@
       refreshToggleLabels();
     });
     setEnabled(false);
+
+    // ---- Log replay ----
+    let replayTimers = [];
+    let replayLoaded = null;
+
+    const sendRawAgentEvent = (agent, sessionId, turnId, event) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        log("WebSocket is not connected.");
+        return;
+      }
+      const payload = {
+        type: "emit_agent_event",
+        agent: agent || "simulator",
+        session_id: sessionId,
+        turn_id: turnId,
+        event,
+      };
+      ws.send(JSON.stringify(payload));
+      log(">> " + JSON.stringify(payload));
+    };
+
+    const cancelReplay = () => {
+      replayTimers.forEach((t) => clearTimeout(t));
+      replayTimers = [];
+      document.getElementById("stopLogBtn").disabled = true;
+    };
+
+    const dropZone = document.getElementById("dropZone");
+
+    const loadLogFile = async (file) => {
+      if (!file) {
+        replayLoaded = null;
+        document.getElementById("playLogBtn").disabled = true;
+        dropZone.classList.remove("loaded");
+        dropZone.textContent = "Drop a log file here, or click to choose";
+        return;
+      }
+      const text = await file.text();
+      const entries = [];
+      for (const line of text.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          entries.push(JSON.parse(trimmed));
+        } catch (err) {
+          log("Skipped bad line: " + err.message);
+        }
+      }
+      if (entries.length === 0) {
+        log("No valid entries in log file.");
+        replayLoaded = null;
+        document.getElementById("playLogBtn").disabled = true;
+        dropZone.classList.remove("loaded");
+        dropZone.textContent = "Drop a log file here, or click to choose";
+        return;
+      }
+      replayLoaded = entries;
+      document.getElementById("playLogBtn").disabled = false;
+      dropZone.classList.add("loaded");
+      dropZone.textContent = `${file.name} — ${entries.length} entries`;
+      log(`Loaded ${entries.length} entries from ${file.name}`);
+    };
+
+    document.getElementById("logFile").addEventListener("change", (ev) => {
+      loadLogFile(ev.target.files && ev.target.files[0]);
+    });
+
+    dropZone.addEventListener("click", () => document.getElementById("logFile").click());
+
+    ["dragenter", "dragover"].forEach((evt) => {
+      dropZone.addEventListener(evt, (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        dropZone.classList.add("dragging");
+      });
+    });
+    ["dragleave", "dragend"].forEach((evt) => {
+      dropZone.addEventListener(evt, (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        dropZone.classList.remove("dragging");
+      });
+    });
+    dropZone.addEventListener("drop", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      dropZone.classList.remove("dragging");
+      const file = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0];
+      if (file) loadLogFile(file);
+    });
+
+    // Block default browser file-drop behavior across the page so a missed drop
+    // doesn't navigate away from the control UI.
+    window.addEventListener("dragover", (ev) => ev.preventDefault());
+    window.addEventListener("drop", (ev) => ev.preventDefault());
+
+    document.getElementById("playLogBtn").addEventListener("click", () => {
+      if (!replayLoaded || replayLoaded.length === 0) return;
+      cancelReplay();
+      const speed = Math.max(0.1, parseFloat(document.getElementById("speedInput").value) || 1);
+      const baseTs = replayLoaded[0].ts;
+      const startWall = performance.now();
+      log(`Replaying ${replayLoaded.length} entries at ${speed}x ...`);
+      document.getElementById("stopLogBtn").disabled = false;
+
+      replayLoaded.forEach((entry, i) => {
+        const offset = (entry.ts - baseTs) / speed;
+        const t = setTimeout(() => {
+          const parsed = Array.isArray(entry.parsed) ? entry.parsed : [];
+          if (parsed.length === 0) {
+            log(`(skip) entry #${i} hook_type=${entry.hook_type} no parsed events`);
+          } else {
+            for (const pe of parsed) {
+              if (!pe || !pe.event) continue;
+              sendRawAgentEvent(entry.agent, pe.session_id, pe.turn_id, pe.event);
+            }
+          }
+          if (i === replayLoaded.length - 1) {
+            log("Replay finished.");
+            document.getElementById("stopLogBtn").disabled = true;
+          }
+        }, offset);
+        replayTimers.push(t);
+      });
+    });
+
+    document.getElementById("stopLogBtn").addEventListener("click", () => {
+      cancelReplay();
+      log("Replay stopped.");
+    });
   </script>
 </body>
 </html>

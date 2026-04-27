@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 import { createServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { bus } from './bus.js'
@@ -8,6 +9,61 @@ import { logger } from './logger.js'
 import { getParser, listAdapterNames, ParsedEvent } from './adapters/index.js'
 import type { AgentEvent, AgentEventEnvelope, AgentName } from './agent-event.js'
 import type { BridgeConfig } from './types.js'
+
+const LOGS_DIR = 'logs'
+
+interface TurnLog {
+  path: string
+  startedAt: number
+}
+
+const activeTurnLogs = new Map<string, TurnLog>()
+
+function safeAgentSlug(name: string): string {
+  return name.replace(/[^A-Za-z0-9_-]/g, '_') || 'agent'
+}
+
+function isoStamp(d: Date): string {
+  return d.toISOString().replace(/[:.]/g, '-')
+}
+
+function openTurnLog(agent: string): TurnLog {
+  fs.mkdirSync(LOGS_DIR, { recursive: true })
+  const startedAt = Date.now()
+  const filePath = path.join(LOGS_DIR, `${safeAgentSlug(agent)}-${isoStamp(new Date(startedAt))}.log`)
+  const log: TurnLog = { path: filePath, startedAt }
+  fs.writeFileSync(filePath, '')
+  logger.info(`turn log opened agent=${agent} path=${filePath}`)
+  return log
+}
+
+function recordTurnHook(agent: string, hook_type: string, payload: unknown, parsed: ParsedEvent[]): void {
+  const hasTurnStart = parsed.some((p) => p.event && (p.event as { kind?: string }).kind === 'turn.started')
+
+  // Rotate to a fresh file on every turn.started so each turn is its own
+  // self-contained log for replay. Anything fired outside a turn (SessionStart,
+  // PreCompact, file watchers, etc.) is appended to whatever log is currently
+  // open — or to a freshly opened one if this is the first hook ever seen.
+  if (hasTurnStart || !activeTurnLogs.has(agent)) {
+    activeTurnLogs.set(agent, openTurnLog(agent))
+  }
+
+  const log = activeTurnLogs.get(agent)!
+  const ts = Date.now()
+  const entry = {
+    ts,
+    delta_ms: ts - log.startedAt,
+    agent,
+    hook_type,
+    payload,
+    parsed,
+  }
+  try {
+    fs.appendFileSync(log.path, JSON.stringify(entry) + '\n')
+  } catch (err) {
+    logger.warn(`turn log append failed path=${log.path} err=${String(err)}`)
+  }
+}
 
 const VERSION = '0.3.0'
 
@@ -68,17 +124,7 @@ function processAgentHook(rawAgentName: string, agentName: AgentName, hook_type:
 
   const now = Date.now()
 
-  //append payload into log file
-  fs.appendFileSync('agent-hooks.log', "\n");
-  fs.appendFileSync('agent-hooks.log', "------------------------------------------\n");
-  fs.appendFileSync('agent-hooks.log', `Agent: ${rawAgentName} - Hook Type: ${hook_type}\n`);
-  fs.appendFileSync('agent-hooks.log', "------------------------------------------\n");
-  if(parsedData.length === 0) {
-    fs.appendFileSync('agent-hooks.log', "RAW PAYLOAD: " + JSON.stringify(payload, null, 2));
-  } else {
-    fs.appendFileSync('agent-hooks.log', "PARSED EVENTS: " + JSON.stringify(parsedData, null, 2));
-  }
-  fs.appendFileSync('agent-hooks.log', "\n------------------------------------------\n");
+  recordTurnHook(rawAgentName, hook_type, payload, parsedData)
 
   for (const item of parsedData) {
     const envelope: AgentEventEnvelope = {
