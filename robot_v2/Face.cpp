@@ -1,77 +1,16 @@
 #include "Face.h"
 
-#include <TFT_eSPI.h>
 #include <esp_random.h>
 #include <math.h>
 
 #include "AgentEvents.h"
 #include "Display.h"
 #include "Personality.h"
+#include "Scene.h"
+#include "SceneTypes.h"
 
 namespace Face {
 
-// ---- Parameters -----------------------------------------------------------
-//
-// FaceParams is the per-frame vocabulary. Each state has a target
-// FaceParams; transitions tween between them; per-frame modulators (blink,
-// breath, gaze wander, thinking tilt-flip) layer on top.
-
-struct FaceParams {
-  int16_t eye_dy;        // vertical offset of both eyes from baseline (face-local)
-  int16_t eye_rx;        // eye ellipse half-width
-  int16_t eye_ry;        // eye ellipse half-height
-  int16_t eye_stroke;    // ring outline thickness
-  int16_t eye_curve;     // !=0 → render as parabolic stroke; +=∩ (happy), −=∪ (sad)
-  int16_t pupil_dx;      // pupil offset in face-local coords (rotated with face)
-  int16_t pupil_dy;
-  int16_t pupil_r;       // 0 = no pupil
-  int16_t mouth_dy;
-  int16_t mouth_w;
-  int16_t mouth_curve;   // parabola bend: +=frown (∩), −=smile (∪), 0=flat
-  int16_t mouth_open_h;  // if >0, mouth renders as filled oval of this half-height
-  int16_t mouth_thick;
-  int16_t face_rot;      // whole-face rotation in degrees, +=clockwise on screen
-  int16_t face_y;        // whole-face vertical offset; + = look down. Eyes and
-                         // mouth are pulled toward the pivot by abs(face_y)/2
-                         // for a foreshortening effect.
-  int16_t ring_r;        // mood-ring target RGB (0..255)
-  int16_t ring_g;
-  int16_t ring_b;
-};
-
-// FaceParams quick tuning map (row values in kTargets follow this exact order):
-//   1) eye_dy       : eye vertical shift
-//   2) eye_rx       : eye half-width (bigger = wider eyes)
-//   3) eye_ry       : eye half-height (bigger = taller eyes)
-//   4) eye_stroke   : white eye ring thickness
-//   5) eye_curve    : curved-eye bend (+ = cap/peak, - = cup/smile)
-//   6) pupil_dx     : pupil horizontal offset (face-local)
-//   7) pupil_dy     : pupil vertical offset (face-local)
-//   8) pupil_r      : pupil radius (0 hides pupil)
-//   9) mouth_dy     : mouth vertical shift
-//  10) mouth_w      : mouth width
-//  11) mouth_curve  : mouth bend (+ = frown, - = smile)
-//  12) mouth_open_h : open-mouth half-height (0 = line/parabola mouth)
-//  13) mouth_thick  : line mouth thickness
-//  14) face_rot     : base face rotation in degrees
-//  15) face_y       : whole-face vertical offset (+ = look down, foreshortened)
-//  16) ring_r       : mood ring red
-//  17) ring_g       : mood ring green
-//  18) ring_b       : mood ring blue
-
-// Baseline geometry
-static constexpr int16_t kCx      = 120;
-static constexpr int16_t kCy      = 120;
-static constexpr int16_t kEyeY    = 95;
-static constexpr int16_t kEyeLX   = 85;
-static constexpr int16_t kEyeRX   = 155;
-static constexpr int16_t kMouthY  = 165;
-static constexpr int16_t kPivotY  = 130;   // face rotation pivot (between eyes + mouth)
-
-static constexpr uint16_t kFg = TFT_WHITE;
-static constexpr uint16_t kBg = TFT_BLACK;
-static constexpr int16_t kMoodRingOuterR = 115;
-static constexpr int16_t kMoodRingInnerR = 109;
 static constexpr float   kMoodRingTauMs  = 200.0f;
 
 // Per-state target params. Row order must match Personality::State.
@@ -147,21 +86,16 @@ static uint32_t sNextThinkFlipMs   = 0;
 // Idle glance state.
 static int16_t  sIdleGlanceDx      = 0;
 static int16_t  sIdleGlanceDy      = 0;
+static int16_t  sIdleGlanceFromDx  = 0;
+static int16_t  sIdleGlanceFromDy  = 0;
+static uint32_t sIdleGlanceStartMs = 0;
 static uint32_t sNextIdleGlanceMs  = 0;
+static constexpr uint32_t kIdleGlanceTweenMs = 200;
 
 // ---- Math helpers --------------------------------------------------------
 
 static int16_t lerpi(int16_t a, int16_t b, float t) {
   return (int16_t)(a + (b - a) * t);
-}
-
-static float clamp01(float t) {
-  return t < 0 ? 0 : (t > 1 ? 1 : t);
-}
-
-static float smoothstep01(float t) {
-  t = clamp01(t);
-  return t * t * (3 - 2 * t);
 }
 
 static FaceParams lerpParams(const FaceParams& a, const FaceParams& b, float t) {
@@ -187,12 +121,6 @@ static FaceParams lerpParams(const FaceParams& a, const FaceParams& b, float t) 
   return r;
 }
 
-static uint16_t rgb888To565(uint8_t r, uint8_t g, uint8_t b) {
-  return (uint16_t)(((uint16_t)(r & 0xF8) << 8) |
-                    ((uint16_t)(g & 0xFC) << 3) |
-                    ((uint16_t)(b & 0xF8) >> 3));
-}
-
 // ---- Modulators ---------------------------------------------------------
 
 static float breathPhase(uint32_t now) {
@@ -205,13 +133,24 @@ static void gazeFor(Personality::State s, uint32_t now,
   gdx = 0; gdy = 0;
   switch (s) {
     case Personality::IDLE: {
+      if (sIdleGlanceStartMs != 0) {
+        const float t = smoothstep01(
+            (float)(now - sIdleGlanceStartMs) / (float)kIdleGlanceTweenMs);
+        gdx = lerpi(sIdleGlanceFromDx, sIdleGlanceDx, t);
+        gdy = lerpi(sIdleGlanceFromDy, sIdleGlanceDy, t);
+      } else {
+        gdx = sIdleGlanceDx;
+        gdy = sIdleGlanceDy;
+      }
+
       if (sNextIdleGlanceMs == 0 || now >= sNextIdleGlanceMs) {
+        sIdleGlanceFromDx = gdx;
+        sIdleGlanceFromDy = gdy;
         sIdleGlanceDx = (int16_t)random(-15, 16);  // safe horizontal range
         sIdleGlanceDy = (int16_t)random(-10, 11);  // safe vertical range
+        sIdleGlanceStartMs = now;
         sNextIdleGlanceMs = now + (uint32_t)random(1000, 10001);
       }
-      gdx = sIdleGlanceDx;
-      gdy = sIdleGlanceDy;
       break;
     }
     case Personality::THINKING: {
@@ -316,474 +255,8 @@ static void maybeFlipThinkTilt(uint32_t now) {
                                        (long)kThinkingFlipMaxMs + 1);
 }
 
-// ---- Rendering primitives -----------------------------------------------
-
-// Parabolic stroke, optionally rotated. Draws a thick vertical column at
-// each rotated x. For small rotations (≤15°) the vertical-bar thickness
-// is visually fine; for large rotations the columns would need to be
-// perpendicular to the rotated baseline, but we don't drive face_rot
-// that far.
-static void drawParabola(TFT_eSprite& s, int16_t cx, int16_t cy,
-                         int16_t w, int16_t bend, int16_t thick,
-                         float cosA, float sinA) {
-  if (w < 2) return;
-  if (thick < 1) thick = 1;
-  const int16_t halfw = w / 2;
-  for (int16_t lx = -halfw; lx <= halfw; ++lx) {
-    const float norm = (float)lx / (float)halfw;
-    const float ly = -bend * (1.0f - norm * norm);
-    const float rx = (float)lx * cosA - ly * sinA;
-    const float ry = (float)lx * sinA + ly * cosA;
-    const int16_t px = cx + (int16_t)rx;
-    const int16_t py = cy + (int16_t)ry;
-    s.fillRect(px, py - thick / 2, 1, thick, kFg);
-  }
-}
-
-static void drawEye(TFT_eSprite& s, const FaceParams& p,
-                    int16_t cx, int16_t cy, float blinkAmt,
-                    int16_t gdx, int16_t gdy,
-                    float cosA, float sinA) {
-  int16_t ry = p.eye_ry;
-  if (blinkAmt > 0.01f) {
-    const float k = clamp01(blinkAmt);
-    ry = (int16_t)(ry * (1.0f - k) + 2 * k);
-    if (ry < 2) ry = 2;
-  }
-  const int16_t rx = p.eye_rx;
-
-  if (p.eye_curve != 0 || ry < 5) {
-    // Closed-eye / arc rendering: double the stroke. Applies to sleep
-    // (closed line), finished (∩ happy arcs), and any state mid-blink.
-    drawParabola(s, cx, cy, rx * 2, p.eye_curve, p.eye_stroke * 2,
-                 cosA, sinA);
-    return;
-  }
-
-  // Eye ellipse stays axis-aligned (acceptable for ≤15° tilts and avoids
-  // an aliased rotated-ellipse renderer). Pupil offset rotates with the
-  // face so the gaze direction stays correct relative to the head.
-  s.fillEllipse(cx, cy, rx, ry, kFg);
-  const int16_t irx = rx - p.eye_stroke;
-  const int16_t iry = ry - p.eye_stroke;
-  if (irx > 0 && iry > 0) {
-    s.fillEllipse(cx, cy, irx, iry, kBg);
-  }
-  if (p.pupil_r > 0 && blinkAmt < 0.6f) {
-    const float ldx = (float)(p.pupil_dx + gdx);
-    const float ldy = (float)(p.pupil_dy + gdy);
-    const float rdx = ldx * cosA - ldy * sinA;
-    const float rdy = ldx * sinA + ldy * cosA;
-
-    // Clamp pupil radius so it stays inside the inner (black) ellipse —
-    // otherwise large pupils bleed onto the white ring or beyond,
-    // especially when the eye is narrowed (idle, reading) or the gaze
-    // is offset toward an edge (thinking, writing). Bounding-box clip
-    // is conservative but cheap; the pupil shrinks as it approaches an
-    // eyelid, which actually reads as a cute "lid covers pupil" effect.
-    const float slackX = (float)irx - fabsf(rdx);
-    const float slackY = (float)iry - fabsf(rdy);
-    int16_t maxR = (int16_t)fminf(slackX, slackY);
-    if (maxR < 1) return;
-    int16_t effR = p.pupil_r;
-    if (effR > maxR) effR = maxR;
-
-    s.fillSmoothCircle(cx + (int16_t)rdx, cy + (int16_t)rdy,
-                       effR, kFg, kBg);
-  }
-}
-
-// Half-ellipse with a flat top — the "D rotated 90°" shape for a happy
-// open-mouthed smile. Filled column-by-column; for non-zero rotation each
-// column is drawn as a rotated line segment. Suitable for the small
-// face-tilt magnitudes we use (≤15°).
-static void drawHalfEllipse(TFT_eSprite& s, int16_t cx, int16_t cy,
-                            int16_t rx, int16_t ry,
-                            float cosA, float sinA) {
-  if (rx < 1 || ry < 1) return;
-  for (int16_t lx = -rx; lx <= rx; ++lx) {
-    const float norm = (float)lx / (float)rx;
-    const float h = (float)ry * sqrtf(fmaxf(0.0f, 1.0f - norm * norm));
-    if (h < 0.5f) continue;
-    // Column goes from face-local (lx, 0) — the flat top — down to (lx, h).
-    const float top_rx = (float)lx * cosA;
-    const float top_ry = (float)lx * sinA;
-    const float bot_rx = (float)lx * cosA - h * sinA;
-    const float bot_ry = (float)lx * sinA + h * cosA;
-    s.drawLine(cx + (int16_t)top_rx, cy + (int16_t)top_ry,
-               cx + (int16_t)bot_rx, cy + (int16_t)bot_ry, kFg);
-  }
-}
-
-static void drawZigZagMouth(TFT_eSprite& s, int16_t cx, int16_t cy,
-                            int16_t width, int16_t amp, int16_t thick,
-                            float cosA, float sinA) {
-  if (width < 8) return;
-  if (thick < 1) thick = 1;
-  const int16_t half = width / 2;
-  const int16_t segments = 6;
-  const float step = (float)width / (float)segments;
-  float lx0 = (float)-half;
-  float ly0 = 0.0f;
-  for (int16_t i = 1; i <= segments; ++i) {
-    const float lx1 = -half + step * i;
-    const float ly1 = (i % 2 == 0) ? (float)-amp : (float)amp;
-    const float rx0 = lx0 * cosA - ly0 * sinA;
-    const float ry0 = lx0 * sinA + ly0 * cosA;
-    const float rx1 = lx1 * cosA - ly1 * sinA;
-    const float ry1 = lx1 * sinA + ly1 * cosA;
-    // Thickness via stacked screen-space offsets. For the small face angles
-    // we use, this visually matches other mouth line weights well.
-    for (int16_t o = -(thick / 2); o <= (thick / 2); ++o) {
-      s.drawLine(cx + (int16_t)rx0, cy + (int16_t)ry0 + o,
-                 cx + (int16_t)rx1, cy + (int16_t)ry1 + o, kFg);
-    }
-    lx0 = lx1;
-    ly0 = ly1;
-  }
-}
-
-static void drawMouth(TFT_eSprite& s, const FaceParams& p,
-                      int16_t cx, int16_t cy, Personality::State st,
-                      float cosA, float sinA) {
-  if (st == Personality::EXECUTING_LONG) {
-    drawZigZagMouth(s, cx, cy, p.mouth_w * 2, 4, p.mouth_thick, cosA, sinA);
-    return;
-  }
-  if (p.mouth_open_h > 0) {
-    if (p.mouth_curve < 0) {
-      // D-shape: open smile with flat top, curved bottom.
-      drawHalfEllipse(s, cx, cy, p.mouth_w / 2, p.mouth_open_h, cosA, sinA);
-    } else {
-      // Full oval ("oh" mouth — waking).
-      s.fillEllipse(cx, cy, p.mouth_w / 2, p.mouth_open_h, kFg);
-    }
-    return;
-  }
-  drawParabola(s, cx, cy, p.mouth_w, p.mouth_curve, p.mouth_thick,
-               cosA, sinA);
-}
-
-// Dot arcs for tool activity this turn:
-//   - read tools  -> top arc
-//   - write tools -> bottom arc
-// Counts are driven by activity.finished tallies in AgentEvents.
-static constexpr int16_t kProgressArcRadius = 104;
-static constexpr int16_t kProgressDotRadiusMin = 5;
-static constexpr int16_t kProgressDotRadiusMax = 2;
-static constexpr float   kProgressArcDegMin    = 40.0f;
-static constexpr float   kProgressArcDegMax    = 170.0f;
-static constexpr uint16_t kProgressMaxDots  = 48;  // beyond this, dots overlap
 static constexpr uint32_t kProgressFadeMs   = 280;
 static constexpr uint32_t kEffectsFadeMs    = 100;
-
-// "Effects" overlay pass (future expansion point).
-// READ: left half; line height 2 px; animateSpeed 100 px/s (bottom→top).
-// WRITE: right half, y to midline; line height 4 px; animateSpeed 50 px/s.
-// Both use 50% peak token opacity.
-static uint32_t mixBits(uint32_t x) {
-  x ^= x >> 16;
-  x *= 0x7feb352dU;
-  x ^= x >> 15;
-  x *= 0x846ca68bU;
-  x ^= x >> 16;
-  return x;
-}
-
-static uint8_t alphaScale8(uint8_t c, float a) {
-  if (a <= 0.0f) return 0;
-  if (a >= 1.0f) return c;
-  return (uint8_t)((float)c * a);
-}
-
-static void tokenRgb(uint32_t tok, uint8_t& r, uint8_t& g, uint8_t& b) {
-  const uint32_t cPick = tok % 6U;
-  r = 120; g = 160; b = 230;
-  if (cPick == 0) { r = 120; g = 220; b = 255; }
-  else if (cPick == 1) { r = 180; g = 135; b = 255; }
-  else if (cPick == 2) { r = 255; g = 190; b = 90; }
-  else if (cPick == 3) { r = 130; g = 235; b = 160; }
-  else if (cPick == 4) { r = 255; g = 120; b = 170; }
-}
-
-static constexpr int16_t kScreenW = 240;
-
-// READING: left half [0, SCREEN_W/2), full face height; `lineHeight` = row stride
-// and token bar height; `animateSpeed` = vertical scroll in px/s (bottom→top).
-static void drawReadStreamEffect(TFT_eSprite& s, uint32_t now, float alpha) {
-  if (alpha <= 0.01f) return;
-
-  const float vis = 0.5f * clamp01(alpha);
-  static constexpr int16_t kTop = 14;
-  static constexpr int16_t kBottom = 226;
-  const int16_t xBandMin = 0;
-  const int16_t xBandMax = (int16_t)(kScreenW / 2);  // clip at vertical midline
-  static constexpr int16_t lineHeight   = 2;
-  static constexpr float   animateSpeed = 200.0f;  // px/s
-  static constexpr int32_t kVirtualLinesPerParagraph = 14;
-
-  const float scrollPx = (float)now * (animateSpeed / 1000.0f);
-
-  for (int16_t y = kTop; y + lineHeight <= kBottom; y = (int16_t)(y + lineHeight)) {
-    const int16_t row = (int16_t)((y - kTop) / lineHeight);
-    const int32_t lineIdx = (int32_t)floorf((float)row + scrollPx / (float)lineHeight + 1.0e6f);
-
-    const int32_t p0 = (lineIdx / kVirtualLinesPerParagraph) * kVirtualLinesPerParagraph;
-    const int32_t rel = lineIdx - p0;
-    const uint32_t ph = mixBits((uint32_t)p0 ^ 0xdeadbeefU);
-    // Each paragraph "represents" 5..50 logical lines (affects blank density).
-    const uint32_t logicalSpan = 5u + (ph % 46u);
-
-    // Blank / spacer lines (simulated gaps inside a dense block).
-    if ((ph + (uint32_t)rel * 17U) % logicalSpan == 0U) continue;
-
-    const int16_t indentSteps = (int16_t)((ph % 7U) +
-      (rel > kVirtualLinesPerParagraph / 2 ? (int16_t)((ph >> 3) % 4U) : 0));
-    const int16_t indentPx = (int16_t)(4 + indentSteps * 4);
-
-    int16_t x = (int16_t)(xBandMin + indentPx);
-    const int16_t xMax = xBandMax;
-    const int16_t avail = (int16_t)(xMax - x);
-    if (avail < 10) continue;
-
-    // Jagged line lengths: mostly short lines; occasional long "peak" (IDE-like).
-    const uint32_t wLine = mixBits((uint32_t)lineIdx ^ ph ^ 0x51edc3baU);
-    int16_t lineEndX;
-    if ((wLine % 8U) == 0U) {
-      const int32_t lo = (int32_t)x + ((int32_t)avail * 62) / 100;
-      const int32_t hi = (int32_t)xMax;
-      const int32_t span = hi - lo;
-      lineEndX = (span < 8) ? xMax : (int16_t)(lo + 8 + (int32_t)((wLine >> 5) % (uint32_t)(span - 7)));
-    } else {
-      const int32_t pct = (int32_t)(16 + (wLine % 34));  // 16..49 % of avail past indent
-      lineEndX = (int16_t)(x + ((int32_t)avail * pct) / 100);
-      const int16_t minEnd = (int16_t)(x + 12);
-      const int16_t cap = (int16_t)(x + ((int32_t)avail * 52) / 100);
-      if (lineEndX < minEnd) lineEndX = minEnd;
-      if (lineEndX > cap) lineEndX = cap;
-    }
-    if (lineEndX > xMax) lineEndX = xMax;
-
-    uint32_t tok = mixBits((uint32_t)lineIdx ^ (uint32_t)p0 * 0x27d4eb2dU);
-
-    while (x < lineEndX) {
-      const int16_t runW = (int16_t)(2 + (tok % 3) * 2);  // 2, 4, or 6 px token bar
-      uint8_t r, g, b;
-      tokenRgb(tok, r, g, b);
-      const uint16_t tokenColor = rgb888To565(alphaScale8(r, vis),
-                                                alphaScale8(g, vis),
-                                                alphaScale8(b, vis));
-      if (x + runW > xBandMin && x < xBandMax) {
-        const int16_t x0 = x < xBandMin ? xBandMin : x;
-        const int16_t x1 = (int16_t)(x + runW);
-        const int16_t clipR = x1 > xBandMax ? xBandMax : x1;
-        const int16_t wClip = (int16_t)(clipR - x0);
-        if (wClip > 0) s.fillRect(x0, y, wClip, lineHeight, tokenColor);
-      }
-      x = (int16_t)(x + runW);
-      const int16_t gap = (int16_t)(1 + (tok >> 8) % 3U);
-      x = (int16_t)(x + gap);
-      tok = mixBits(tok + 0x6d2b79f5U + (uint32_t)x);
-    }
-  }
-}
-
-// WRITING: right half [SCREEN_W/2, SCREEN_W); y from top to kCy (mid→top band).
-static void drawWriteStreamEffect(TFT_eSprite& s, uint32_t now, float alpha) {
-  if (alpha <= 0.01f) return;
-
-  const float vis = 0.5f * clamp01(alpha);
-  static constexpr int16_t kTop = 14;
-  const int16_t xBandMin = (int16_t)(kScreenW / 2);
-  const int16_t xBandMax = kScreenW;
-  static constexpr int16_t lineHeight   = 4;
-  static constexpr float   animateSpeed = 100.0f;  // px/s
-  static constexpr int32_t kVirtualLinesPerParagraph = 18;
-
-  const float scrollPx = (float)now * (animateSpeed / 1000.0f);
-
-  for (int16_t y = kTop; y + lineHeight <= kCy; y = (int16_t)(y + lineHeight)) {
-    const int16_t row = (int16_t)((y - kTop) / lineHeight);
-    const int32_t lineIdx = (int32_t)floorf((float)row + scrollPx / (float)lineHeight + 1.0e6f);
-
-    const int32_t p0 = (lineIdx / kVirtualLinesPerParagraph) * kVirtualLinesPerParagraph;
-    const int32_t rel = lineIdx - p0;
-    const uint32_t ph = mixBits((uint32_t)p0 ^ 0x5a5a5a5aU);
-    const uint32_t logicalSpan = 6u + (ph % 40u);
-
-    if ((ph + (uint32_t)rel * 17U) % logicalSpan == 0U) continue;
-
-    const int16_t indentSteps = (int16_t)((ph % 7U) +
-      (rel > kVirtualLinesPerParagraph / 2 ? (int16_t)((ph >> 3) % 4U) : 0));
-    const int16_t indentPx = (int16_t)(4 + indentSteps * 4);
-
-    int16_t x = (int16_t)(xBandMin + indentPx);
-    const int16_t xMax = xBandMax;
-    const int16_t avail = (int16_t)(xMax - x);
-    if (avail < 10) continue;
-
-    const uint32_t wLine = mixBits((uint32_t)lineIdx ^ ph ^ 0x51edc3baU);
-    int16_t lineEndX;
-    if ((wLine % 8U) == 0U) {
-      const int32_t lo = (int32_t)x + ((int32_t)avail * 62) / 100;
-      const int32_t hi = (int32_t)xMax;
-      const int32_t span = hi - lo;
-      lineEndX = (span < 8) ? xMax : (int16_t)(lo + 8 + (int32_t)((wLine >> 5) % (uint32_t)(span - 7)));
-    } else {
-      const int32_t pct = (int32_t)(16 + (wLine % 34));
-      lineEndX = (int16_t)(x + ((int32_t)avail * pct) / 100);
-      const int16_t minEnd = (int16_t)(x + 12);
-      const int16_t cap = (int16_t)(x + ((int32_t)avail * 52) / 100);
-      if (lineEndX < minEnd) lineEndX = minEnd;
-      if (lineEndX > cap) lineEndX = cap;
-    }
-    if (lineEndX > xMax) lineEndX = xMax;
-
-    uint32_t tok = mixBits((uint32_t)lineIdx ^ (uint32_t)p0 * 0x27d4eb2dU);
-
-    while (x < lineEndX) {
-      const int16_t runW = (int16_t)(2 + (tok % 3) * 2);
-      uint8_t r, g, b;
-      tokenRgb(tok, r, g, b);
-      const uint16_t tokenColor = rgb888To565(alphaScale8(r, vis),
-                                                alphaScale8(g, vis),
-                                                alphaScale8(b, vis));
-      if (x + runW > xBandMin && x < xBandMax) {
-        const int16_t x0 = x < xBandMin ? xBandMin : x;
-        const int16_t x1 = (int16_t)(x + runW);
-        const int16_t clipR = x1 > xBandMax ? xBandMax : x1;
-        const int16_t wClip = (int16_t)(clipR - x0);
-        if (wClip > 0) s.fillRect(x0, y, wClip, lineHeight, tokenColor);
-      }
-      x = (int16_t)(x + runW);
-      const int16_t gap = (int16_t)(1 + (tok >> 8) % 3U);
-      x = (int16_t)(x + gap);
-      tok = mixBits(tok + 0x6d2b79f5U + (uint32_t)x);
-    }
-  }
-}
-
-static void drawProgressDots(TFT_eSprite& s, uint16_t count, float baseRad, float scale) {
-  if (count == 0) return;
-  if (count > kProgressMaxDots) count = kProgressMaxDots;
-  if (scale <= 0.01f) return;
-  const uint16_t dotColor = rgb888To565((uint8_t)sMoodR, (uint8_t)sMoodG, (uint8_t)sMoodB);
-
-  float countT = (float)count / (float)kProgressMaxDots;
-  if(countT > 1.0f) countT = 1.0f;
-  for (uint16_t i = 0; i < count; ++i) {
-    const float t = ((float)i + 0.5f) / (float)count;        // 0..1 across span
-    float argDeg = kProgressArcDegMin + (kProgressArcDegMax - kProgressArcDegMin) * countT;
-    const float spanRad = argDeg * (float)PI / 180.0f;
-    const float a = baseRad + (t - 0.5f) * spanRad;
-
-    float currentRadius = kProgressDotRadiusMin + (kProgressDotRadiusMax - kProgressDotRadiusMin) * countT;
-    int16_t r = (int16_t)(currentRadius * scale);
-    if (r < 1) r = 1;
-
-    float arcRadius = (int16_t)(106.0f - currentRadius);
-    const int16_t x = kCx + (int16_t)(cosf(a) * arcRadius);
-    const int16_t y = kCy + (int16_t)(sinf(a) * arcRadius);
-
-    s.fillCircle(x, y, r, dotColor);
-  }
-}
-
-static bool moodRingEnabledFor(Personality::State st) {
-  return st == Personality::THINKING ||
-         st == Personality::READING ||
-         st == Personality::WRITING ||
-         st == Personality::EXECUTING ||
-         st == Personality::EXECUTING_LONG ||
-         st == Personality::FINISHED ||
-         st == Personality::EXCITED ||
-         st == Personality::BLOCKED ||
-         st == Personality::WANTS_ATTENTION;
-}
-
-static void drawMoodRing(TFT_eSprite& s, uint8_t r, uint8_t g, uint8_t b) {
-  if (r == 0 && g == 0 && b == 0) return;
-  const uint16_t ringColor = rgb888To565(r, g, b);
-  // Draw only the annulus so layers already rendered in the center are preserved.
-  // (Using fillCircle + inner clear would erase face/effects when ring is drawn later.)
-  for (int16_t rad = kMoodRingInnerR + 1; rad <= kMoodRingOuterR; ++rad) {
-    s.drawCircle(kCx, kCy, rad, ringColor);
-  }
-}
-
-static void renderFrame(TFT_eSprite& s, const FaceParams& p,
-                        float blinkAmt, int16_t gdx, int16_t gdy) {
-  s.fillSprite(kBg);
-  const Personality::State st = Personality::current();
-
-  const float angleRad = (float)p.face_rot * (float)PI / 180.0f;
-  const float cosA = cosf(angleRad);
-  const float sinA = sinf(angleRad);
-
-  // Foreshortening: when face_y shifts the face up/down, eyes and mouth
-  // are pulled toward the pivot by abs(face_y)/2 in face-local Y, then the
-  // whole rotated face translates by face_y in display Y. The combination
-  // reads as the head tilting forward/back rather than just sliding.
-  const int16_t shorten = (int16_t)(abs(p.face_y) / 2);
-  const auto compress = [&](int16_t fy) -> int16_t {
-    const int16_t dy = (int16_t)(fy - kPivotY);
-    if (dy > 0) {
-      const int16_t nd = (int16_t)(dy - shorten);
-      return (int16_t)(kPivotY + (nd > 0 ? nd : 0));
-    }
-    if (dy < 0) {
-      const int16_t nd = (int16_t)(-dy - shorten);
-      return (int16_t)(kPivotY - (nd > 0 ? nd : 0));
-    }
-    return fy;
-  };
-
-  // Rotate face-local element positions around the pivot, then translate
-  // the whole face by face_y.
-  const auto rotated = [&](int16_t fx, int16_t fy,
-                           int16_t& outx, int16_t& outy) {
-    const float dx = (float)(fx - kCx);
-    const float dy = (float)(fy - kPivotY);
-    outx = kCx     + (int16_t)(dx * cosA - dy * sinA);
-    outy = kPivotY + (int16_t)(dx * sinA + dy * cosA) + p.face_y;
-  };
-
-  int16_t lex, ley, rex, rey, mx, my;
-  rotated(kEyeLX, compress(kEyeY   + p.eye_dy),   lex, ley);
-  rotated(kEyeRX, compress(kEyeY   + p.eye_dy),   rex, rey);
-  rotated(kCx,    compress(kMouthY + p.mouth_dy), mx,  my);
-
-  // Effects layer
-  drawReadStreamEffect(s, millis(), sTextStreamAlpha);
-  drawWriteStreamEffect(s, millis(), sWriteStreamAlpha);
-
-  // Face layer
-  drawEye(s, p, lex, ley, blinkAmt, gdx, gdy, cosA, sinA);
-  drawEye(s, p, rex, rey, blinkAmt, gdx, gdy, cosA, sinA);
-  drawMouth(s, p, mx, my, st, cosA, sinA);
-
-  /// Mood ring layer
-  if (moodRingEnabledFor(st)) {
-    drawMoodRing(s, (uint8_t)sMoodR, (uint8_t)sMoodG, (uint8_t)sMoodB);
-  }
-  const AgentEvents::AgentState& cs = AgentEvents::state();
-  if (st == Personality::SLEEP) return;
-
-  // Progress dots layer
-  if (sProgressFadeStartMs != 0) {
-    const uint32_t now = millis();
-    const float t = (float)(now - sProgressFadeStartMs) / (float)kProgressFadeMs;
-    const float scale = 1.0f - smoothstep01(t);
-    drawProgressDots(s, sFadeReadCount,   (float)PI / 2.0f, scale);
-    drawProgressDots(s, sFadeWriteCount, -(float)PI / 2.0f, scale);
-    return;
-  }
-
-  if (st == Personality::IDLE) return;
-  drawProgressDots(s, cs.read_tools_this_turn,   (float)PI / 2.0f, 1.0f);
-  drawProgressDots(s, cs.write_tools_this_turn, -(float)PI / 2.0f, 1.0f);
-}
-
 // ---- Lifecycle ---------------------------------------------------------
 
 void begin() {
@@ -816,6 +289,9 @@ void begin() {
   sFadeWriteCount = 0;
   sIdleGlanceDx = 0;
   sIdleGlanceDy = 0;
+  sIdleGlanceFromDx = 0;
+  sIdleGlanceFromDy = 0;
+  sIdleGlanceStartMs = 0;
   sNextIdleGlanceMs = 0;
 }
 
@@ -860,10 +336,16 @@ static void onStateChange(Personality::State newState, uint32_t now) {
 
   if (newState == Personality::IDLE) {
     // Trigger an immediate fresh glance when entering idle.
+    sIdleGlanceFromDx = sIdleGlanceDx;
+    sIdleGlanceFromDy = sIdleGlanceDy;
+    sIdleGlanceStartMs = now;
     sNextIdleGlanceMs = now;
   } else {
     sIdleGlanceDx = 0;
     sIdleGlanceDy = 0;
+    sIdleGlanceFromDx = 0;
+    sIdleGlanceFromDy = 0;
+    sIdleGlanceStartMs = 0;
     sNextIdleGlanceMs = 0;
   }
 }
@@ -953,7 +435,10 @@ void tick() {
 
   // Render + push
   TFT_eSprite& spr = Display::sprite();
-  renderFrame(spr, p, blinkAmt, gdx, gdy);
+  SceneRenderState renderState = {
+      s,       sMoodR, sMoodG, sMoodB, sTextStreamAlpha, sWriteStreamAlpha,
+      sProgressFadeStartMs, sFadeReadCount, sFadeWriteCount};
+  renderScene(spr, p, blinkAmt, gdx, gdy, renderState, AgentEvents::state(), now);
   Display::pushFrame();
 }
 
