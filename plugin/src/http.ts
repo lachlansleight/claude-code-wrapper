@@ -5,8 +5,8 @@ import { bus } from './bus.js'
 import { state } from './state.js'
 import { extractTokenFromHeaders, isValidToken } from './auth.js'
 import { logger } from './logger.js'
-import { getParser, listAdapterNames } from './adapters/index.js'
-import type { AgentEventEnvelope, AgentName } from './agent-event.js'
+import { getParser, listAdapterNames, ParsedEvent } from './adapters/index.js'
+import type { AgentEvent, AgentEventEnvelope, AgentName } from './agent-event.js'
 import type { BridgeConfig } from './types.js'
 
 const VERSION = '0.3.0'
@@ -51,10 +51,7 @@ function sanitizeMetaKeys(meta: Record<string, string>): Record<string, string> 
 }
 
 // Common path for both /hooks/:agent and the legacy /api/hook-event alias.
-function processAgentHook(agent: string, hook_type: string, payload: unknown): { ok: boolean; error?: string; listChanged: boolean } {
-  const parser = getParser(agent)
-  if (!parser) return { ok: false, error: `unknown_agent:${agent}`, listChanged: false }
-
+function processAgentHook(rawAgentName: string, agentName: AgentName, hook_type: string, parsedData: ParsedEvent[], payload: unknown): { ok: boolean; error?: string; listChanged: boolean } {
   // Session bookkeeping (works regardless of parser).
   const p = (payload ?? {}) as Record<string, unknown>
   const session_id =
@@ -69,25 +66,24 @@ function processAgentHook(agent: string, hook_type: string, payload: unknown): {
     listChanged = isEnd ? state.endSession(session_id) : state.trackSession(session_id)
   }
 
-  const parsed = parser.parse({ hook_type, payload })
   const now = Date.now()
 
   //append payload into log file
   fs.appendFileSync('agent-hooks.log', "\n");
   fs.appendFileSync('agent-hooks.log', "------------------------------------------\n");
-  fs.appendFileSync('agent-hooks.log', `Agent: ${agent} - Hook Type: ${hook_type}\n`);
+  fs.appendFileSync('agent-hooks.log', `Agent: ${rawAgentName} - Hook Type: ${hook_type}\n`);
   fs.appendFileSync('agent-hooks.log', "------------------------------------------\n");
-  if(parsed.length === 0) {
+  if(parsedData.length === 0) {
     fs.appendFileSync('agent-hooks.log', "RAW PAYLOAD: " + JSON.stringify(payload, null, 2));
   } else {
-    fs.appendFileSync('agent-hooks.log', "PARSED EVENTS: " + JSON.stringify(parsed, null, 2));
+    fs.appendFileSync('agent-hooks.log', "PARSED EVENTS: " + JSON.stringify(parsedData, null, 2));
   }
   fs.appendFileSync('agent-hooks.log', "\n------------------------------------------\n");
 
-  for (const item of parsed) {
+  for (const item of parsedData) {
     const envelope: AgentEventEnvelope = {
       type: 'agent_event',
-      agent: parser.name as AgentName,
+      agent: agentName,
       ts: now,
       session_id: item.session_id ?? session_id,
       turn_id: item.turn_id,
@@ -173,7 +169,9 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
       json(res, 400, { error: 'hook_type_required' })
       return
     }
-    const result = processAgentHook(agent, body.hook_type, body.payload ?? null)
+    const parser = getParser(agent)
+    const parsedEvents = parser?.parse({ hook_type: body.hook_type, payload: body.payload }) || [];
+    const result = processAgentHook(agent, (parser?.name || agent) as AgentName, body.hook_type, parsedEvents, body.payload ?? null)
     if (!result.ok) {
       json(res, 400, { error: result.error })
       return
@@ -183,6 +181,67 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
     }
     res.writeHead(204).end()
     return
+  }
+
+  if (method === 'POST' && path.startsWith('/hooksRaw/')) {
+    const agent = decodeURIComponent(path.slice('/hooksRaw/'.length))
+    const body = (await readJsonBody(req)) as { hook_type?: unknown; events?: ParsedEvent[] }
+    let listChanged = false
+    for (const item of body.events || []) {
+      const sid = item.session_id
+      if (sid && item.event && typeof item.event === 'object' && 'kind' in item.event) {
+        const k = (item.event as { kind: string }).kind
+        if (k === 'session.ended') {
+          if (state.endSession(sid)) listChanged = true
+        } else {
+          if (state.trackSession(sid)) listChanged = true
+        }
+      }
+
+      const envelope: AgentEventEnvelope = {
+        type: 'agent_event',
+        agent: agent as AgentName,
+        ts: Date.now(),
+        session_id: item.session_id ?? 'debug',
+        turn_id: item.turn_id,
+        event: item.event,
+      }
+
+      if (item.event && typeof item.event === 'object' && 'kind' in item.event) {
+        const ev = item.event as AgentEvent
+        if (ev.kind === 'permission.requested') {
+          state.addPendingPermission({
+            request_id: ev.request_id,
+            activity: ev.activity,
+            description: ev.description,
+          })
+          bus.emit('permission_request', {
+            request_id: ev.request_id,
+            activity: ev.activity,
+            description: ev.description,
+            opened_at: Date.now(),
+          })
+        } else if (ev.kind === 'permission.resolved') {
+          state.resolvePendingPermission(ev.request_id)
+          bus.emit('permission_resolved', {
+            request_id: ev.request_id,
+            behavior: ev.decision,
+            by: 'remote',
+          })
+        }
+      }
+
+      bus.emit('agent_event', envelope)
+    }
+    if (listChanged) {
+      bus.emit('sessions_changed', { session_ids: state.listActiveSessions() })
+    }
+    res.writeHead(204).end()
+    return
+  }
+
+  if (method === 'POST' && path === "/api/simulate-hook") {
+
   }
 
   if (method === 'POST' && path === '/api/messages') {

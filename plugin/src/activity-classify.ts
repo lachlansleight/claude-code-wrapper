@@ -67,6 +67,7 @@ const TABLES: Record<AgentName, Record<string, ActivityKind>> = {
   codex: CODEX,
   cursor: CURSOR,
   opencode: OPENCODE,
+  simulator: {},
 }
 
 export function classifyTool(agent: AgentName, toolName: string | undefined | null): ActivityKind {

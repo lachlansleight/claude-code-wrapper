@@ -1,7 +1,7 @@
 // Canonical agent event vocabulary the bridge emits over WebSocket.
 // See OBJECT_INTERFACE.md for the full spec.
 
-export type AgentName = 'claude' | 'cursor' | 'codex' | 'opencode'
+export type AgentName = 'claude' | 'cursor' | 'codex' | 'opencode' | 'simulator'
 
 export type ActivityKind =
   | 'file.read'
