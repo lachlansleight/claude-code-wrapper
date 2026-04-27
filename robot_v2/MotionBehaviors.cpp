@@ -24,6 +24,13 @@ static constexpr int8_t   kExcitedOscLo           = -20;
 static constexpr int8_t   kExcitedOscHi           = -10;
 static constexpr uint16_t kExcitedOscHalfPeriodMs = 500;
 
+// Executing / long-executing: gentle arm waggle in [-20,-10] (same range as
+// excited). Full period 1s for EXECUTING, 0.75s for EXECUTING_LONG.
+static constexpr int8_t   kExecuteOscLo             = -20;
+static constexpr int8_t   kExecuteOscHi             = -10;
+static constexpr uint16_t kExecuteOscHalfPeriodMs = 500;   // 1.0 s full period
+static constexpr uint16_t kExecuteLongOscHalfMs    = 375;  // 0.75 s full period
+
 // Ready: small slow drift around centre, similar in feel to idle's drift
 // but centred and slightly more frequent.
 static constexpr uint32_t kReadyDriftMinMs  = 2000;
@@ -49,6 +56,7 @@ static uint32_t sStateEntryMs  = 0;
 static uint32_t sNextTimedMs   = 0;  // next scheduled event (idle waggle, writing jog, etc.)
 static int8_t   sWriteToggle   = 1;
 static bool     sExcitedAtLow  = false;  // tracks current end of the excited oscillation
+static bool     sExecOscAtLow  = false;   // executing / executing-long waggle endpoint
 
 // ---- Helpers (idle) ------------------------------------------------------
 
@@ -103,6 +111,18 @@ static void onEnter(Personality::State s) {
       Motion::playJog((int8_t)(kWritingJogMag * sWriteToggle));
       sWriteToggle = (int8_t)-sWriteToggle;
       sNextTimedMs = now + kWritingJogMs;
+      break;
+
+    case Personality::EXECUTING:
+      sExecOscAtLow = true;
+      Motion::playJog(kExecuteOscLo, kExecuteOscHalfPeriodMs);
+      sNextTimedMs = now + kExecuteOscHalfPeriodMs;
+      break;
+
+    case Personality::EXECUTING_LONG:
+      sExecOscAtLow = true;
+      Motion::playJog(kExecuteOscLo, kExecuteLongOscHalfMs);
+      sNextTimedMs = now + kExecuteLongOscHalfMs;
       break;
 
     case Personality::FINISHED:
@@ -182,6 +202,20 @@ static void onDuring(Personality::State s) {
       Motion::playJog((int8_t)(kWritingJogMag * sWriteToggle));
       sWriteToggle = (int8_t)-sWriteToggle;
       sNextTimedMs = now + kWritingJogMs;
+      break;
+
+    case Personality::EXECUTING:
+      sExecOscAtLow = !sExecOscAtLow;
+      Motion::playJog(sExecOscAtLow ? kExecuteOscLo : kExecuteOscHi,
+                      kExecuteOscHalfPeriodMs);
+      sNextTimedMs = now + kExecuteOscHalfPeriodMs;
+      break;
+
+    case Personality::EXECUTING_LONG:
+      sExecOscAtLow = !sExecOscAtLow;
+      Motion::playJog(sExecOscAtLow ? kExecuteOscLo : kExecuteOscHi,
+                      kExecuteLongOscHalfMs);
+      sNextTimedMs = now + kExecuteLongOscHalfMs;
       break;
 
     case Personality::FINISHED:

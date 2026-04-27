@@ -83,12 +83,12 @@ static constexpr float   kMoodRingTauMs  = 200.0f;
 // face_rot represents the "default" tilt (sign = +1). The thinking
 // modulator periodically flips this sign so the tilt swaps direction.
 static const FaceParams kTargets[Personality::kStateCount] = {
-  /* IDLE     */ {  2, 30, 22, 3,   0,  0,  3, 15,  0, 30,   1,  0, 3,   0,  0,    0,   0,   0 },
+  /* IDLE     */ {  2, 30, 26, 3,   0,  0,  3, 15,  0, 30,   -2,  0, 3,   0,  0,    0,   0,   0 },
   /* THINKING */ {  0, 30, 30, 3,   0,  7, -9, 15,  0, 22,  -3,  0, 3, -10,  0,   36,  56, 120 },  // dark blue
   /* READING  */ {  0, 28, 26, 3,   0,  0,  8, 12,  0, 18,  -3,  0, 3,   0, 12,   78, 146, 210 },  // looks down, round eyes, pupils low, slight smile
   /* WRITING  */ {  0, 30, 26, 3,   0,  0, -8, 15,  0, 30,  -1, 14, 3,   0,  0,  104, 118, 228 },  // light blue (more purple than thinking)
   /* EXECUTING */ {  0, 30, 16, 3,   0,  0, -4, 10,  0, 18,  -2,  0, 3,   0,  0,  156,  64, 216 },  // purple, narrow eyes, small smile
-  /* EXEC_LONG */ {  0, 30, 22, 3,   0,  0, -3, 10,  0, 18,   0,  0, 3,   0,  0,  190,  70, 220 },  // slightly redder purple, wider eyes
+  /* EXEC_LONG */ {  0, 30, 22, 3,   0,  0, -3, 10,  0, 18,   0,  0, 3,   0,  0,  210,  75, 220 },  // slightly redder purple, wider eyes
   /* FINISHED */ { -4, 24,  4, 4,   7,  0,  0,  0,  0, 36,  -1, 14, 4,   0,  0,  255, 228,  32 },  // bright yellow
   /* EXCITED  */ {  0, 30, 30, 3,   0,  0,  0, 15,  0, 30,  -8,  0, 3,   0,  0,   40, 255,  80 },  // bright green
   /* READY    */ {  0, 30, 30, 3,   0,  0,  0, 15,  0, 26,  -3,  0, 3,   0,  0,    0,   0,   0 },
@@ -100,8 +100,11 @@ static const FaceParams kTargets[Personality::kStateCount] = {
 
 // Tween duration between state targets.
 static constexpr uint32_t kTweenMs        = 250;
-// Render rate cap (~30 fps).
-static constexpr uint32_t kTickIntervalMs = 33;
+// Default render rate cap (~30 fps). When read/write code streams are active
+// (or still fading), use kTickIntervalStreamMs so scroll tracks millis() more
+// closely — otherwise a slow loop() makes the stream look ~5–8 Hz.
+static constexpr uint32_t kTickIntervalMs       = 33;
+static constexpr uint32_t kTickIntervalStreamMs = 16;  // ~60 fps cap while streams run
 
 static constexpr uint32_t kBlinkCloseMs = 80;
 static constexpr uint32_t kBlinkOpenMs  = 130;
@@ -131,12 +134,20 @@ static uint32_t sLastMoodMs = 0;
 static uint32_t sProgressFadeStartMs = 0;
 static uint16_t sFadeReadCount = 0;
 static uint16_t sFadeWriteCount = 0;
+static float    sTextStreamAlpha = 0.0f;
+static float    sWriteStreamAlpha = 0.0f;
+static uint32_t sLastEffectsMs = 0;
 
 // Thinking tilt-flip state.
 static float    sThinkFromSign     = 1.0f;
 static float    sThinkToSign       = 1.0f;
 static uint32_t sThinkFlipStartMs  = 0;
 static uint32_t sNextThinkFlipMs   = 0;
+
+// Idle glance state.
+static int16_t  sIdleGlanceDx      = 0;
+static int16_t  sIdleGlanceDy      = 0;
+static uint32_t sNextIdleGlanceMs  = 0;
 
 // ---- Math helpers --------------------------------------------------------
 
@@ -194,10 +205,13 @@ static void gazeFor(Personality::State s, uint32_t now,
   gdx = 0; gdy = 0;
   switch (s) {
     case Personality::IDLE: {
-      const float t1 = (float)(now % 7000) / 7000.0f;
-      const float t2 = (float)(now % 5000) / 5000.0f;
-      gdx = (int16_t)(sinf(t1 * 2 * (float)PI) * 4);
-      gdy = (int16_t)(sinf(t2 * 2 * (float)PI) * 2);
+      if (sNextIdleGlanceMs == 0 || now >= sNextIdleGlanceMs) {
+        sIdleGlanceDx = (int16_t)random(-15, 16);  // safe horizontal range
+        sIdleGlanceDy = (int16_t)random(-10, 11);  // safe vertical range
+        sNextIdleGlanceMs = now + (uint32_t)random(1000, 10001);
+      }
+      gdx = sIdleGlanceDx;
+      gdy = sIdleGlanceDy;
       break;
     }
     case Personality::THINKING: {
@@ -461,6 +475,193 @@ static constexpr float   kProgressArcDegMin    = 40.0f;
 static constexpr float   kProgressArcDegMax    = 170.0f;
 static constexpr uint16_t kProgressMaxDots  = 48;  // beyond this, dots overlap
 static constexpr uint32_t kProgressFadeMs   = 280;
+static constexpr uint32_t kEffectsFadeMs    = 100;
+
+// "Effects" overlay pass (future expansion point).
+// READ: left half; line height 2 px; animateSpeed 100 px/s (bottom→top).
+// WRITE: right half, y to midline; line height 4 px; animateSpeed 50 px/s.
+// Both use 50% peak token opacity.
+static uint32_t mixBits(uint32_t x) {
+  x ^= x >> 16;
+  x *= 0x7feb352dU;
+  x ^= x >> 15;
+  x *= 0x846ca68bU;
+  x ^= x >> 16;
+  return x;
+}
+
+static uint8_t alphaScale8(uint8_t c, float a) {
+  if (a <= 0.0f) return 0;
+  if (a >= 1.0f) return c;
+  return (uint8_t)((float)c * a);
+}
+
+static void tokenRgb(uint32_t tok, uint8_t& r, uint8_t& g, uint8_t& b) {
+  const uint32_t cPick = tok % 6U;
+  r = 120; g = 160; b = 230;
+  if (cPick == 0) { r = 120; g = 220; b = 255; }
+  else if (cPick == 1) { r = 180; g = 135; b = 255; }
+  else if (cPick == 2) { r = 255; g = 190; b = 90; }
+  else if (cPick == 3) { r = 130; g = 235; b = 160; }
+  else if (cPick == 4) { r = 255; g = 120; b = 170; }
+}
+
+static constexpr int16_t kScreenW = 240;
+
+// READING: left half [0, SCREEN_W/2), full face height; `lineHeight` = row stride
+// and token bar height; `animateSpeed` = vertical scroll in px/s (bottom→top).
+static void drawReadStreamEffect(TFT_eSprite& s, uint32_t now, float alpha) {
+  if (alpha <= 0.01f) return;
+
+  const float vis = 0.5f * clamp01(alpha);
+  static constexpr int16_t kTop = 14;
+  static constexpr int16_t kBottom = 226;
+  const int16_t xBandMin = 0;
+  const int16_t xBandMax = (int16_t)(kScreenW / 2);  // clip at vertical midline
+  static constexpr int16_t lineHeight   = 2;
+  static constexpr float   animateSpeed = 200.0f;  // px/s
+  static constexpr int32_t kVirtualLinesPerParagraph = 14;
+
+  const float scrollPx = (float)now * (animateSpeed / 1000.0f);
+
+  for (int16_t y = kTop; y + lineHeight <= kBottom; y = (int16_t)(y + lineHeight)) {
+    const int16_t row = (int16_t)((y - kTop) / lineHeight);
+    const int32_t lineIdx = (int32_t)floorf((float)row + scrollPx / (float)lineHeight + 1.0e6f);
+
+    const int32_t p0 = (lineIdx / kVirtualLinesPerParagraph) * kVirtualLinesPerParagraph;
+    const int32_t rel = lineIdx - p0;
+    const uint32_t ph = mixBits((uint32_t)p0 ^ 0xdeadbeefU);
+    // Each paragraph "represents" 5..50 logical lines (affects blank density).
+    const uint32_t logicalSpan = 5u + (ph % 46u);
+
+    // Blank / spacer lines (simulated gaps inside a dense block).
+    if ((ph + (uint32_t)rel * 17U) % logicalSpan == 0U) continue;
+
+    const int16_t indentSteps = (int16_t)((ph % 7U) +
+      (rel > kVirtualLinesPerParagraph / 2 ? (int16_t)((ph >> 3) % 4U) : 0));
+    const int16_t indentPx = (int16_t)(4 + indentSteps * 4);
+
+    int16_t x = (int16_t)(xBandMin + indentPx);
+    const int16_t xMax = xBandMax;
+    const int16_t avail = (int16_t)(xMax - x);
+    if (avail < 10) continue;
+
+    // Jagged line lengths: mostly short lines; occasional long "peak" (IDE-like).
+    const uint32_t wLine = mixBits((uint32_t)lineIdx ^ ph ^ 0x51edc3baU);
+    int16_t lineEndX;
+    if ((wLine % 8U) == 0U) {
+      const int32_t lo = (int32_t)x + ((int32_t)avail * 62) / 100;
+      const int32_t hi = (int32_t)xMax;
+      const int32_t span = hi - lo;
+      lineEndX = (span < 8) ? xMax : (int16_t)(lo + 8 + (int32_t)((wLine >> 5) % (uint32_t)(span - 7)));
+    } else {
+      const int32_t pct = (int32_t)(16 + (wLine % 34));  // 16..49 % of avail past indent
+      lineEndX = (int16_t)(x + ((int32_t)avail * pct) / 100);
+      const int16_t minEnd = (int16_t)(x + 12);
+      const int16_t cap = (int16_t)(x + ((int32_t)avail * 52) / 100);
+      if (lineEndX < minEnd) lineEndX = minEnd;
+      if (lineEndX > cap) lineEndX = cap;
+    }
+    if (lineEndX > xMax) lineEndX = xMax;
+
+    uint32_t tok = mixBits((uint32_t)lineIdx ^ (uint32_t)p0 * 0x27d4eb2dU);
+
+    while (x < lineEndX) {
+      const int16_t runW = (int16_t)(2 + (tok % 3) * 2);  // 2, 4, or 6 px token bar
+      uint8_t r, g, b;
+      tokenRgb(tok, r, g, b);
+      const uint16_t tokenColor = rgb888To565(alphaScale8(r, vis),
+                                                alphaScale8(g, vis),
+                                                alphaScale8(b, vis));
+      if (x + runW > xBandMin && x < xBandMax) {
+        const int16_t x0 = x < xBandMin ? xBandMin : x;
+        const int16_t x1 = (int16_t)(x + runW);
+        const int16_t clipR = x1 > xBandMax ? xBandMax : x1;
+        const int16_t wClip = (int16_t)(clipR - x0);
+        if (wClip > 0) s.fillRect(x0, y, wClip, lineHeight, tokenColor);
+      }
+      x = (int16_t)(x + runW);
+      const int16_t gap = (int16_t)(1 + (tok >> 8) % 3U);
+      x = (int16_t)(x + gap);
+      tok = mixBits(tok + 0x6d2b79f5U + (uint32_t)x);
+    }
+  }
+}
+
+// WRITING: right half [SCREEN_W/2, SCREEN_W); y from top to kCy (mid→top band).
+static void drawWriteStreamEffect(TFT_eSprite& s, uint32_t now, float alpha) {
+  if (alpha <= 0.01f) return;
+
+  const float vis = 0.5f * clamp01(alpha);
+  static constexpr int16_t kTop = 14;
+  const int16_t xBandMin = (int16_t)(kScreenW / 2);
+  const int16_t xBandMax = kScreenW;
+  static constexpr int16_t lineHeight   = 4;
+  static constexpr float   animateSpeed = 100.0f;  // px/s
+  static constexpr int32_t kVirtualLinesPerParagraph = 18;
+
+  const float scrollPx = (float)now * (animateSpeed / 1000.0f);
+
+  for (int16_t y = kTop; y + lineHeight <= kCy; y = (int16_t)(y + lineHeight)) {
+    const int16_t row = (int16_t)((y - kTop) / lineHeight);
+    const int32_t lineIdx = (int32_t)floorf((float)row + scrollPx / (float)lineHeight + 1.0e6f);
+
+    const int32_t p0 = (lineIdx / kVirtualLinesPerParagraph) * kVirtualLinesPerParagraph;
+    const int32_t rel = lineIdx - p0;
+    const uint32_t ph = mixBits((uint32_t)p0 ^ 0x5a5a5a5aU);
+    const uint32_t logicalSpan = 6u + (ph % 40u);
+
+    if ((ph + (uint32_t)rel * 17U) % logicalSpan == 0U) continue;
+
+    const int16_t indentSteps = (int16_t)((ph % 7U) +
+      (rel > kVirtualLinesPerParagraph / 2 ? (int16_t)((ph >> 3) % 4U) : 0));
+    const int16_t indentPx = (int16_t)(4 + indentSteps * 4);
+
+    int16_t x = (int16_t)(xBandMin + indentPx);
+    const int16_t xMax = xBandMax;
+    const int16_t avail = (int16_t)(xMax - x);
+    if (avail < 10) continue;
+
+    const uint32_t wLine = mixBits((uint32_t)lineIdx ^ ph ^ 0x51edc3baU);
+    int16_t lineEndX;
+    if ((wLine % 8U) == 0U) {
+      const int32_t lo = (int32_t)x + ((int32_t)avail * 62) / 100;
+      const int32_t hi = (int32_t)xMax;
+      const int32_t span = hi - lo;
+      lineEndX = (span < 8) ? xMax : (int16_t)(lo + 8 + (int32_t)((wLine >> 5) % (uint32_t)(span - 7)));
+    } else {
+      const int32_t pct = (int32_t)(16 + (wLine % 34));
+      lineEndX = (int16_t)(x + ((int32_t)avail * pct) / 100);
+      const int16_t minEnd = (int16_t)(x + 12);
+      const int16_t cap = (int16_t)(x + ((int32_t)avail * 52) / 100);
+      if (lineEndX < minEnd) lineEndX = minEnd;
+      if (lineEndX > cap) lineEndX = cap;
+    }
+    if (lineEndX > xMax) lineEndX = xMax;
+
+    uint32_t tok = mixBits((uint32_t)lineIdx ^ (uint32_t)p0 * 0x27d4eb2dU);
+
+    while (x < lineEndX) {
+      const int16_t runW = (int16_t)(2 + (tok % 3) * 2);
+      uint8_t r, g, b;
+      tokenRgb(tok, r, g, b);
+      const uint16_t tokenColor = rgb888To565(alphaScale8(r, vis),
+                                                alphaScale8(g, vis),
+                                                alphaScale8(b, vis));
+      if (x + runW > xBandMin && x < xBandMax) {
+        const int16_t x0 = x < xBandMin ? xBandMin : x;
+        const int16_t x1 = (int16_t)(x + runW);
+        const int16_t clipR = x1 > xBandMax ? xBandMax : x1;
+        const int16_t wClip = (int16_t)(clipR - x0);
+        if (wClip > 0) s.fillRect(x0, y, wClip, lineHeight, tokenColor);
+      }
+      x = (int16_t)(x + runW);
+      const int16_t gap = (int16_t)(1 + (tok >> 8) % 3U);
+      x = (int16_t)(x + gap);
+      tok = mixBits(tok + 0x6d2b79f5U + (uint32_t)x);
+    }
+  }
+}
 
 static void drawProgressDots(TFT_eSprite& s, uint16_t count, float baseRad, float scale) {
   if (count == 0) return;
@@ -503,17 +704,17 @@ static bool moodRingEnabledFor(Personality::State st) {
 static void drawMoodRing(TFT_eSprite& s, uint8_t r, uint8_t g, uint8_t b) {
   if (r == 0 && g == 0 && b == 0) return;
   const uint16_t ringColor = rgb888To565(r, g, b);
-  s.fillCircle(kCx, kCy, kMoodRingOuterR, ringColor);
-  s.fillCircle(kCx, kCy, kMoodRingInnerR, kBg);
+  // Draw only the annulus so layers already rendered in the center are preserved.
+  // (Using fillCircle + inner clear would erase face/effects when ring is drawn later.)
+  for (int16_t rad = kMoodRingInnerR + 1; rad <= kMoodRingOuterR; ++rad) {
+    s.drawCircle(kCx, kCy, rad, ringColor);
+  }
 }
 
 static void renderFrame(TFT_eSprite& s, const FaceParams& p,
                         float blinkAmt, int16_t gdx, int16_t gdy) {
   s.fillSprite(kBg);
   const Personality::State st = Personality::current();
-  if (moodRingEnabledFor(st)) {
-    drawMoodRing(s, (uint8_t)sMoodR, (uint8_t)sMoodG, (uint8_t)sMoodB);
-  }
 
   const float angleRad = (float)p.face_rot * (float)PI / 180.0f;
   const float cosA = cosf(angleRad);
@@ -552,12 +753,23 @@ static void renderFrame(TFT_eSprite& s, const FaceParams& p,
   rotated(kEyeRX, compress(kEyeY   + p.eye_dy),   rex, rey);
   rotated(kCx,    compress(kMouthY + p.mouth_dy), mx,  my);
 
+  // Effects layer
+  drawReadStreamEffect(s, millis(), sTextStreamAlpha);
+  drawWriteStreamEffect(s, millis(), sWriteStreamAlpha);
+
+  // Face layer
   drawEye(s, p, lex, ley, blinkAmt, gdx, gdy, cosA, sinA);
   drawEye(s, p, rex, rey, blinkAmt, gdx, gdy, cosA, sinA);
   drawMouth(s, p, mx, my, st, cosA, sinA);
+
+  /// Mood ring layer
+  if (moodRingEnabledFor(st)) {
+    drawMoodRing(s, (uint8_t)sMoodR, (uint8_t)sMoodG, (uint8_t)sMoodB);
+  }
   const AgentEvents::AgentState& cs = AgentEvents::state();
   if (st == Personality::SLEEP) return;
 
+  // Progress dots layer
   if (sProgressFadeStartMs != 0) {
     const uint32_t now = millis();
     const float t = (float)(now - sProgressFadeStartMs) / (float)kProgressFadeMs;
@@ -596,9 +808,15 @@ void begin() {
   sMoodG = (float)kTargets[Personality::SLEEP].ring_g;
   sMoodB = (float)kTargets[Personality::SLEEP].ring_b;
   sLastMoodMs = millis();
+  sTextStreamAlpha = 0.0f;
+  sWriteStreamAlpha = 0.0f;
+  sLastEffectsMs = millis();
   sProgressFadeStartMs = 0;
   sFadeReadCount = 0;
   sFadeWriteCount = 0;
+  sIdleGlanceDx = 0;
+  sIdleGlanceDy = 0;
+  sNextIdleGlanceMs = 0;
 }
 
 void invalidate() {
@@ -639,16 +857,31 @@ static void onStateChange(Personality::State newState, uint32_t now) {
   if (newState == Personality::THINKING) {
     resetThinkTilt(now);
   }
+
+  if (newState == Personality::IDLE) {
+    // Trigger an immediate fresh glance when entering idle.
+    sNextIdleGlanceMs = now;
+  } else {
+    sIdleGlanceDx = 0;
+    sIdleGlanceDy = 0;
+    sNextIdleGlanceMs = 0;
+  }
 }
 
 void tick() {
   if (!Display::ready()) return;
 
   const uint32_t now = millis();
-  if (now - sLastTickMs < kTickIntervalMs) return;
+  const Personality::State sNow = Personality::current();
+  const bool streamFrame =
+      sNow == Personality::READING || sNow == Personality::WRITING ||
+      sTextStreamAlpha > 0.02f || sWriteStreamAlpha > 0.02f;
+  const uint32_t tickInterval =
+      streamFrame ? kTickIntervalStreamMs : kTickIntervalMs;
+  if (now - sLastTickMs < tickInterval) return;
   sLastTickMs = now;
 
-  const Personality::State s = Personality::current();
+  const Personality::State s = sNow;
   if (s != sLastState) {
     onStateChange(s, now);
   }
@@ -666,6 +899,16 @@ void tick() {
   sMoodG += ((float)moodTarget.ring_g - sMoodG) * alpha;
   sMoodB += ((float)moodTarget.ring_b - sMoodB) * alpha;
   sLastMoodMs = now;
+
+  // Effects fade: read stream in READING; write stream (lower band) in WRITING.
+  const uint32_t effectsDt = (sLastEffectsMs == 0) ? 0 : (now - sLastEffectsMs);
+  const float effectsA = 1.0f - expf(-(float)effectsDt / (float)kEffectsFadeMs);
+  const float readTarget = (s == Personality::READING) ? 1.0f : 0.0f;
+  const float writeTarget = (s == Personality::WRITING) ? 1.0f : 0.0f;
+  sTextStreamAlpha += (readTarget - sTextStreamAlpha) * effectsA;
+  sWriteStreamAlpha += (writeTarget - sWriteStreamAlpha) * effectsA;
+  sLastEffectsMs = now;
+
   if (sProgressFadeStartMs != 0 && now - sProgressFadeStartMs >= kProgressFadeMs) {
     sProgressFadeStartMs = 0;
     sFadeReadCount = 0;
