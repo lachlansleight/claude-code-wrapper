@@ -32,6 +32,17 @@ void onEvent(EventHandler h)                          { h_event   = h; }
 void onRaw(RawHandler h)                              { h_raw     = h; }
 void onConnectionChange(ConnectionHandler h)          { h_conn    = h; }
 
+void clearTextDisplayForSleep() {
+  g_state.status_line[0] = '\0';
+  g_state.subtitle_tool[0] = '\0';
+  g_state.body_text[0] = '\0';
+  g_state.last_summary[0] = '\0';
+  g_state.thinking_title_since_ms = 0;
+  g_state.turn_started_wall_ms = 0;
+  g_state.done_turn_elapsed_ms = 0;
+  g_state.text_tool_linger_until_ms = 0;
+}
+
 void notifyConnection(bool connected) {
   g_state.ws_connected = connected;
   if (!connected) {
@@ -43,7 +54,11 @@ void notifyConnection(bool connected) {
     g_state.pending_detail[0] = '\0';
     g_state.latched_session[0] = '\0';
     g_state.status_line[0] = '\0';
+    g_state.subtitle_tool[0] = '\0';
     g_state.body_text[0] = '\0';
+    g_state.thinking_title_since_ms = 0;
+    g_state.turn_started_wall_ms = 0;
+    g_state.done_turn_elapsed_ms = 0;
     g_state.text_tool_linger_until_ms = 0;
     g_state.latest_shell_command[0] = '\0';
     g_state.latest_read_target[0] = '\0';
@@ -107,9 +122,34 @@ static bool shellLikelyWrites(const char* summary) {
   return false;
 }
 
-static void copyBody(const char* src) {
-  AsciiCopy::copy(g_state.body_text, sizeof(g_state.body_text), src ? src : "");
+static void copyStreamBody(const char* src) {
+  AsciiCopy::copyPreserveNewlines(g_state.body_text, sizeof(g_state.body_text),
+                                  src ? src : "");
   g_state.body_updated_ms = millis();
+}
+
+static void copySubtitle(const char* src) {
+  AsciiCopy::copy(g_state.subtitle_tool, sizeof(g_state.subtitle_tool), src ? src : "");
+}
+
+/** Subtitle when title is Executing: `Shell: command…` (not used for Reading/Writing). */
+static void copyExecutingToolSubtitle(const char* tool, const char* detail) {
+  const bool haveTool = tool && *tool;
+  const bool haveDet = detail && *detail;
+  char line[sizeof(g_state.subtitle_tool)];
+  if (haveTool && haveDet) {
+    snprintf(line, sizeof(line), "%s: %s", tool, detail);
+  } else if (haveTool) {
+    AsciiCopy::copy(line, sizeof(line), tool);
+  } else {
+    AsciiCopy::copy(line, sizeof(line), haveDet ? detail : "");
+  }
+  copySubtitle(line);
+}
+
+static void setThinkingTitle() {
+  AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Thinking");
+  g_state.thinking_title_since_ms = millis();
 }
 
 static void formatByteSize(char* out, size_t cap, uint32_t bytes) {
@@ -130,11 +170,14 @@ static void formatByteSize(char* out, size_t cap, uint32_t bytes) {
   snprintf(out, cap, "%.3gkB", kb);
 }
 
-/** Cursor/bridge: file read and write use the same on-screen title. */
+/** Map activity.kind to the short title line (text mode + personality hints). */
 static const char* titleForToolActivity(const char* activity_kind) {
   if (!activity_kind || !*activity_kind) return "Reading";
   if (!strcmp(activity_kind, "shell.exec") || !strcmp(activity_kind, "shell.background")) {
     return "Executing";
+  }
+  if (!strcmp(activity_kind, "file.write") || !strcmp(activity_kind, "file.delete")) {
+    return "Writing";
   }
   if (!strncmp(activity_kind, "file.", 5) || !strcmp(activity_kind, "notebook.edit")) {
     return "Reading";
@@ -289,7 +332,10 @@ static void handleAgentEvent(JsonDocument& doc) {
   if (!strcmp(kind, "turn.started")) {
     g_state.working = true;
     clearTextToolLinger();
-    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Thinking");
+    setThinkingTitle();
+    g_state.turn_started_wall_ms = millis();
+    g_state.done_turn_elapsed_ms = 0;
+    g_state.subtitle_tool[0] = '\0';
     g_state.current_tool[0] = '\0';
     g_state.tool_detail[0] = '\0';
     g_state.current_tool_end_ms = 0;
@@ -326,9 +372,13 @@ static void handleAgentEvent(JsonDocument& doc) {
     AsciiCopy::copy(g_state.current_tool, sizeof(g_state.current_tool), activity_tool);
     AsciiCopy::copy(g_state.tool_detail, sizeof(g_state.tool_detail), activity_summary);
     deriveTargets(activity_kind, activity_summary);
-    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line),
-                    titleForToolActivity(activity_kind));
-    copyBody(activity_summary);
+    const char* actTitle = titleForToolActivity(activity_kind);
+    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), actTitle);
+    if (!strcmp(actTitle, "Executing")) {
+      copyExecutingToolSubtitle(activity_tool, activity_summary);
+    } else {
+      copySubtitle(activity_summary);
+    }
     g_state.current_tool_end_ms = 0;
     g_state.last_summary[0] = '\0';
   } else if (!strcmp(kind, "activity.finished") || !strcmp(kind, "activity.failed")) {
@@ -341,8 +391,8 @@ static void handleAgentEvent(JsonDocument& doc) {
     }
 
     clearTextToolLinger();
-    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line),
-                    titleForToolActivity(activity_kind));
+    const char* actTitle = titleForToolActivity(activity_kind);
+    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), actTitle);
 
     JsonVariantConst clv = evt["content_length"];
     uint32_t content_len = 0;
@@ -361,14 +411,26 @@ static void handleAgentEvent(JsonDocument& doc) {
       formatByteSize(sizeBuf, sizeof(sizeBuf), content_len);
     }
 
-    if (sizeBuf[0] && activity_summary && *activity_summary) {
-      char line[sizeof(g_state.body_text)];
-      snprintf(line, sizeof(line), "%s - %s", activity_summary, sizeBuf);
-      copyBody(line);
-    } else if (sizeBuf[0]) {
-      copyBody(sizeBuf);
+    if (!strcmp(actTitle, "Executing")) {
+      if (sizeBuf[0] && activity_summary && *activity_summary) {
+        char detail[sizeof(g_state.subtitle_tool)];
+        snprintf(detail, sizeof(detail), "%s - %s", activity_summary, sizeBuf);
+        copyExecutingToolSubtitle(activity_tool, detail);
+      } else if (sizeBuf[0]) {
+        copyExecutingToolSubtitle(activity_tool, sizeBuf);
+      } else {
+        copyExecutingToolSubtitle(activity_tool, activity_summary);
+      }
     } else {
-      copyBody(activity_summary);
+      if (sizeBuf[0] && activity_summary && *activity_summary) {
+        char line[sizeof(g_state.subtitle_tool)];
+        snprintf(line, sizeof(line), "%s - %s", activity_summary, sizeBuf);
+        copySubtitle(line);
+      } else if (sizeBuf[0]) {
+        copySubtitle(sizeBuf);
+      } else {
+        copySubtitle(activity_summary);
+      }
     }
 
     armTextToolLinger();
@@ -382,11 +444,11 @@ static void handleAgentEvent(JsonDocument& doc) {
     AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Awaiting permission");
     const char* desc = evt["description"] | "";
     if (activity_summary && *activity_summary) {
-      copyBody(activity_summary);
+      copySubtitle(activity_summary);
     } else if (desc && *desc) {
-      copyBody(desc);
+      copySubtitle(desc);
     } else {
-      copyBody("");
+      copySubtitle("");
     }
 
     if (h_permReq) {
@@ -408,17 +470,24 @@ static void handleAgentEvent(JsonDocument& doc) {
   } else if (!strcmp(kind, "message.assistant")) {
     AsciiCopy::copy(g_state.last_summary, sizeof(g_state.last_summary), evt["text"] | "");
     clearTextToolLinger();
+    if (strcmp(g_state.status_line, "Done") != 0) {
+      const uint32_t wall = millis();
+      const uint32_t t0 = g_state.turn_started_wall_ms;
+      g_state.done_turn_elapsed_ms =
+          (t0 != 0u && wall >= t0) ? (uint32_t)(wall - t0) : 0u;
+    }
     AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Done");
-    copyBody(evt["text"] | "");
+    g_state.subtitle_tool[0] = '\0';
+    copyStreamBody(evt["text"] | "");
   } else if (!strcmp(kind, "notification")) {
     AsciiCopy::copy(g_state.last_summary, sizeof(g_state.last_summary), evt["text"] | "");
     clearTextToolLinger();
-    copyBody(evt["text"] | "");
+    copyStreamBody(evt["text"] | "");
   } else if (!strcmp(kind, "thinking")) {
     AsciiCopy::copy(g_state.last_summary, sizeof(g_state.last_summary), evt["text"] | "");
     clearTextToolLinger();
-    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Thinking");
-    copyBody(evt["text"] | "");
+    setThinkingTitle();
+    copyStreamBody(evt["text"] | "");
   }
 
   if (h_event) {
@@ -471,9 +540,8 @@ void tick() {
 
   g_state.text_tool_linger_until_ms = 0;
   if (strcmp(g_state.status_line, "Done") != 0) {
-    AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Thinking");
-    g_state.body_text[0] = '\0';
-    g_state.body_updated_ms = now;
+    setThinkingTitle();
+    g_state.subtitle_tool[0] = '\0';
   }
 }
 

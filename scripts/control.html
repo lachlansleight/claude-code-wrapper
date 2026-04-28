@@ -418,6 +418,7 @@
     const activityTitleForRobot = (activityKind) => {
       if (!activityKind) return "Reading";
       if (activityKind === "shell.exec" || activityKind === "shell.background") return "Executing";
+      if (activityKind === "file.write" || activityKind === "file.delete") return "Writing";
       if (activityKind.startsWith("file.") || activityKind === "notebook.edit") return "Reading";
       return "Executing";
     };

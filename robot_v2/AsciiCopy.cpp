@@ -49,18 +49,25 @@ static const char* asciiSubstitute(uint32_t cp) {
   }
 }
 
-void copy(char* dst, size_t cap, const char* src) {
+static void copyCore(char* dst, size_t cap, const char* src, bool preserve_newlines) {
   if (!dst || cap == 0) return;
-  if (!src) { dst[0] = '\0'; return; }
+  if (!src) {
+    dst[0] = '\0';
+    return;
+  }
   size_t o = 0;
   const char* p = src;
   while (*p && o + 1 < cap) {
     const uint32_t cp = utf8Decode(&p);
     if (cp < 0x80) {
       char c = (char)cp;
-      if (c == '\n' || c == '\r' || c == '\t') c = ' ';
-      if ((unsigned char)c < 0x20) continue;  // drop other control chars
-      dst[o++] = c;
+      if (preserve_newlines && (c == '\n' || c == '\r')) {
+        dst[o++] = c;
+      } else {
+        if (c == '\n' || c == '\r' || c == '\t') c = ' ';
+        if ((unsigned char)c < 0x20) continue;  // drop other control chars
+        dst[o++] = c;
+      }
     } else {
       const char* rep = asciiSubstitute(cp);
       if (!rep) rep = "?";
@@ -68,6 +75,12 @@ void copy(char* dst, size_t cap, const char* src) {
     }
   }
   dst[o] = '\0';
+}
+
+void copy(char* dst, size_t cap, const char* src) { copyCore(dst, cap, src, false); }
+
+void copyPreserveNewlines(char* dst, size_t cap, const char* src) {
+  copyCore(dst, cap, src, true);
 }
 
 void basename(const char* path, char* out, size_t cap) {

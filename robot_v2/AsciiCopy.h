@@ -16,6 +16,9 @@ namespace AsciiCopy {
 // spaces; other control chars are dropped.
 void copy(char* dst, size_t cap, const char* src);
 
+// Same as `copy` but keeps `\n` / `\r` for multiline body text (tabs still → space).
+void copyPreserveNewlines(char* dst, size_t cap, const char* src);
+
 // Copy only the final path segment of `path`. Handles both '/' and '\\'
 // separators. Passes through `copy()` so the result is ASCII-safe.
 void basename(const char* path, char* out, size_t cap);

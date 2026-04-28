@@ -72,7 +72,16 @@ struct AgentState {
   // Most recent assistant-facing text snippet.
   char last_summary[128];
   char status_line[80];
+  /** Tool / permission one-liner shown under title (not the persistent stream body). */
+  char subtitle_tool[320];
+  /** Narrative text (thinking / assistant / notification); cleared on turn.started only. */
   char body_text[512];
+  /** millis() when `status_line` was last set to "Thinking" (for subtitle timer). */
+  uint32_t thinking_title_since_ms;
+  /** millis() at last `turn.started`. */
+  uint32_t turn_started_wall_ms;
+  /** Elapsed ms from turn start → first `message.assistant`; frozen for Done subtitle. */
+  uint32_t done_turn_elapsed_ms;
   char latest_shell_command[160];
   char latest_read_target[160];
   char latest_write_target[160];
@@ -122,5 +131,7 @@ void setRenderMode(RenderMode mode);
 void dispatch(JsonDocument& doc);
 void tick();
 void notifyConnection(bool connected);
+/** Clear title/subtitle/body fields and tool-linger timers (call when entering sleep). */
+void clearTextDisplayForSleep();
 
 }  // namespace AgentEvents

@@ -85,6 +85,9 @@ static void transitionTo(State target) {
   // also clears it — PreToolUse will re-arm on PostToolUse.
   sToolLingerDeadlineMs = 0;
   if (target != BLOCKED) sBlockedByPermission = false;
+  if (target == SLEEP) {
+    AgentEvents::clearTextDisplayForSleep();
+  }
 }
 
 // Tool-name → state via read/write capability classification.
@@ -184,6 +187,7 @@ void begin() {
   sToolLingerDeadlineMs = 0;
   sBlockedByPermission = false;
   AgentEvents::onEvent(onAgentEvent);
+  AgentEvents::clearTextDisplayForSleep();
   LOG_INFO("personality: start state=%s", kStates[sCurrent].name);
 }
 
