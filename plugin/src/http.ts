@@ -9,6 +9,7 @@ import { logger } from './logger.js'
 import { getParser, listAdapterNames, ParsedEvent } from './adapters/index.js'
 import type { AgentEvent, AgentEventEnvelope, AgentName } from './agent-event.js'
 import type { BridgeConfig } from './types.js'
+import { repairMojibakeDeep } from './mojibake.js'
 
 const LOGS_DIR = 'logs'
 
@@ -210,7 +211,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
   // /hooks/:agent — generic per-agent hook receiver.
   if (method === 'POST' && path.startsWith('/hooks/')) {
     const agent = decodeURIComponent(path.slice('/hooks/'.length))
-    const body = (await readJsonBody(req)) as { hook_type?: unknown; payload?: unknown }
+    const body = repairMojibakeDeep(await readJsonBody(req)) as { hook_type?: unknown; payload?: unknown }
     if (typeof body.hook_type !== 'string' || body.hook_type.length === 0) {
       json(res, 400, { error: 'hook_type_required' })
       return
@@ -231,7 +232,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
 
   if (method === 'POST' && path.startsWith('/hooksRaw/')) {
     const agent = decodeURIComponent(path.slice('/hooksRaw/'.length))
-    const body = (await readJsonBody(req)) as { hook_type?: unknown; events?: ParsedEvent[] }
+    const body = repairMojibakeDeep(await readJsonBody(req)) as { hook_type?: unknown; events?: ParsedEvent[] }
     let listChanged = false
     for (const item of body.events || []) {
       const sid = item.session_id
