@@ -196,9 +196,9 @@ void tick() {
   const uint32_t elapsed = now - sEnteredMs;
   const StateConfig& cfg = kStates[sCurrent];
 
-  // Permission gating, polled (matches the AmbientMotion pattern — the
-  // AgentEvents permission callback is single-slot and already taken by
-  // robot_v2.ino, so we observe state instead of stealing it).
+  // Permission gating, polled — the AgentEvents permission callback is
+  // single-slot and already taken by robot_v2.ino, so we observe the
+  // state field instead of stealing the callback.
   const bool pending = AgentEvents::state().pending_permission[0] != '\0';
   if (pending && sCurrent != BLOCKED && sCurrent != WAKING) {
     sPreBlockedState = sCurrent;

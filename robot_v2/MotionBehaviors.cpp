@@ -6,237 +6,270 @@
 
 namespace MotionBehaviors {
 
-// ---- Tunables -------------------------------------------------------------
+// =============================================================================
+// TUNING — every motion knob in the firmware lives in this file. To change
+// how a state moves, edit the row in `kMotion` for that state and reflash;
+// nothing outside this file needs to know.
+// =============================================================================
 
-// Idle: occasional drift to a new resting position in the [-30, -20] range.
-// Reads as "alive but not demanding attention" — small, infrequent moves
-// off to one side rather than waggles around centre.
-static constexpr uint32_t kIdleDriftMinMs    = 5000;
-static constexpr uint32_t kIdleDriftMaxMs    = 10000;
-static constexpr int8_t   kIdleDriftLo       = -30;
-static constexpr int8_t   kIdleDriftHi       = -20;
-static constexpr uint16_t kIdleDriftSlewMs   = 500;   // slow, calm slew
+// ---- Safe servo range ------------------------------------------------------
+//
+// Hard physical limits in signed degrees relative to mechanical centre
+// (0 = centre, +90 / -90 = extremes). Anything outside this range can
+// damage the chassis. `Motion` clamps every output to this range, so a
+// typo in the table below can't drive into something solid.
+static constexpr int8_t kSafeMin = -25;
+static constexpr int8_t kSafeMax =  25;
 
-// Excited: continuous oscillation between two angles, ~1 s period.
-// Each half-swing slews over kExcitedOscHalfPeriodMs so motion is smooth
-// and continuous (no pauses at the endpoints).
-static constexpr int8_t   kExcitedOscLo           = -20;
-static constexpr int8_t   kExcitedOscHi           = -10;
-static constexpr uint16_t kExcitedOscHalfPeriodMs = 500;
+// ---- Default slew durations ------------------------------------------------
+//
+// Used when a table entry leaves `slewMs == 0`. These exist so a row can
+// say "default is fine" without needing to specify a magic number.
+static constexpr uint16_t kDefaultStaticSlewMs = 250;
+static constexpr uint16_t kDefaultDriftSlewMs  = 500;
 
-// Executing / long-executing: gentle arm waggle in [-20,-10] (same range as
-// excited). Full period 1s for EXECUTING, 0.75s for EXECUTING_LONG.
-static constexpr int8_t   kExecuteOscLo             = -20;
-static constexpr int8_t   kExecuteOscHi             = -10;
-static constexpr uint16_t kExecuteOscHalfPeriodMs = 500;   // 1.0 s full period
-static constexpr uint16_t kExecuteLongOscHalfMs    = 375;  // 0.75 s full period
+// ---- Motion modes ----------------------------------------------------------
+//
+// NONE          — no motion; servo holds wherever the previous state left it.
+//                 Default for unconfigured states; cancels thinking-mode and
+//                 any in-flight pattern on entry.
+//
+// STATIC        — slew once to `center` on entry, then still. `slewMs` is
+//                 the entry slew (0 = kDefaultStaticSlewMs).
+//
+// RANDOM_DRIFT  — pick a random offset in [center-amplitude, center+amplitude],
+//                 slew to it over `slewMs`, hold for
+//                 random(periodMs, periodMs+periodJitterMs), then pick a new
+//                 target. Reads as "alive but unhurried". `slewMs` 0 →
+//                 kDefaultDriftSlewMs.
+//
+// OSCILLATE     — two-point ping-pong between (center-amplitude) and
+//                 (center+amplitude). `periodMs` is the FULL cycle (each leg
+//                 is periodMs/2). `slewMs` is per-leg slew: set it equal to
+//                 periodMs/2 for continuous motion, or smaller for a snappy
+//                 "jog and hold" feel. `slewMs` 0 → periodMs/2 (continuous).
+//
+// WAGGLE        — 5-frame waggle (centre → +amp → -amp → +amp → centre).
+//                 The waggle itself takes ~periodMs/2 and is retriggered
+//                 every periodMs while the state is active (equal pause
+//                 between waggles). `slewMs` unused.
+//
+// THINKING      — smooth sine oscillation around `center` with ±`amplitude`
+//                 over a full period of `periodMs`. Eases in over the first
+//                 second on entry. `slewMs` unused.
+enum MotionMode : uint8_t {
+  NONE = 0,
+  STATIC,
+  RANDOM_DRIFT,
+  OSCILLATE,
+  WAGGLE,
+  THINKING,
+};
 
-// Ready: small slow drift around centre, similar in feel to idle's drift
-// but centred and slightly more frequent.
-static constexpr uint32_t kReadyDriftMinMs  = 2000;
-static constexpr uint32_t kReadyDriftMaxMs  = 3000;
-static constexpr int8_t   kReadyDriftLo     = -8;
-static constexpr int8_t   kReadyDriftHi     =  8;
-static constexpr uint16_t kReadyDriftSlewMs = 500;
+struct StateMotion {
+  MotionMode mode;
+  int8_t   center;
+  uint8_t  amplitude;
+  uint16_t periodMs;
+  uint16_t periodJitterMs;
+  uint16_t slewMs;
+};
 
-// Writing: rhythmic micro-jogs alternating sides, like head-nodding.
-static constexpr uint32_t kWritingJogMs  = 420;
-static constexpr int8_t   kWritingJogMag = 4;
+// ---- Per-state table -------------------------------------------------------
+//
+// Rows are indexed by Personality::State, in enum order. KEEP THIS ORDER
+// IN SYNC with the enum in Personality.h — the static_assert below will
+// catch a missing/extra row at compile time. The labels in comments are
+// just for navigation; only position matters.
+//
+// Field order: { mode, center, amplitude, periodMs, periodJitterMs, slewMs }
+static const StateMotion kMotion[Personality::kStateCount] = {
+  // IDLE — alive but not demanding attention. Slow drifts off to one
+  //   side, every 5–10 s. center=-20, amp=5 → range [-25, -15].
+  /* IDLE            */ { RANDOM_DRIFT, -20, 5,  5000, 5000, 500 },
 
-// Finished: a short burst of waggles over the 3s protected window.
-static constexpr uint32_t kFinishedWagglePeriodMs = 900;
+  // THINKING — gentle sine wave around centre while the agent is mid-thought.
+  /* THINKING        */ { THINKING,       -15, 5,  2000,    0,   0 },
 
-// Waking startle: one big immediate jog on entry.
-static constexpr int8_t kWakingStartleMag = 18;
+  // READING — single small lean on entry, then still.
+  /* READING         */ { STATIC,        -8, 0,     0,    0,   0 },
 
-// ---- State tracking ------------------------------------------------------
+  // WRITING — twitchy alternating jogs around centre. Short period +
+  //   short slew gives a head-nod-while-typing feel.
+  /* WRITING         */ { OSCILLATE,      5, 4,   840,    0, 250 },
 
-static Personality::State sLastState = Personality::kStateCount;
-static uint32_t sStateEntryMs  = 0;
-static uint32_t sNextTimedMs   = 0;  // next scheduled event (idle waggle, writing jog, etc.)
-static int8_t   sWriteToggle   = 1;
-static bool     sExcitedAtLow  = false;  // tracks current end of the excited oscillation
-static bool     sExecOscAtLow  = false;   // executing / executing-long waggle endpoint
+  // EXECUTING — calm continuous oscillation while a tool runs. Slew per
+  //   leg = half-period (slewMs=0) so the arm never pauses.
+  /* EXECUTING       */ { OSCILLATE,    -5, 5,  1000,    0,   0 },
 
-// ---- Helpers (idle) ------------------------------------------------------
+  // EXECUTING_LONG — same shape as EXECUTING but faster — "still working,
+  //   getting a bit antsy".
+  /* EXECUTING_LONG  */ { OSCILLATE,    0, 5,   750,    0,   0 },
 
-static int8_t randIdleOffset() {
-  // Arduino random(lo, hi) returns lo..(hi-1).
-  return (int8_t)random((long)kIdleDriftLo, (long)kIdleDriftHi + 1);
+  // FINISHED — celebratory waggle every 900 ms (≈450 ms shake, 450 ms pause).
+  /* FINISHED        */ { WAGGLE,         0, 15,  900,    0,   0 },
+
+  // EXCITED — same oscillation as EXECUTING for now (post-finished energy).
+  /* EXCITED         */ { OSCILLATE,    -10, 5,  1000,    0,   0 },
+
+  // READY — calmer drift around centre, faster cadence than IDLE.
+  /* READY           */ { RANDOM_DRIFT,   -15, 8,  2000, 1000, 500 },
+
+  // WAKING — startle: snap toward one extreme.
+  /* WAKING          */ { STATIC,        18, 0,     0,    0,   0 },
+
+  // SLEEP — settle to centre and hold.
+  /* SLEEP          */ { OSCILLATE,        -20, 5,     8000,    0,   0 },
+
+  // BLOCKED — awaiting permission verdict; intentionally still for now.
+  /* BLOCKED         */ { NONE,           0, 0,     0,    0,   0 },
+
+  // WANTS_ATTENTION — short waggle burst to flag the user.
+  /* WANTS_ATTENTION */ { WAGGLE,         0, 15,  900,    0,   0 },
+};
+
+static_assert(sizeof(kMotion) / sizeof(kMotion[0]) == Personality::kStateCount,
+              "kMotion table size must match Personality::kStateCount — "
+              "did you add a state without adding a row?");
+
+// =============================================================================
+// Runtime — driven by Personality::current() each tick. Reads the table
+// above; this section is the dispatch glue, not configuration.
+// =============================================================================
+
+static Personality::State sLastState   = Personality::kStateCount;
+static uint32_t           sNextTimedMs = 0;     // ms when the next scheduled event fires
+
+// OSCILLATE: which end we're heading to next.
+static bool sOscAtLow = false;
+
+static int8_t randInRange(int8_t lo, int8_t hi) {
+  if (lo > hi) { const int8_t t = lo; lo = hi; hi = t; }
+  return (int8_t)random((long)lo, (long)hi + 1);
 }
-
-static int8_t randReadyOffset() {
-  return (int8_t)random((long)kReadyDriftLo, (long)kReadyDriftHi + 1);
-}
-
-// ---- Helpers -------------------------------------------------------------
 
 static uint32_t randRange(uint32_t lo, uint32_t hi) {
   if (hi <= lo) return lo;
   return lo + (uint32_t)random((long)(hi - lo + 1));
 }
 
-// Called once each time we *enter* a state. Sets up any entry action and
-// schedules the first timed event for this state.
+static int8_t driftPick(const StateMotion& m) {
+  return randInRange((int8_t)((int)m.center - (int)m.amplitude),
+                     (int8_t)((int)m.center + (int)m.amplitude));
+}
+
+// Schedule the first event of a state and apply its entry action.
 static void onEnter(Personality::State s) {
+  const StateMotion& m = kMotion[s];
   const uint32_t now = millis();
-  sStateEntryMs = now;
-  sWriteToggle  = (int8_t)(random(2) ? 1 : -1);
 
-  // Thinking mode on the servo is specific to the THINKING state only —
-  // other states either sit still or have their own rhythm.
-  Motion::setThinkingMode(s == Personality::THINKING);
+  // Thinking mode is special: only THINKING leaves it on. Every other
+  // state turns it off so the sine wave doesn't bleed across.
+  if (m.mode != THINKING) Motion::setThinkingMode(false);
 
-  switch (s) {
-    case Personality::IDLE:
-      // Move to a starting resting pose immediately so we don't sit at
-      // the previous state's pose; then schedule the next drift.
-      Motion::playJog(randIdleOffset(), kIdleDriftSlewMs);
-      sNextTimedMs = now + randRange(kIdleDriftMinMs, kIdleDriftMaxMs);
-      break;
-
-    case Personality::THINKING:
-      // Motion::setThinkingMode already running; nothing else to schedule.
+  switch (m.mode) {
+    case NONE:
+      Motion::cancelAll();
       sNextTimedMs = 0;
       break;
 
-    case Personality::READING:
-      // A single brief jog on entry, then stillness.
-      Motion::playJog(-8);
+    case STATIC:
+      Motion::playJog(m.center, m.slewMs ? m.slewMs : kDefaultStaticSlewMs);
       sNextTimedMs = 0;
       break;
 
-    case Personality::WRITING:
-      // Rhythmic jogs — first one right away, then every kWritingJogMs.
-      Motion::playJog((int8_t)(kWritingJogMag * sWriteToggle));
-      sWriteToggle = (int8_t)-sWriteToggle;
-      sNextTimedMs = now + kWritingJogMs;
+    case RANDOM_DRIFT: {
+      Motion::playJog(driftPick(m), m.slewMs ? m.slewMs : kDefaultDriftSlewMs);
+      sNextTimedMs = now + randRange(m.periodMs,
+                                     (uint32_t)m.periodMs + m.periodJitterMs);
+      break;
+    }
+
+    case OSCILLATE: {
+      sOscAtLow = true;
+      const uint16_t halfMs = (uint16_t)(m.periodMs / 2);
+      const uint16_t slew   = m.slewMs ? m.slewMs : halfMs;
+      Motion::playJog((int8_t)((int)m.center - (int)m.amplitude), slew);
+      sNextTimedMs = now + halfMs;
+      break;
+    }
+
+    case WAGGLE:
+      Motion::playWaggle(m.center, m.amplitude, m.periodMs);
+      sNextTimedMs = now + m.periodMs;
       break;
 
-    case Personality::EXECUTING:
-      sExecOscAtLow = true;
-      Motion::playJog(kExecuteOscLo, kExecuteOscHalfPeriodMs);
-      sNextTimedMs = now + kExecuteOscHalfPeriodMs;
-      break;
-
-    case Personality::EXECUTING_LONG:
-      sExecOscAtLow = true;
-      Motion::playJog(kExecuteOscLo, kExecuteLongOscHalfMs);
-      sNextTimedMs = now + kExecuteLongOscHalfMs;
-      break;
-
-    case Personality::FINISHED:
-      // "Hooray!" — big waggle to kick it off; keep waggling over the
-      // 3s protected window.
-      Motion::playWaggle();
-      sNextTimedMs = now + kFinishedWagglePeriodMs;
-      break;
-
-    case Personality::EXCITED:
-      // Continuous oscillation — kick off heading to the low end, alternate
-      // every kExcitedOscHalfPeriodMs.
-      sExcitedAtLow = true;
-      Motion::playJog(kExcitedOscLo, kExcitedOscHalfPeriodMs);
-      sNextTimedMs = now + kExcitedOscHalfPeriodMs;
-      break;
-
-    case Personality::READY:
-      // First small drift on entry — also serves as the slew from
-      // wherever excited left the arms.
-      Motion::playJog(randReadyOffset(), kReadyDriftSlewMs);
-      sNextTimedMs = now + randRange(kReadyDriftMinMs, kReadyDriftMaxMs);
-      break;
-
-    case Personality::WAKING:
-      // Startle on entry.
-      Motion::playJog(kWakingStartleMag);
-      sNextTimedMs = 0;
-      break;
-
-    case Personality::WANTS_ATTENTION:
-      // "Hey!" — waggle to attract attention. State only lasts ~1s so a
-      // single waggle covers it; re-trigger on the same cadence as
-      // FINISHED in case timing varies.
-      Motion::playWaggle();
-      sNextTimedMs = now + kFinishedWagglePeriodMs;
-      break;
-
-    case Personality::SLEEP:
-      // Settle to centre and hold.
-      Motion::playJog(0);
-      sNextTimedMs = 0;
-      break;
-
-    default:
+    case THINKING:
+      Motion::setThinkingMode(true, m.center, m.amplitude, m.periodMs);
       sNextTimedMs = 0;
       break;
   }
 }
 
-// Called every tick while a given state is current. Fires scheduled
-// repeating behaviours (idle waggles, writing jogs, finished waggle train).
+// Fire the next scheduled event for the current state, if its time has come.
 static void onDuring(Personality::State s) {
   if (sNextTimedMs == 0) return;
   const uint32_t now = millis();
   if (now < sNextTimedMs) return;
 
-  switch (s) {
-    case Personality::IDLE:
-      Motion::playJog(randIdleOffset(), kIdleDriftSlewMs);
-      sNextTimedMs = now + randRange(kIdleDriftMinMs, kIdleDriftMaxMs);
+  const StateMotion& m = kMotion[s];
+
+  switch (m.mode) {
+    case RANDOM_DRIFT:
+      Motion::playJog(driftPick(m), m.slewMs ? m.slewMs : kDefaultDriftSlewMs);
+      sNextTimedMs = now + randRange(m.periodMs,
+                                     (uint32_t)m.periodMs + m.periodJitterMs);
       break;
 
-    case Personality::EXCITED:
-      sExcitedAtLow = !sExcitedAtLow;
-      Motion::playJog(sExcitedAtLow ? kExcitedOscLo : kExcitedOscHi,
-                      kExcitedOscHalfPeriodMs);
-      sNextTimedMs = now + kExcitedOscHalfPeriodMs;
+    case OSCILLATE: {
+      sOscAtLow = !sOscAtLow;
+      const int8_t off = sOscAtLow
+          ? (int8_t)((int)m.center - (int)m.amplitude)
+          : (int8_t)((int)m.center + (int)m.amplitude);
+      const uint16_t halfMs = (uint16_t)(m.periodMs / 2);
+      const uint16_t slew   = m.slewMs ? m.slewMs : halfMs;
+      Motion::playJog(off, slew);
+      sNextTimedMs = now + halfMs;
+      break;
+    }
+
+    case WAGGLE:
+      Motion::playWaggle(m.center, m.amplitude, m.periodMs);
+      sNextTimedMs = now + m.periodMs;
       break;
 
-    case Personality::READY:
-      Motion::playJog(randReadyOffset(), kReadyDriftSlewMs);
-      sNextTimedMs = now + randRange(kReadyDriftMinMs, kReadyDriftMaxMs);
-      break;
-
-    case Personality::WRITING:
-      Motion::playJog((int8_t)(kWritingJogMag * sWriteToggle));
-      sWriteToggle = (int8_t)-sWriteToggle;
-      sNextTimedMs = now + kWritingJogMs;
-      break;
-
-    case Personality::EXECUTING:
-      sExecOscAtLow = !sExecOscAtLow;
-      Motion::playJog(sExecOscAtLow ? kExecuteOscLo : kExecuteOscHi,
-                      kExecuteOscHalfPeriodMs);
-      sNextTimedMs = now + kExecuteOscHalfPeriodMs;
-      break;
-
-    case Personality::EXECUTING_LONG:
-      sExecOscAtLow = !sExecOscAtLow;
-      Motion::playJog(sExecOscAtLow ? kExecuteOscLo : kExecuteOscHi,
-                      kExecuteLongOscHalfMs);
-      sNextTimedMs = now + kExecuteLongOscHalfMs;
-      break;
-
-    case Personality::FINISHED:
-    case Personality::WANTS_ATTENTION:
-      Motion::playWaggle();
-      sNextTimedMs = now + kFinishedWagglePeriodMs;
-      break;
-
-    default:
+    case NONE:
+    case STATIC:
+    case THINKING:
       sNextTimedMs = 0;
       break;
   }
 }
 
-// ---- Public --------------------------------------------------------------
+// ---- Queries (for face sync) ----------------------------------------------
+
+uint16_t periodMsFor(Personality::State s) {
+  if ((unsigned)s >= (unsigned)Personality::kStateCount) return 0;
+  const StateMotion& m = kMotion[s];
+  switch (m.mode) {
+    case OSCILLATE:
+    case WAGGLE:
+    case THINKING:
+      return m.periodMs;
+    case NONE:
+    case STATIC:
+    case RANDOM_DRIFT:    // drift periods are randomized — no stable phase
+    default:
+      return 0;
+  }
+}
+
+// ---- Public ----------------------------------------------------------------
 
 void begin() {
-  sLastState    = Personality::kStateCount;
-  sStateEntryMs = 0;
-  sNextTimedMs  = 0;
-  sWriteToggle  = 1;
+  Motion::setSafeRange(kSafeMin, kSafeMax);
+  sLastState   = Personality::kStateCount;
+  sNextTimedMs = 0;
 }
 
 void tick() {
@@ -244,6 +277,9 @@ void tick() {
   if (s != sLastState) {
     LOG_EVT("motion: enter %s", Personality::stateName(s));
     sLastState = s;
+    onEnter(s);
+  } else if (Motion::consumeHoldExpired()) {
+    LOG_EVT("motion: hold expired, re-entering %s", Personality::stateName(s));
     onEnter(s);
   }
   onDuring(s);

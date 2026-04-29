@@ -5,6 +5,7 @@
 
 #include "AgentEvents.h"
 #include "Display.h"
+#include "MotionBehaviors.h"
 #include "Personality.h"
 #include "Scene.h"
 #include "SceneTypes.h"
@@ -127,6 +128,40 @@ static FaceParams lerpParams(const FaceParams& a, const FaceParams& b, float t) 
 static float breathPhase(uint32_t now) {
   const float t = (float)(now % 4000) / 4000.0f;
   return sinf(t * 2.0f * (float)PI);
+}
+
+// Body-bob: a small vertical offset on `face_y` synced to the arm motor's
+// period for `s`, so the face animation reads as part of the same body
+// rhythm. Returns 0 for states without an associated motor period.
+//
+// To tune: amplitude per state lives below; the period is pulled from
+// MotionBehaviors so changing a row in that table also re-syncs the face.
+static int16_t bodyBobFor(Personality::State s, uint32_t now) {
+  const uint16_t period = MotionBehaviors::periodMsFor(s);
+  if (period == 0) return 0;
+
+  int8_t amp = 0;
+  switch (s) {
+    // SLEEP — slow breath. Motor: OSCILLATE, period 8000 ms. Bigger
+    //   amplitude than the other bobs because it's the *only* face
+    //   animation while sleeping.
+    case Personality::SLEEP:           amp = 3; break;
+
+    // EXECUTING family — small body-bob in time with the arm sway.
+    case Personality::EXECUTING:
+    case Personality::EXECUTING_LONG:
+    case Personality::EXCITED:         amp = 1; break;
+
+    // FINISHED — bobs with each waggle. period is the full retrigger
+    //   cycle (waggle + pause), so this gives one bob per waggle,
+    //   which reads as "hey! hey!" without being too noisy.
+    case Personality::FINISHED:        amp = 2; break;
+
+    default: return 0;
+  }
+
+  const float t = (float)(now % period) / (float)period;
+  return (int16_t)(sinf(t * 2.0f * (float)PI) * (float)amp);
 }
 
 static void gazeFor(Personality::State s, uint32_t now,
@@ -398,12 +433,19 @@ void tick() {
     sFadeWriteCount = 0;
   }
 
-  // Breath
+  // Breath — universal idle modulator on eye/mouth y, fixed 4 s sine.
+  // Suppressed in FINISHED (face is celebrating) and SLEEP (replaced by
+  // the slower motor-synced body-bob below).
   if (s != Personality::FINISHED && s != Personality::SLEEP) {
     const int16_t b = (int16_t)(breathPhase(now) * 1.5f);
     p.eye_dy   = (int16_t)(p.eye_dy   + b);
     p.mouth_dy = (int16_t)(p.mouth_dy + b / 2);
   }
+
+  // Body-bob — adds a vertical offset on face_y synced to the motor
+  // period for states that have rhythmic arm motion. No-op for states
+  // without a configured period.
+  p.face_y = (int16_t)(p.face_y + bodyBobFor(s, now));
 
   // Thinking tilt-flip — modulates face_rot and pupil_dx by ±1 sign.
   // Applies to the lerped p (so during an in-tween e.g. IDLE→THINKING

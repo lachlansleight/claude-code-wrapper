@@ -15,12 +15,10 @@
 //   Display           — TFT driver: sprite framebuffer + DMA push
 //   Personality       — 8-state machine driven by bridge hooks
 //   Face              — renders personality state into the Display sprite
-//   Motion            — servo abstraction + non-blocking keyframe patterns
-//   MotionBehaviors   — state-driven arm gestures; reads Personality
-//   AttractScheduler  — (legacy) idle attention waggles, replaced by
-//                       MotionBehaviors. File retained, no longer ticked.
-//   AmbientMotion     — (legacy) tool-edge jogs + thinking osc, replaced
-//                       by MotionBehaviors. File retained, no longer ticked.
+//   Motion            — servo primitives (jog / waggle / thinking osc /
+//                       hold) with safe-range clamping
+//   MotionBehaviors   — per-state motion table; the single tuning surface
+//                       for arm behaviour
 //   DebugLog          — LOG_* macros over Serial
 //
 // Required Arduino libraries (install via Library Manager):
