@@ -37,6 +37,14 @@ function buildActivity(toolName: string, toolInput: unknown, toolUseId: string |
   }
 }
 
+function extractAssistantTextBlocks(v: unknown): string[] {
+  if (!Array.isArray(v)) return []
+  return v
+    .filter((t): t is string => typeof t === 'string')
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0)
+}
+
 export const claudeParser: Parser = {
   name: 'claude',
   parse(input: ParserInput): ParsedEvent[] {
@@ -46,21 +54,32 @@ export const claudeParser: Parser = {
     const tool_name = asString(p.tool_name)
     const tool_input = p.tool_input
     const tool_use_id = asString(p.tool_use_id) || undefined
+    // Claude sometimes includes assistant_text on non-Stop hooks.
+    // Treat these blocks as "thinking" so downstream robot UI can render
+    // them exactly like Cursor afterAgentThought events.
+    const thoughtEvents: ParsedEvent[] =
+      hook === 'Stop'
+        ? []
+        : extractAssistantTextBlocks(p.assistant_text).map((text) => ({
+            event: { kind: 'thinking', text } as const,
+            session_id,
+          }))
 
     switch (hook) {
       case 'SessionStart': {
         const source = asString(p.source)
         const cause: 'startup' | 'resume' | 'clear' | 'unknown' =
           source === 'startup' || source === 'resume' || source === 'clear' ? source : 'unknown'
-        return [{ event: { kind: 'session.started', cause }, session_id }]
+        return [...thoughtEvents, { event: { kind: 'session.started', cause }, session_id }]
       }
 
       case 'SessionEnd':
-        return [{ event: { kind: 'session.ended', cause: 'unknown' }, session_id }]
+        return [...thoughtEvents, { event: { kind: 'session.ended', cause: 'unknown' }, session_id }]
 
       case 'UserPromptSubmit': {
         const prompt = asString(p.prompt)
         return [
+          ...thoughtEvents,
           { event: { kind: 'turn.started', prompt: prompt || undefined }, session_id },
           { event: { kind: 'message.user', text: prompt }, session_id },
         ]
@@ -68,12 +87,15 @@ export const claudeParser: Parser = {
 
       case 'PreToolUse': {
         const activity = buildActivity(tool_name, tool_input, tool_use_id)
-        return [{ event: { kind: 'activity.started', activity }, session_id }]
+        return [...thoughtEvents, { event: { kind: 'activity.started', activity }, session_id }]
       }
 
       case 'PostToolUse': {
         const activity = buildActivity(tool_name, tool_input, tool_use_id)
-        const out: ParsedEvent[] = [{ event: { kind: 'activity.finished', activity }, session_id }]
+        const out: ParsedEvent[] = [
+          ...thoughtEvents,
+          { event: { kind: 'activity.finished', activity }, session_id },
+        ]
 
         if (tool_name === 'TodoWrite') {
           const todos = asTodos((tool_input as Record<string, unknown> | null)?.todos)
@@ -101,14 +123,17 @@ export const claudeParser: Parser = {
       }
 
       case 'SubagentStop': {
-        return [{ event: { kind: 'subagent.finished', subagent_id: session_id ?? '', cause: 'completed' }, session_id }]
+        return [
+          ...thoughtEvents,
+          { event: { kind: 'subagent.finished', subagent_id: session_id ?? '', cause: 'completed' }, session_id },
+        ]
       }
 
       case 'PreCompact': {
         const trigger = asString(p.trigger)
         const t: 'auto' | 'manual' | undefined =
           trigger === 'auto' || trigger === 'manual' ? trigger : undefined
-        return [{ event: { kind: 'context.compacting', trigger: t }, session_id }]
+        return [...thoughtEvents, { event: { kind: 'context.compacting', trigger: t }, session_id }]
       }
 
       case 'Notification': {
@@ -120,11 +145,14 @@ export const claudeParser: Parser = {
         // timeouts) as the blocked indicator, and PostToolUse arrival as
         // the implicit "approved" signal.
         const message = asString(p.message)
-        return [{ event: { kind: 'notification', text: message || undefined }, session_id }]
+        if (message === 'Claude is waiting for your input') {
+          return thoughtEvents
+        }
+        return [...thoughtEvents, { event: { kind: 'notification', text: message || undefined }, session_id }]
       }
 
       default:
-        return [{ event: { kind: 'unknown' }, session_id }]
+        return [...thoughtEvents, { event: { kind: 'unknown' }, session_id }]
     }
   },
 }
