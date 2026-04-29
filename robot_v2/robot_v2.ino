@@ -64,15 +64,56 @@ void setup() {
   Motion::begin();
   MotionBehaviors::begin();
 
-  const bool haveNvs = Provisioning::load(cfg);
+  const bool haveNvs    = Provisioning::load(cfg);
   const bool buttonHeld = Provisioning::shouldEnterPortal();
-  if (buttonHeld || !haveNvs) {
-    LOG_INFO("provisioning: entering portal (button=%d nvs=%d)",
-             buttonHeld, haveNvs);
+
+  // Build the candidate-network list: nets-from-NVS, with the legacy
+  // single-net entry promoted to the head if it's not already in there.
+  Provisioning::NetEntry nets[Provisioning::kMaxKnownNetworks];
+  size_t netCount = Provisioning::loadNetworks(nets, Provisioning::kMaxKnownNetworks);
+  if (haveNvs && cfg.wifi_ssid.length() > 0) {
+    bool present = false;
+    for (size_t i = 0; i < netCount; ++i) {
+      if (nets[i].ssid == cfg.wifi_ssid) { present = true; break; }
+    }
+    if (!present && netCount < Provisioning::kMaxKnownNetworks) {
+      // Shift down so legacy entry sits at the head (most-recent).
+      for (size_t i = netCount; i > 0; --i) nets[i] = nets[i - 1];
+      nets[0].ssid     = cfg.wifi_ssid;
+      nets[0].password = cfg.wifi_password;
+      ++netCount;
+    }
+  }
+
+  if (buttonHeld || netCount == 0) {
+    LOG_INFO("provisioning: entering portal (button=%d nets=%u)",
+             buttonHeld, (unsigned)netCount);
     Provisioning::runPortal(cfg);  // blocks; reboots on save/forget
   }
 
-  WifiMgr::connect(cfg.wifi_ssid.c_str(), cfg.wifi_password.c_str());
+  bool wifiUp = false;
+  for (size_t i = 0; i < netCount; ++i) {
+    Display::drawConnecting(nets[i].ssid.c_str());
+    if (WifiMgr::tryConnect(nets[i].ssid.c_str(),
+                            nets[i].password.c_str(),
+                            /*timeoutMs=*/15000)) {
+      cfg.wifi_ssid     = nets[i].ssid;
+      cfg.wifi_password = nets[i].password;
+      Provisioning::rememberNetwork(nets[i].ssid.c_str(),
+                                    nets[i].password.c_str());
+      wifiUp = true;
+      break;
+    }
+  }
+
+  if (!wifiUp) {
+    LOG_WARN("wifi: all %u known networks failed; entering portal",
+             (unsigned)netCount);
+    Display::drawFailedToConnect();
+    delay(3000);
+    Provisioning::runPortal(cfg);  // blocks; reboots
+  }
+
   AgentEvents::setWifiConnected(true);
   Face::invalidate();
 

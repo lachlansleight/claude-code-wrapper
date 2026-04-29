@@ -20,6 +20,10 @@ static constexpr const char* kKeyPass  = "pass";
 static constexpr const char* kKeyHost  = "host";
 static constexpr const char* kKeyPort  = "port";
 static constexpr const char* kKeyToken = "token";
+// Known-networks list, packed as `ssid\tpass\nssid\tpass\n...`.
+// SSIDs / passwords containing literal '\t' or '\n' are not supported,
+// which is fine for the standards-compliant inputs the portal accepts.
+static constexpr const char* kKeyNets  = "nets";
 
 // BOOT button on most ESP32 dev boards. Active low when pressed.
 #ifndef PORTAL_BUTTON_PIN
@@ -63,6 +67,82 @@ void save(const Config& c) {
   p.putString(kKeyToken, c.bridge_token);
   p.end();
   LOG_INFO("provisioning: saved");
+}
+
+static size_t parseNetworks(const String& packed, NetEntry* out, size_t maxCount) {
+  size_t n = 0;
+  int start = 0;
+  const int len = (int)packed.length();
+  while (start < len && n < maxCount) {
+    int nl = packed.indexOf('\n', start);
+    if (nl < 0) nl = len;
+    int tab = packed.indexOf('\t', start);
+    if (tab >= 0 && tab < nl) {
+      out[n].ssid     = packed.substring(start, tab);
+      out[n].password = packed.substring(tab + 1, nl);
+      if (out[n].ssid.length() > 0) ++n;
+    }
+    start = nl + 1;
+  }
+  return n;
+}
+
+static String packNetworks(const NetEntry* entries, size_t count) {
+  String out;
+  for (size_t i = 0; i < count; ++i) {
+    if (entries[i].ssid.length() == 0) continue;
+    out += entries[i].ssid;
+    out += '\t';
+    out += entries[i].password;
+    out += '\n';
+  }
+  return out;
+}
+
+size_t loadNetworks(NetEntry* out, size_t maxCount) {
+  if (!out || maxCount == 0) return 0;
+  Preferences p;
+  p.begin(kNamespace, /*readOnly=*/true);
+  const String packed = p.getString(kKeyNets, "");
+  p.end();
+  return parseNetworks(packed, out, maxCount);
+}
+
+void rememberNetwork(const char* ssid, const char* password) {
+  if (!ssid || !*ssid) return;
+
+  NetEntry entries[kMaxKnownNetworks];
+  size_t count = loadNetworks(entries, kMaxKnownNetworks);
+
+  // Drop any existing entry with the same SSID — we'll reinsert at the head.
+  size_t writeIdx = 0;
+  for (size_t i = 0; i < count; ++i) {
+    if (entries[i].ssid != ssid) {
+      if (writeIdx != i) entries[writeIdx] = entries[i];
+      ++writeIdx;
+    }
+  }
+  count = writeIdx;
+
+  // Shift down to make room at index 0 (cap at kMaxKnownNetworks - 1 so
+  // the new entry plus the kept ones fit).
+  if (count > kMaxKnownNetworks - 1) count = kMaxKnownNetworks - 1;
+  for (size_t i = count; i > 0; --i) entries[i] = entries[i - 1];
+  entries[0].ssid     = ssid;
+  entries[0].password = password ? password : "";
+  count += 1;
+
+  const String packed = packNetworks(entries, count);
+
+  Preferences p;
+  p.begin(kNamespace, /*readOnly=*/false);
+  p.putString(kKeyNets, packed);
+  // Keep legacy single-net keys in sync — `load()` and `WifiMgr::tick()`
+  // both still read these for the "current" network.
+  p.putString(kKeySsid, ssid);
+  p.putString(kKeyPass, password ? password : "");
+  p.end();
+  LOG_INFO("provisioning: remembered \"%s\" (%u total)", ssid, (unsigned)count);
 }
 
 void clear() {

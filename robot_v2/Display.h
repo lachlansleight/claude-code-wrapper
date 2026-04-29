@@ -38,4 +38,9 @@ void pushFrame();
 // directly to the panel — since the firmware blocks inside the portal loop.
 void drawPortalScreen(const char* ssid, const char* ip);
 
+// One-shot boot-time WiFi status overlays. Drawn before the Face takes
+// over the framebuffer.
+void drawConnecting(const char* ssid);
+void drawFailedToConnect();
+
 }  // namespace Display

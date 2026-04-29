@@ -23,6 +23,15 @@ struct Config {
   String   bridge_token;
 };
 
+struct NetEntry {
+  String ssid;
+  String password;
+};
+
+// Max known networks remembered across reboots. New connects past this
+// cap evict the least-recently-used entry.
+static constexpr size_t kMaxKnownNetworks = 8;
+
 // Populate `out` from NVS; missing fields fall back to compile-time defaults
 // in config.h. Returns true if every field came from NVS (i.e. the device
 // has been provisioned at least once).
@@ -30,6 +39,18 @@ bool load(Config& out);
 
 // Persist `c` into NVS. Overwrites any existing values.
 void save(const Config& c);
+
+// Load the saved network list, ordered most-recently-connected first.
+// Writes up to `maxCount` entries into `out` and returns how many.
+size_t loadNetworks(NetEntry* out, size_t maxCount);
+
+// Promote (or insert) `ssid`/`password` to the head of the saved network
+// list. Existing entry with the same SSID is updated (password may have
+// changed) and bumped to the front. List is capped at kMaxKnownNetworks
+// (oldest evicted). Also mirrors into the legacy `ssid`/`pass` NVS keys
+// so `Provisioning::load()` and `WifiMgr::tick()` keep working without
+// list awareness. Persists immediately.
+void rememberNetwork(const char* ssid, const char* password);
 
 // Wipe all provisioning keys from NVS.
 void clear();

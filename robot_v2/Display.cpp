@@ -87,6 +87,31 @@ void begin() {
   pushFrame();
 }
 
+void drawConnecting(const char* ssid) {
+  if (!fbReady) return;
+  fb.fillSprite(TFT_BLACK);
+  fb.setTextDatum(MC_DATUM);
+  fb.setTextColor(TFT_WHITE, TFT_BLACK);
+  fb.setTextSize(2);
+  fb.drawString("Connecting to", kW / 2, kH / 2 - 12);
+  fb.setTextColor(Face::rgb888To565(73, 245, 173), TFT_BLACK);
+  fb.drawString(ssid && *ssid ? ssid : "?", kW / 2, kH / 2 + 14);
+  fb.setTextDatum(TL_DATUM);
+  pushFrame();
+}
+
+void drawFailedToConnect() {
+  if (!fbReady) return;
+  fb.fillSprite(TFT_BLACK);
+  fb.setTextDatum(MC_DATUM);
+  fb.setTextColor(TFT_RED, TFT_BLACK);
+  fb.setTextSize(2);
+  fb.drawString("Failed to", kW / 2, kH / 2 - 12);
+  fb.drawString("Connect", kW / 2, kH / 2 + 14);
+  fb.setTextDatum(TL_DATUM);
+  pushFrame();
+}
+
 void drawPortalScreen(const char* ssid, const char* ip) {
   if (!fbReady) return;
   fb.fillSprite(TFT_BLACK);
