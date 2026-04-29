@@ -333,6 +333,14 @@
     <button id="writeToggleBtn" disabled>Start Write</button>
     <button id="executeToggleBtn" disabled>Start Execute</button>
   </div>
+  <h3>Servo Debug</h3>
+  <div class="row">
+    <input id="servoPos" type="range" min="-90" max="90" step="1" value="0" style="flex:1" />
+    <input id="servoPosNum" type="number" min="-90" max="90" step="1" value="0" style="width:5em" />
+    <label class="status">hold <input id="servoDurMs" type="number" min="100" step="100" value="5000" style="width:6em" /> ms</label>
+    <button id="servoSendBtn" disabled>Set Position</button>
+    <button id="servoCenterBtn" disabled>Centre (0)</button>
+  </div>
   <h3>Replay Log File</h3>
   <div class="row">
     <div id="dropZone">Drop a log file here, or click to choose</div>
@@ -921,6 +929,8 @@
         "executeToggleBtn",
         "sessionToggleBtn",
         "turnToggleBtn",
+        "servoSendBtn",
+        "servoCenterBtn",
       ];
       buttonIds.forEach((id) => {
         document.getElementById(id).disabled = !connected;
@@ -1073,6 +1083,35 @@
       refreshToggleLabels();
     });
     setEnabled(false);
+
+    // ---- Servo debug ----
+    const servoPos = document.getElementById("servoPos");
+    const servoPosNum = document.getElementById("servoPosNum");
+    const servoDurMs = document.getElementById("servoDurMs");
+    servoPos.addEventListener("input", () => { servoPosNum.value = servoPos.value; });
+    servoPosNum.addEventListener("input", () => {
+      const n = Math.max(-90, Math.min(90, parseInt(servoPosNum.value, 10) || 0));
+      servoPos.value = String(n);
+    });
+    const sendServoPos = (pos) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        log("WebSocket is not connected.");
+        return;
+      }
+      const clamped = Math.max(-90, Math.min(90, Math.round(pos)));
+      const dur = Math.max(100, parseInt(servoDurMs.value, 10) || 5000);
+      const payload = { type: "set_servo_position", position: clamped, duration_ms: dur };
+      ws.send(JSON.stringify(payload));
+      log(">> " + JSON.stringify(payload));
+    };
+    document.getElementById("servoSendBtn").addEventListener("click", () => {
+      sendServoPos(parseInt(servoPosNum.value, 10) || 0);
+    });
+    document.getElementById("servoCenterBtn").addEventListener("click", () => {
+      servoPos.value = "0";
+      servoPosNum.value = "0";
+      sendServoPos(0);
+    });
 
     // ---- Log replay ----
     let replayTimers = [];

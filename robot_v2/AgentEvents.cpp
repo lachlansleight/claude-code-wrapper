@@ -6,6 +6,7 @@
 
 #include "AsciiCopy.h"
 #include "DebugLog.h"
+#include "Motion.h"
 
 namespace AgentEvents {
 
@@ -554,6 +555,18 @@ void dispatch(JsonDocument& doc) {
     handleAgentEvent(doc);
   } else if (!strcmp(type, "config_change")) {
     applyConfigChange(doc);
+  } else if (!strcmp(type, "set_servo_position")) {
+    JsonVariantConst posVar = doc["position"];
+    JsonVariantConst durVar = doc["duration_ms"];
+    if (!posVar.isNull()) {
+      const int pos = posVar.as<int>();
+      const uint32_t dur = durVar.isNull() ? 5000u : (uint32_t)durVar.as<int>();
+      int clamped = pos;
+      if (clamped < -90) clamped = -90;
+      if (clamped >  90) clamped =  90;
+      LOG_EVT("set_servo_position pos=%d dur=%lu", clamped, (unsigned long)dur);
+      Motion::holdPosition((int8_t)clamped, dur);
+    }
   } else if (!strcmp(type, "active_sessions")) {
     onActiveSessionsFrame(doc);
   } else if (!strcmp(type, "pong")) {

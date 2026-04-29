@@ -111,6 +111,26 @@ export function attachWebSocketServer(config: BridgeConfig): (httpServer: HttpSe
       return
     }
 
+    if (m.type === 'set_servo_position') {
+      const pos = typeof m.position === 'number' ? m.position : Number.NaN
+      if (!Number.isFinite(pos) || pos < -90 || pos > 90) {
+        ws.send(JSON.stringify({ type: 'error', message: 'invalid_servo_position' }))
+        return
+      }
+      const duration =
+        typeof m.duration_ms === 'number' && Number.isFinite(m.duration_ms) && m.duration_ms > 0
+          ? Math.min(60000, Math.floor(m.duration_ms))
+          : 5000
+      broadcast({
+        type: 'set_servo_position',
+        position: Math.round(pos),
+        duration_ms: duration,
+        by: client_id,
+        ts: Date.now(),
+      })
+      return
+    }
+
     if (m.type === 'config_change') {
       if (typeof m.display_mode !== 'string' || (m.display_mode !== 'face' && m.display_mode !== 'text')) {
         ws.send(JSON.stringify({ type: 'error', message: 'invalid_config_change' }))
