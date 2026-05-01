@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Face Simulator</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #161a22;
+      --panel-2: #1d222c;
+      --border: #2a3140;
+      --text: #e6e8ee;
+      --muted: #8b93a7;
+      --accent: #6ea8ff;
+      --good: #58d68d;
+      --bad: #ff7b7b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1100px;
+      margin: 1em auto;
+      padding: 0 1em;
+      background: var(--bg);
+      color: var(--text);
+    }
+    h1 { font-size: 1.2em; margin: 0.5em 0; }
+    h3 {
+      margin: 1em 0 0.4em;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.85em;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 1.5em;
+      align-items: start;
+    }
+    @media (max-width: 880px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+    .stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5em;
+    }
+    .stage canvas {
+      width: 480px;
+      max-width: 100%;
+      aspect-ratio: 1 / 1;
+      background: #000;
+      border-radius: 50%;
+      border: 4px solid #2a3140;
+      image-rendering: pixelated;
+    }
+    .stage-meta {
+      color: var(--muted);
+      font-size: 0.85em;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    input, button, select, textarea {
+      font: inherit;
+      padding: 0.4em 0.65em;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+    button { cursor: pointer; }
+    button:hover:not(:disabled) { background: var(--panel-2); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .row {
+      display: flex;
+      gap: 0.5em;
+      margin: 0.5em 0;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .state-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(7em, 1fr));
+      gap: 0.4em;
+    }
+    .state-grid button {
+      padding: 0.55em 0.4em;
+      font-size: 0.85em;
+    }
+    .state-grid button.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--panel-2);
+    }
+    .status {
+      font-size: 0.85em;
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4em;
+    }
+    .status .dot {
+      display: inline-block;
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--bad);
+    }
+    .status.connected .dot { background: var(--good); }
+    #scriptArea {
+      width: 100%;
+      min-height: 8em;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.85em;
+      background: #0b0d12;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.6em;
+    }
+    #log {
+      height: 180px;
+      overflow-y: auto;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5em 0.7em;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.82em;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .params-box {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.75em;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.5em 0.7em;
+      max-height: 200px;
+      overflow-y: auto;
+      color: var(--muted);
+    }
+    .static-panel {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.6em 0.8em;
+      background: var(--panel);
+      margin: 0.4em 0;
+    }
+    .static-panel.disabled { opacity: 0.5; pointer-events: none; }
+    .slider-row {
+      display: grid;
+      grid-template-columns: 7em 1fr 4em;
+      gap: 0.5em;
+      align-items: center;
+      margin: 0.25em 0;
+      font-size: 0.82em;
+    }
+    .slider-row label {
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .slider-row input[type="range"] {
+      width: 100%;
+      padding: 0;
+      background: transparent;
+      border: none;
+    }
+    .slider-row input[type="number"] {
+      width: 100%;
+      padding: 0.2em 0.35em;
+      text-align: right;
+      font-size: 0.85em;
+    }
+  </style>
+  <script src="scripts/nav.js" defer></script>
+</head>
+<body data-control-page="simulator">
+  <h1>Face Simulator</h1>
+  <p style="color: var(--muted); font-size: 0.9em; margin: 0 0 1em;">
+    Browser preview of robot_v2/FaceRenderer + FrameController. Force a
+    state with the buttons, drive lifecycle from the bridge WS, or run a
+    script to simulate sequences.
+  </p>
+
+  <div class="layout">
+    <div>
+      <div class="stage">
+        <canvas id="faceCanvas" width="480" height="480"></canvas>
+        <div class="stage-meta">
+          state: <span id="currentState">sleep</span>
+          &nbsp;·&nbsp; <span id="fpsLabel">— fps</span>
+        </div>
+      </div>
+
+      <h3>Force state</h3>
+      <div id="stateGrid" class="state-grid"></div>
+
+      <h3>
+        <label style="text-transform:none;letter-spacing:0;font-weight:600;">
+          <input type="checkbox" id="staticToggle" /> Static mode (bypass animation)
+        </label>
+      </h3>
+      <div id="staticPanel" class="static-panel disabled">
+        <div class="row" style="margin: 0 0 0.6em;">
+          <label class="status">Load preset
+            <select id="staticPreset"></select>
+          </label>
+          <button id="staticCaptureBtn" type="button">Capture live frame</button>
+          <button id="staticCopyBtn" type="button">Copy as JSON</button>
+        </div>
+        <div id="paramSliders"></div>
+        <h3 style="margin-top: 0.8em;">Modulators</h3>
+        <div id="modSliders"></div>
+        <div class="slider-row" style="margin-top: 0.5em;">
+          <label>state (mouth)</label>
+          <select id="staticStateSel" style="grid-column: span 2; padding: 0.3em;"></select>
+        </div>
+      </div>
+
+      <h3>Live params</h3>
+      <pre id="paramsBox" class="params-box"></pre>
+    </div>
+
+    <div>
+      <h3>Bridge connection</h3>
+      <div class="row">
+        <input id="wsUrl" type="text" value="ws://localhost:8787/ws?token=dev-token" style="flex:1;min-width:0" />
+        <button id="connectBtn">Connect</button>
+        <span id="status" class="status"><span class="dot"></span><span id="statusText">disconnected</span></span>
+      </div>
+      <div class="row" style="font-size: 0.85em; color: var(--muted);">
+        <label><input type="checkbox" id="liveDriveCheck" checked /> Drive face from bridge events</label>
+      </div>
+
+      <h3>Manual lifecycle</h3>
+      <div class="row">
+        <button data-emit-event='{"kind":"session.started","cause":"startup"}'>session.started</button>
+        <button data-emit-event='{"kind":"turn.started","prompt":"manual"}'>turn.started</button>
+        <button data-emit-event='{"kind":"turn.ended","cause":"completed"}'>turn.ended</button>
+        <button data-emit-event='{"kind":"session.ended","cause":"unknown"}'>session.ended</button>
+      </div>
+      <div class="row">
+        <button data-emit-event='{"kind":"activity.started","activity":{"id":"a1","kind":"file.read","tool":"Read","summary":"Read foo.ts"}}'>activity.started (read)</button>
+        <button data-emit-event='{"kind":"activity.finished","activity":{"id":"a1","kind":"file.read","tool":"Read","summary":"Read foo.ts"}}'>activity.finished (read)</button>
+      </div>
+      <div class="row">
+        <button data-emit-event='{"kind":"activity.started","activity":{"id":"a2","kind":"file.write","tool":"Edit","summary":"Edit foo.ts"}}'>activity.started (write)</button>
+        <button data-emit-event='{"kind":"activity.started","activity":{"id":"a3","kind":"shell.exec","tool":"Bash","summary":"npm test"}}'>activity.started (exec)</button>
+      </div>
+      <div class="row">
+        <button data-emit-event='{"kind":"permission.requested","request_id":"req1","activity":{"kind":"shell.exec","tool":"Bash","summary":"rm -rf /"}}'>permission.requested</button>
+        <button data-emit-event='{"kind":"permission.resolved","request_id":"req1","decision":"allow"}'>permission.resolved</button>
+      </div>
+
+      <h3>Script (run sequences)</h3>
+      <p style="color: var(--muted); font-size: 0.78em; margin: 0 0 0.4em;">
+        Available: <code>emit(eventObj)</code>, <code>force(state)</code>,
+        <code>wait(ms)</code>, <code>log(msg)</code>. Async/await ok.
+      </p>
+      <textarea id="scriptArea" spellcheck="false">// Demo: think → read → write → finish
+emit({ kind: "session.started", cause: "startup" });
+await wait(1500);
+emit({ kind: "turn.started", prompt: "demo" });
+await wait(1500);
+emit({ kind: "activity.started", activity: { id: "r1", kind: "file.read", tool: "Read", summary: "Read README.md" } });
+await wait(2500);
+emit({ kind: "activity.finished", activity: { id: "r1", kind: "file.read", tool: "Read" } });
+await wait(800);
+emit({ kind: "activity.started", activity: { id: "w1", kind: "file.write", tool: "Edit", summary: "Edit foo.ts" } });
+await wait(2500);
+emit({ kind: "activity.finished", activity: { id: "w1", kind: "file.write", tool: "Edit" } });
+await wait(800);
+emit({ kind: "turn.ended", cause: "completed" });</textarea>
+      <div class="row">
+        <button id="runScriptBtn">Run script</button>
+        <button id="stopScriptBtn" disabled>Stop</button>
+      </div>
+
+      <h3>Log</h3>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <script src="scripts/settings.js"></script>
+  <script src="scripts/tft.js"></script>
+  <script src="scripts/face.js"></script>
+  <script src="scripts/personality.js"></script>
+  <script src="scripts/frame-controller.js"></script>
+  <script>
+    const ts = () => new Date().toLocaleTimeString();
+    const log = (msg) => {
+      const el = document.getElementById("log");
+      el.textContent += `[${ts()}] ${msg}\n`;
+      el.scrollTop = el.scrollHeight;
+    };
+
+    // ---- Boot animation ----
+    Personality.start();
+    FrameController.start(document.getElementById("faceCanvas"));
+
+    // FPS counter
+    let frames = 0, lastFpsT = performance.now();
+    (function fpsLoop() {
+      frames++;
+      const t = performance.now();
+      if (t - lastFpsT >= 1000) {
+        document.getElementById("fpsLabel").textContent = `${frames} fps`;
+        frames = 0;
+        lastFpsT = t;
+      }
+      requestAnimationFrame(fpsLoop);
+    })();
+
+    // ---- State buttons ----
+    const stateGrid = document.getElementById("stateGrid");
+    Personality.states().forEach((s) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = s;
+      b.dataset.state = s;
+      b.addEventListener("click", () => {
+        Personality.request(s);
+        log(`force state → ${s}`);
+      });
+      stateGrid.appendChild(b);
+    });
+    Personality.onChange((s) => {
+      document.getElementById("currentState").textContent = s;
+      stateGrid.querySelectorAll("button").forEach((b) => {
+        b.classList.toggle("active", b.dataset.state === s);
+      });
+    });
+    document.getElementById("currentState").textContent = Personality.current();
+    stateGrid.querySelectorAll("button").forEach((b) => {
+      if (b.dataset.state === Personality.current()) b.classList.add("active");
+    });
+
+    // ---- Live params box ----
+    setInterval(() => {
+      const p = FrameController.params();
+      if (!p) return;
+      document.getElementById("paramsBox").textContent = Object.entries(p)
+        .map(([k, v]) => `${k.padEnd(14, " ")} ${String(v).padStart(5, " ")}`)
+        .join("\n");
+    }, 250);
+
+    // ---- Manual lifecycle buttons ----
+    document.querySelectorAll("[data-emit-event]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const ev = JSON.parse(btn.dataset.emitEvent);
+        Personality.handleAgentEvent(ev);
+        log(`manual emit ${ev.kind}`);
+      });
+    });
+
+    // ---- Bridge WS ----
+    let ws = null;
+    const setEnabled = (connected, text = connected ? "connected" : "disconnected") => {
+      document.getElementById("connectBtn").textContent = connected ? "Disconnect" : "Connect";
+      document.getElementById("status").classList.toggle("connected", connected);
+      document.getElementById("statusText").textContent = text;
+    };
+    setEnabled(false);
+
+    document.getElementById("connectBtn").addEventListener("click", () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close(1000, "manual disconnect");
+        return;
+      }
+      const url = document.getElementById("wsUrl").value.trim();
+      setEnabled(false, "connecting...");
+      try {
+        ws = new WebSocket(url);
+      } catch (err) {
+        log("Invalid websocket URL: " + (err?.message || String(err)));
+        setEnabled(false);
+        return;
+      }
+      ws.onopen = () => { log("Connected: " + url); setEnabled(true); };
+      ws.onclose = (ev) => { log("Disconnected (" + ev.code + ")"); setEnabled(false); };
+      ws.onerror = () => log("WebSocket error");
+      ws.onmessage = (ev) => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch { return; }
+        if (!document.getElementById("liveDriveCheck").checked) return;
+        if (msg.type === "agent_event" && msg.event) {
+          Personality.handleAgentEvent(msg.event);
+          log(`bridge → ${msg.event.kind}`);
+        } else if (msg.type === "permission_request") {
+          Personality.handleAgentEvent({ kind: "permission.requested", request_id: msg.request_id });
+          log("bridge → permission.requested");
+        } else if (msg.type === "permission_resolved") {
+          Personality.handleAgentEvent({ kind: "permission.resolved", request_id: msg.request_id });
+          log("bridge → permission.resolved");
+        }
+      };
+    });
+
+    // ---- Script runner ----
+    let scriptCancelToken = null;
+    const runScript = async () => {
+      const code = document.getElementById("scriptArea").value;
+      const token = { cancelled: false };
+      scriptCancelToken = token;
+      document.getElementById("runScriptBtn").disabled = true;
+      document.getElementById("stopScriptBtn").disabled = false;
+      const emit = (ev) => Personality.handleAgentEvent(ev);
+      const force = (s) => Personality.request(s);
+      const wait = (ms) => new Promise((resolve, reject) => {
+        const id = setTimeout(() => {
+          if (token.cancelled) reject(new Error("cancelled")); else resolve();
+        }, ms);
+        token.timeoutId = id;
+      });
+      const scriptLog = (m) => log(`[script] ${m}`);
+      try {
+        const fn = new Function(
+          "emit", "force", "wait", "log",
+          `return (async () => { ${code} })();`,
+        );
+        await fn(emit, force, wait, scriptLog);
+        log("Script done.");
+      } catch (err) {
+        log("Script error: " + (err?.message || String(err)));
+      } finally {
+        document.getElementById("runScriptBtn").disabled = false;
+        document.getElementById("stopScriptBtn").disabled = true;
+        scriptCancelToken = null;
+      }
+    };
+    document.getElementById("runScriptBtn").addEventListener("click", runScript);
+    // ---- Static mode ----
+    const PARAM_RANGES = {
+      eye_dy:        [-15, 15, 1],
+      eye_rx:        [0, 60, 1],
+      eye_ry:        [0, 60, 1],
+      eye_stroke:    [0, 10, 1],
+      eye_curve:     [-20, 20, 1],
+      pupil_dx:      [-20, 20, 1],
+      pupil_dy:      [-20, 20, 1],
+      pupil_r:       [0, 30, 1],
+      mouth_dy:      [-20, 20, 1],
+      mouth_w:       [0, 80, 1],
+      mouth_curve:   [-20, 20, 1],
+      mouth_open_h:  [0, 30, 1],
+      mouth_thick:   [1, 10, 1],
+      face_rot:      [-45, 45, 1],
+      face_y:        [-30, 30, 1],
+      ring_r:        [0, 255, 1],
+      ring_g:        [0, 255, 1],
+      ring_b:        [0, 255, 1],
+    };
+    const MOD_RANGES = {
+      blinkAmt:      [0, 1,  0.01],
+      gdx:           [-20, 20, 1],
+      gdy:           [-20, 20, 1],
+    };
+
+    const staticToggle = document.getElementById("staticToggle");
+    const staticPanel = document.getElementById("staticPanel");
+    const paramSliders = document.getElementById("paramSliders");
+    const modSliders = document.getElementById("modSliders");
+    const staticPreset = document.getElementById("staticPreset");
+    const staticStateSel = document.getElementById("staticStateSel");
+
+    Personality.states().forEach((s) => {
+      const opt1 = document.createElement("option");
+      opt1.value = s; opt1.textContent = s;
+      staticPreset.appendChild(opt1);
+      const opt2 = document.createElement("option");
+      opt2.value = s; opt2.textContent = s;
+      staticStateSel.appendChild(opt2);
+    });
+    staticPreset.value = "idle";
+    staticStateSel.value = "idle";
+
+    const sliderValues = { params: {}, blinkAmt: 0, gdx: 0, gdy: 0, state: "idle" };
+
+    const buildSliders = (target, fields, ranges, valueGetter, onChange) => {
+      target.innerHTML = "";
+      fields.forEach((field) => {
+        const [min, max, step] = ranges[field];
+        const initial = valueGetter(field);
+        const row = document.createElement("div");
+        row.className = "slider-row";
+        row.innerHTML = `
+          <label>${field}</label>
+          <input type="range" min="${min}" max="${max}" step="${step}" value="${initial}" data-slider="${field}" />
+          <input type="number" min="${min}" max="${max}" step="${step}" value="${initial}" data-num="${field}" />
+        `;
+        target.appendChild(row);
+        const range = row.querySelector(`[data-slider="${field}"]`);
+        const num = row.querySelector(`[data-num="${field}"]`);
+        const sync = (src) => {
+          const v = step < 1 ? parseFloat(src.value) : parseInt(src.value, 10);
+          range.value = String(v);
+          num.value = String(v);
+          onChange(field, v);
+        };
+        range.addEventListener("input", () => sync(range));
+        num.addEventListener("input", () => sync(num));
+      });
+    };
+
+    const seedFromParams = (params) => {
+      Object.assign(sliderValues.params, params);
+      buildSliders(
+        paramSliders,
+        FrameController.paramFields(),
+        PARAM_RANGES,
+        (f) => sliderValues.params[f],
+        (f, v) => {
+          sliderValues.params[f] = v;
+          FrameController.setStaticOverride({ params: { [f]: v } });
+        },
+      );
+      buildSliders(
+        modSliders,
+        Object.keys(MOD_RANGES),
+        MOD_RANGES,
+        (f) => sliderValues[f],
+        (f, v) => {
+          sliderValues[f] = v;
+          FrameController.setStaticOverride({ [f]: v });
+        },
+      );
+    };
+
+    seedFromParams(FrameController.baseTargetForState("idle"));
+
+    staticToggle.addEventListener("change", () => {
+      const on = staticToggle.checked;
+      FrameController.setStaticMode(on);
+      staticPanel.classList.toggle("disabled", !on);
+      if (on) {
+        // Sync sliders to whatever was just on screen.
+        const o = FrameController.staticOverride();
+        sliderValues.state = o.state;
+        sliderValues.blinkAmt = o.blinkAmt;
+        sliderValues.gdx = o.gdx;
+        sliderValues.gdy = o.gdy;
+        staticStateSel.value = o.state;
+        seedFromParams(o.params);
+        log("Static mode ON");
+      } else {
+        log("Static mode OFF (resuming animation)");
+      }
+    });
+
+    staticPreset.addEventListener("change", () => {
+      const p = FrameController.baseTargetForState(staticPreset.value);
+      seedFromParams(p);
+      FrameController.setStaticOverride({ params: p, state: staticPreset.value });
+      sliderValues.state = staticPreset.value;
+      staticStateSel.value = staticPreset.value;
+    });
+
+    staticStateSel.addEventListener("change", () => {
+      sliderValues.state = staticStateSel.value;
+      FrameController.setStaticOverride({ state: staticStateSel.value });
+    });
+
+    document.getElementById("staticCaptureBtn").addEventListener("click", () => {
+      const live = FrameController.params();
+      if (!live) return;
+      seedFromParams(live);
+      FrameController.setStaticOverride({ params: live });
+      log("Captured live frame into sliders");
+    });
+
+    document.getElementById("staticCopyBtn").addEventListener("click", async () => {
+      const order = FrameController.paramFields();
+      const o = FrameController.staticOverride();
+      const arr = order.map((k) => o.params[k]);
+      const cText =
+        "/* paste into kBaseTargets row */ { " +
+        arr.join(", ") + " }";
+      const json = JSON.stringify(o.params, null, 2);
+      const text = json + "\n\n" + cText;
+      try {
+        await navigator.clipboard.writeText(text);
+        log("Copied params to clipboard");
+      } catch {
+        log("Clipboard write blocked — params:\n" + text);
+      }
+    });
+
+    document.getElementById("stopScriptBtn").addEventListener("click", () => {
+      if (scriptCancelToken) {
+        scriptCancelToken.cancelled = true;
+        if (scriptCancelToken.timeoutId) clearTimeout(scriptCancelToken.timeoutId);
+        log("Script stop requested.");
+      }
+    });
+  </script>
+</body>
+</html>

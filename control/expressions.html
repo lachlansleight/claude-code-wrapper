@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Expressions</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #161a22;
+      --panel-2: #1d222c;
+      --border: #2a3140;
+      --text: #e6e8ee;
+      --muted: #8b93a7;
+      --accent: #6ea8ff;
+      --good: #58d68d;
+      --bad: #ff7b7b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 720px;
+      margin: 1em auto;
+      padding: 0 1em;
+      background: var(--bg);
+      color: var(--text);
+    }
+    h1 { font-size: 1.2em; margin: 0.5em 0; }
+    p.lead {
+      color: var(--muted);
+      font-size: 0.9em;
+      margin: 0 0 1em;
+      line-height: 1.45;
+    }
+    h3 {
+      margin: 1.25em 0 0.4em;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.85em;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    label {
+      display: block;
+      font-size: 0.8em;
+      color: var(--muted);
+      margin-bottom: 0.25em;
+    }
+    input, button, select {
+      font: inherit;
+      padding: 0.45em 0.65em;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      width: 100%;
+    }
+    select { cursor: pointer; }
+    button {
+      cursor: pointer;
+      width: auto;
+      margin-top: 0.25em;
+    }
+    button:hover:not(:disabled) { background: var(--panel-2); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    button.primary {
+      background: #1a2840;
+      border-color: var(--accent);
+      color: var(--accent);
+      font-weight: 600;
+      padding: 0.55em 1.2em;
+    }
+    button.primary:hover:not(:disabled) { background: #223252; }
+    .row {
+      display: flex;
+      gap: 0.65em;
+      margin: 0.65em 0;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+    .field { flex: 1; min-width: 10em; }
+    .field.grow { flex: 2; min-width: 14em; }
+    pre.out {
+      margin: 0.75em 0 0;
+      padding: 0.75em;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.78em;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--muted);
+      max-height: 14em;
+      overflow-y: auto;
+    }
+    pre.out.ok { color: var(--good); border-color: #2a4a38; }
+    pre.out.err { color: var(--bad); border-color: #4a2a2a; }
+    .status-line {
+      font-size: 0.85em;
+      color: var(--muted);
+      min-height: 1.4em;
+    }
+    .actions {
+      display: flex;
+      gap: 0.5em;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 0.75em;
+    }
+    code.inline { font-family: ui-monospace, monospace; font-size: 0.88em; color: var(--accent); }
+  </style>
+  <script src="scripts/nav.js" defer></script>
+</head>
+<body data-control-page="expressions">
+  <h1>Send expression</h1>
+  <p class="lead">
+    POSTs to the bridge <code class="inline">/expression/:trigger</code> with JSON
+    <code class="inline">weight</code>, <code class="inline">duration</code>, and optional
+    <code class="inline">label</code> (same contract as
+    <code class="inline">plugin/src/http.ts</code>). The robot receives an
+    <code class="inline">expression</code> frame over WebSocket.
+  </p>
+
+  <h3>Connection</h3>
+  <div class="row">
+    <div class="field grow">
+      <label for="httpBase">Bridge HTTP base</label>
+      <input id="httpBase" type="text" spellcheck="false" placeholder="http://localhost:8787" />
+    </div>
+    <div class="field grow">
+      <label for="token">Bridge token (Bearer)</label>
+      <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="dev-token" />
+    </div>
+  </div>
+  <div class="actions">
+    <button type="button" id="btnHealth">Ping <code class="inline">/api/health</code></button>
+    <button type="button" id="btnSave">Save base + token locally</button>
+  </div>
+  <div class="status-line" id="healthStatus" aria-live="polite"></div>
+
+  <h3>Expression</h3>
+  <div class="row">
+    <div class="field grow">
+      <label for="trigger">Trigger</label>
+      <select id="trigger"></select>
+    </div>
+    <div class="field">
+      <label for="weight">Weight</label>
+      <select id="weight"></select>
+    </div>
+    <div class="field">
+      <label for="duration">Duration</label>
+      <select id="duration"></select>
+    </div>
+  </div>
+  <div class="row">
+    <div class="field grow">
+      <label for="label">Label (optional, echoed in bridge logs)</label>
+      <input id="label" type="text" maxlength="200" placeholder="control-panel" />
+    </div>
+  </div>
+  <div class="actions">
+    <button type="button" class="primary" id="btnSend">Send expression</button>
+    <button type="button" id="btnCurl">Copy as curl</button>
+  </div>
+
+  <h3>Response</h3>
+  <pre class="out" id="responseOut">(no request yet)</pre>
+
+  <script>
+    (function () {
+      const BRIDGE_TOKEN_KEY = "claude-code-wrapper.bridge_ws_dev_token";
+      const BRIDGE_HTTP_BASE_KEY = "claude-code-wrapper.bridge_http_base";
+
+      const TRIGGERS = [
+        "Awaken",
+        "Settle",
+        "Disturb",
+        "BeginWork",
+        "FinishWork",
+        "WorkFailed",
+        "Gate",
+        "GateCleared",
+        "Ask",
+        "Ponder",
+        "Speak",
+        "Compact",
+        "WantAttention",
+        "DriftToSleep",
+        "Linger",
+        "StreakSuccess",
+        "StreakFailure",
+      ];
+      const WEIGHTS = ["light", "medium", "heavy"];
+      const DURATIONS = ["momentary", "short", "extended", "lasting"];
+
+      const $ = (id) => document.getElementById(id);
+
+      function normalizeBase(raw) {
+        const s = (raw || "").trim().replace(/\/+$/, "");
+        return s || "http://localhost:8787";
+      }
+
+      function fillSelect(sel, options, def) {
+        sel.innerHTML = "";
+        for (const o of options) {
+          const opt = document.createElement("option");
+          opt.value = o;
+          opt.textContent = o;
+          if (o === def) opt.selected = true;
+          sel.appendChild(opt);
+        }
+      }
+
+      function loadDefaults() {
+        $("httpBase").value =
+          localStorage.getItem(BRIDGE_HTTP_BASE_KEY) || "http://localhost:8787";
+        $("token").value = localStorage.getItem(BRIDGE_TOKEN_KEY) || "";
+        fillSelect($("trigger"), TRIGGERS, "Ponder");
+        fillSelect($("weight"), WEIGHTS, "medium");
+        fillSelect($("duration"), DURATIONS, "short");
+      }
+
+      function setOut(text, kind) {
+        const el = $("responseOut");
+        el.textContent = text;
+        el.classList.remove("ok", "err");
+        if (kind === "ok") el.classList.add("ok");
+        if (kind === "err") el.classList.add("err");
+      }
+
+      async function sendExpression() {
+        const base = normalizeBase($("httpBase").value);
+        const token = $("token").value.trim();
+        const trigger = $("trigger").value;
+        const weight = $("weight").value;
+        const duration = $("duration").value;
+        const label = $("label").value.trim();
+
+        if (!token) {
+          setOut("Set a bridge token first (same value as BRIDGE_TOKEN / dev-token).", "err");
+          return;
+        }
+
+        const url = `${base}/expression/${encodeURIComponent(trigger)}`;
+        const body = { weight, duration };
+        if (label) body.label = label;
+
+        const btn = $("btnSend");
+        btn.disabled = true;
+        setOut("Sending…", null);
+        try {
+          const res = await fetch(url, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+          });
+          const text = await res.text();
+          let pretty = text;
+          try {
+            pretty = JSON.stringify(JSON.parse(text), null, 2);
+          } catch {
+            /* keep raw */
+          }
+          const head = `${res.status} ${res.statusText}\n${url}\n\n`;
+          setOut(head + pretty, res.ok ? "ok" : "err");
+        } catch (e) {
+          setOut(String(e), "err");
+        } finally {
+          btn.disabled = false;
+        }
+      }
+
+      async function pingHealth() {
+        const base = normalizeBase($("httpBase").value);
+        const el = $("healthStatus");
+        el.textContent = "Checking…";
+        try {
+          const res = await fetch(`${base}/api/health`);
+          const j = await res.json();
+          el.textContent = res.ok
+            ? `Health OK — version ${j.version}, uptime ${j.uptime_seconds}s`
+            : `Health HTTP ${res.status}`;
+        } catch (e) {
+          el.textContent = `Health failed: ${e}`;
+        }
+      }
+
+      function copyCurl() {
+        const base = normalizeBase($("httpBase").value);
+        const token = $("token").value.trim();
+        const trigger = $("trigger").value;
+        const weight = $("weight").value;
+        const duration = $("duration").value;
+        const label = $("label").value.trim();
+        const url = `${base}/expression/${encodeURIComponent(trigger)}`;
+        const body = JSON.stringify(
+          label ? { weight, duration, label } : { weight, duration },
+        );
+        const auth = token ? `-H "Authorization: Bearer ${token.replace(/"/g, '\\"')}" ` : "";
+        const line = `curl -sS -X POST ${auth}"${url}" -H "Content-Type: application/json" -d '${body.replace(/'/g, "'\\''")}'`;
+        navigator.clipboard.writeText(line).then(
+          () => setOut("Copied to clipboard:\n\n" + line, "ok"),
+          () => setOut(line, null),
+        );
+      }
+
+      $("btnSend").addEventListener("click", sendExpression);
+      $("btnHealth").addEventListener("click", pingHealth);
+      $("btnCurl").addEventListener("click", copyCurl);
+      $("btnSave").addEventListener("click", () => {
+        localStorage.setItem(BRIDGE_HTTP_BASE_KEY, normalizeBase($("httpBase").value));
+        localStorage.setItem(BRIDGE_TOKEN_KEY, $("token").value.trim());
+        setOut("Saved bridge HTTP base and token to localStorage.", "ok");
+      });
+
+      document.addEventListener("DOMContentLoaded", loadDefaults);
+    })();
+  </script>
+</body>
+</html>
