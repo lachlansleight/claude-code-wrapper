@@ -6,7 +6,9 @@
 
 #include "AsciiCopy.h"
 #include "DebugLog.h"
+#include "FrameController.h"
 #include "Motion.h"
+#include "Settings.h"
 
 namespace AgentEvents {
 
@@ -21,8 +23,13 @@ static RawHandler                 h_raw     = nullptr;
 static ConnectionHandler          h_conn    = nullptr;
 
 const AgentState& state() { return g_state; }
-RenderMode renderMode() { return g_state.render_mode; }
-void setRenderMode(RenderMode mode) { g_state.render_mode = mode; }
+RenderMode renderMode() {
+  return Settings::faceModeEnabled() ? RENDER_FACE : RENDER_TEXT;
+}
+void setRenderMode(RenderMode mode) {
+  g_state.render_mode = mode;
+  Settings::setFaceModeEnabled(mode == RENDER_FACE);
+}
 
 void setWifiConnected(bool v) { g_state.wifi_connected = v; }
 void setWsConnected(bool v)   { g_state.ws_connected   = v; }
@@ -231,10 +238,69 @@ static void applyConfigChange(JsonDocument& doc) {
   const char* mode = modeVar | "";
   if (!mode || !*mode) return;
   if (!strcmp(mode, "text")) {
-    g_state.render_mode = RENDER_TEXT;
+    setRenderMode(RENDER_TEXT);
   } else if (!strcmp(mode, "face")) {
-    g_state.render_mode = RENDER_FACE;
+    setRenderMode(RENDER_FACE);
   }
+}
+
+static bool parseNamedColorKey(const char* key, Settings::NamedColor& outColor) {
+  if (!key || !*key) return false;
+  char lc[32];
+  lowerCopy(key, lc, sizeof(lc));
+  if (!strcmp(lc, "background")) { outColor = Settings::NamedColor::Background; return true; }
+  if (!strcmp(lc, "foreground")) { outColor = Settings::NamedColor::Foreground; return true; }
+  if (!strcmp(lc, "thinking")) { outColor = Settings::NamedColor::Thinking; return true; }
+  if (!strcmp(lc, "reading")) { outColor = Settings::NamedColor::Reading; return true; }
+  if (!strcmp(lc, "writing")) { outColor = Settings::NamedColor::Writing; return true; }
+  if (!strcmp(lc, "executing")) { outColor = Settings::NamedColor::Executing; return true; }
+  if (!strcmp(lc, "executing_long") || !strcmp(lc, "executinglong")) {
+    outColor = Settings::NamedColor::ExecutingLong;
+    return true;
+  }
+  if (!strcmp(lc, "blocked")) { outColor = Settings::NamedColor::Blocked; return true; }
+  if (!strcmp(lc, "finished")) { outColor = Settings::NamedColor::Finished; return true; }
+  if (!strcmp(lc, "excited")) { outColor = Settings::NamedColor::Excited; return true; }
+  if (!strcmp(lc, "wants_at") || !strcmp(lc, "wantsat")) {
+    outColor = Settings::NamedColor::WantsAt;
+    return true;
+  }
+  return false;
+}
+
+static uint8_t clampColorByte(JsonVariantConst v) {
+  if (v.isNull()) return 0;
+  int n = v.as<int>();
+  if (n < 0) n = 0;
+  if (n > 255) n = 255;
+  return (uint8_t)n;
+}
+
+static void applySetColor(JsonDocument& doc) {
+  const char* key = doc["key"] | "";
+  if (!key || !*key) key = doc["name"] | "";
+  Settings::NamedColor color;
+  if (!parseNamedColorKey(key, color)) {
+    LOG_WARN("setColor ignored: unknown key=%s", key ? key : "(null)");
+    return;
+  }
+
+  JsonVariantConst colorObj = doc["color"];
+  uint8_t r = 0;
+  uint8_t g = 0;
+  uint8_t b = 0;
+  if (colorObj.isNull()) {
+    r = clampColorByte(doc["r"].as<JsonVariantConst>());
+    g = clampColorByte(doc["g"].as<JsonVariantConst>());
+    b = clampColorByte(doc["b"].as<JsonVariantConst>());
+  } else {
+    r = clampColorByte(colorObj["r"]);
+    g = clampColorByte(colorObj["g"]);
+    b = clampColorByte(colorObj["b"]);
+  }
+  Settings::setColorRgb(color, r, g, b);
+  Face::invalidate();
+  LOG_EVT("setColor key=%s rgb=(%u,%u,%u)", key, (unsigned)r, (unsigned)g, (unsigned)b);
 }
 
 ActivityAccess classifyActivity(const char* activity_kind,
@@ -555,6 +621,8 @@ void dispatch(JsonDocument& doc) {
     handleAgentEvent(doc);
   } else if (!strcmp(type, "config_change")) {
     applyConfigChange(doc);
+  } else if (!strcmp(type, "setColor")) {
+    applySetColor(doc);
   } else if (!strcmp(type, "set_servo_position")) {
     JsonVariantConst posVar = doc["position"];
     JsonVariantConst durVar = doc["duration_ms"];

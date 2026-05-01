@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 #include "Personality.h"
+#include "Settings.h"
 
 namespace Face {
 
@@ -46,8 +47,8 @@ static constexpr int16_t kEyeLX = 85;
 static constexpr int16_t kEyeRX = 155;
 static constexpr int16_t kMouthY = 165;
 static constexpr int16_t kPivotY = 130;
-static constexpr uint16_t kFg = TFT_WHITE;
-static constexpr uint16_t kBg = TFT_BLACK;
+static inline uint16_t kFg() { return Settings::color565(Settings::NamedColor::Foreground); }
+static inline uint16_t kBg() { return Settings::color565(Settings::NamedColor::Background); }
 
 static inline float clamp01(float t) {
   return t < 0 ? 0 : (t > 1 ? 1 : t);

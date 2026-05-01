@@ -3,6 +3,7 @@
 #include <TFT_eSPI.h>
 
 #include "DebugLog.h"
+#include "Settings.h"
 #include "config.h"
 #include "SceneTypes.h"
 
@@ -55,7 +56,7 @@ bool ready()          { return fbReady; }
 void begin() {
   tft.init();
   tft.setRotation(0);
-  tft.fillScreen(TFT_BLACK);
+  tft.fillScreen(Settings::color565(Settings::NamedColor::Background));
   tft.initDMA();
 
   fb.setColorDepth(16);
@@ -66,21 +67,22 @@ void begin() {
     backlightInit();
     return;
   }
-  fb.fillSprite(TFT_BLACK);
+  fb.fillSprite(Settings::color565(Settings::NamedColor::Background));
 
   backlightInit();
 
   // Boot splash — also exercises the DMA path.
-  fb.fillSprite(TFT_BLACK);
+  fb.fillSprite(Settings::color565(Settings::NamedColor::Background));
   fb.setTextDatum(MC_DATUM);
-  fb.setTextColor(TFT_WHITE, TFT_BLACK);
+  fb.setTextColor(Settings::color565(Settings::NamedColor::Foreground),
+                  Settings::color565(Settings::NamedColor::Background));
   fb.setTextSize(3);
   fb.drawString("Sultana", kW / 2, kH / 2 - 10);
   fb.setTextSize(2);
   fb.drawString("Booting", kW / 2, kH / 2 + 15);
   fb.setTextDatum(TL_DATUM);
 
-  const uint16_t ringColor = Face::rgb888To565(73, 245, 173);
+  const uint16_t ringColor = Settings::color565(Settings::NamedColor::Excited);
   for (int16_t rad = 109 + 1; rad <= 115; ++rad) {
     fb.drawCircle(120, 120, rad, ringColor);
   }
@@ -89,12 +91,14 @@ void begin() {
 
 void drawConnecting(const char* ssid) {
   if (!fbReady) return;
-  fb.fillSprite(TFT_BLACK);
+  fb.fillSprite(Settings::color565(Settings::NamedColor::Background));
   fb.setTextDatum(MC_DATUM);
-  fb.setTextColor(TFT_WHITE, TFT_BLACK);
+  fb.setTextColor(Settings::color565(Settings::NamedColor::Foreground),
+                  Settings::color565(Settings::NamedColor::Background));
   fb.setTextSize(2);
   fb.drawString("Connecting to", kW / 2, kH / 2 - 12);
-  fb.setTextColor(Face::rgb888To565(73, 245, 173), TFT_BLACK);
+  fb.setTextColor(Settings::color565(Settings::NamedColor::Excited),
+                  Settings::color565(Settings::NamedColor::Background));
   fb.drawString(ssid && *ssid ? ssid : "?", kW / 2, kH / 2 + 14);
   fb.setTextDatum(TL_DATUM);
   pushFrame();
@@ -102,9 +106,10 @@ void drawConnecting(const char* ssid) {
 
 void drawFailedToConnect() {
   if (!fbReady) return;
-  fb.fillSprite(TFT_BLACK);
+  fb.fillSprite(Settings::color565(Settings::NamedColor::Background));
   fb.setTextDatum(MC_DATUM);
-  fb.setTextColor(TFT_RED, TFT_BLACK);
+  fb.setTextColor(Settings::color565(Settings::NamedColor::Blocked),
+                  Settings::color565(Settings::NamedColor::Background));
   fb.setTextSize(2);
   fb.drawString("Failed to", kW / 2, kH / 2 - 12);
   fb.drawString("Connect", kW / 2, kH / 2 + 14);
@@ -114,12 +119,14 @@ void drawFailedToConnect() {
 
 void drawPortalScreen(const char* ssid, const char* ip) {
   if (!fbReady) return;
-  fb.fillSprite(TFT_BLACK);
+  fb.fillSprite(Settings::color565(Settings::NamedColor::Background));
   fb.setTextDatum(MC_DATUM);
   fb.setTextSize(2);
-  fb.setTextColor(TFT_YELLOW, TFT_BLACK);
+  fb.setTextColor(Settings::color565(Settings::NamedColor::WantsAt),
+                  Settings::color565(Settings::NamedColor::Background));
   fb.drawString("CONFIG MODE", kW / 2, kH / 2 - 36);
-  fb.setTextColor(TFT_WHITE, TFT_BLACK);
+  fb.setTextColor(Settings::color565(Settings::NamedColor::Foreground),
+                  Settings::color565(Settings::NamedColor::Background));
   fb.drawString(ssid, kW / 2, kH / 2);
   fb.setTextSize(1);
   fb.drawString(ip, kW / 2, kH / 2 + 28);

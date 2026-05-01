@@ -207,7 +207,7 @@ static void buildSubtitleLine(char* out, size_t cap, const AgentEvents::AgentSta
 
 void renderTextScene(TFT_eSprite& s, const SceneRenderState& renderState,
                      const AgentEvents::AgentState& agentState, uint32_t now) {
-  s.fillSprite(kBg);
+  s.fillSprite(kBg());
   s.setTextSize(1);
   s.setTextDatum(TL_DATUM);
 
@@ -219,7 +219,7 @@ void renderTextScene(TFT_eSprite& s, const SceneRenderState& renderState,
   // Mood floats ease from the prior state's ring_* (often 0,0,0 at boot). Using them directly
   // while still ~0 paints the title black-on-black; drawMoodRing skips 0,0,0 so only the title
   // looked "missing". Round and fall back to white until there's enough luminance to read.
-  uint16_t titleColor = TFT_WHITE;
+  uint16_t titleColor = kFg();
   if (moodRingEnabledFor(renderState.state)) {
     int r = (int)lroundf(renderState.mood_r);
     int g = (int)lroundf(renderState.mood_g);
@@ -253,10 +253,11 @@ void renderTextScene(TFT_eSprite& s, const SceneRenderState& renderState,
   const int16_t headerH =
       (int16_t)((subtitleCenterY + subFontH / 2 + kHeaderPadY) - headerBoxTop);
 
-  // drawCircleAwareBoxTopBottom(s, kInset, headerBoxTop, kInnerW, headerH, TFT_DARKGREY);
+  // drawCircleAwareBoxTopBottom(s, kInset, headerBoxTop, kInnerW, headerH,
+  //                             Settings::color565Scaled(Settings::NamedColor::Foreground, 96));
 
   s.setTextSize(2);
-  s.setTextColor(titleColor, TFT_BLACK);
+  s.setTextColor(titleColor, kBg());
   drawCenteredOnCircle(s, titleStr, titleCenterY);
 
   char subBuf[sizeof(agentState.subtitle_tool) + 24];
@@ -266,7 +267,7 @@ void renderTextScene(TFT_eSprite& s, const SceneRenderState& renderState,
   }
 
   s.setTextSize(1);
-  s.setTextColor(TFT_WHITE, TFT_BLACK);
+  s.setTextColor(kFg(), kBg());
   if (!sleepUi && subBuf[0]) {
     drawCenteredOnCircle(s, subBuf, subtitleCenterY);
   }
@@ -275,10 +276,12 @@ void renderTextScene(TFT_eSprite& s, const SceneRenderState& renderState,
   const int16_t bodyMaxY = (int16_t)(240 - kBottomMargin);
   const int16_t bodyH = (int16_t)(bodyMaxY - bodyY);
   if (bodyH > kLineAdvanceBody * 2) {
-    //drawCircleAwareBoxTopBottom(s, kInset, bodyY, kInnerW, bodyH, TFT_DARKGREY);
-    drawLineWithinCircle(s, bodyY - kBodyTopGap / 2, kInset, TFT_DARKGREY);
+    // drawCircleAwareBoxTopBottom(s, kInset, bodyY, kInnerW, bodyH,
+    //                             Settings::color565Scaled(Settings::NamedColor::Foreground, 96));
+    drawLineWithinCircle(s, bodyY - kBodyTopGap / 2, kInset,
+                         Settings::color565Scaled(Settings::NamedColor::Foreground, 96));
     if (!sleepUi && agentState.body_text[0]) {
-      s.setTextColor(TFT_WHITE, TFT_BLACK);
+      s.setTextColor(kFg(), kBg());
       const uint8_t maxLines =
           (uint8_t)((bodyH - 10) / kLineAdvanceBody > 24 ? 24 : (bodyH - 10) / kLineAdvanceBody);
       drawWrappedOnCircle(s, agentState.body_text, (int16_t)(bodyY + 6), bodyMaxY - 4, maxLines);

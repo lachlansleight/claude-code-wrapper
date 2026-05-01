@@ -140,6 +140,33 @@ export function attachWebSocketServer(config: BridgeConfig): (httpServer: HttpSe
       return
     }
 
+    if (m.type === 'setColor') {
+      const key = typeof m.key === 'string' ? m.key : typeof m.name === 'string' ? m.name : ''
+      const clampByte = (v: unknown): number => {
+        const n = typeof v === 'number' ? v : Number.NaN
+        if (!Number.isFinite(n)) return Number.NaN
+        return Math.max(0, Math.min(255, Math.round(n)))
+      }
+      const colorObj = typeof m.color === 'object' && m.color !== null ? (m.color as Record<string, unknown>) : null
+      const r = clampByte(colorObj?.r ?? m.r)
+      const g = clampByte(colorObj?.g ?? m.g)
+      const b = clampByte(colorObj?.b ?? m.b)
+      if (!key || !Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) {
+        ws.send(JSON.stringify({ type: 'error', message: 'invalid_set_color' }))
+        return
+      }
+      broadcast({
+        type: 'setColor',
+        key,
+        r,
+        g,
+        b,
+        by: client_id,
+        ts: Date.now(),
+      })
+      return
+    }
+
     if (m.type === 'emit_agent_event') {
       if (typeof m.event !== 'object' || m.event === null || typeof (m.event as { kind?: unknown }).kind !== 'string') {
         ws.send(JSON.stringify({ type: 'error', message: 'invalid_emit_agent_event' }))

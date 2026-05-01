@@ -16,7 +16,7 @@ static void drawParabola(TFT_eSprite& s, int16_t cx, int16_t cy, int16_t w,
     const float ry = (float)lx * sinA + ly * cosA;
     const int16_t px = cx + (int16_t)rx;
     const int16_t py = cy + (int16_t)ry;
-    s.fillRect(px, py - thick / 2, 1, thick, kFg);
+    s.fillRect(px, py - thick / 2, 1, thick, kFg());
   }
 }
 
@@ -36,11 +36,11 @@ static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy,
     return;
   }
 
-  s.fillEllipse(cx, cy, rx, ry, kFg);
+  s.fillEllipse(cx, cy, rx, ry, kFg());
   const int16_t irx = rx - p.eye_stroke;
   const int16_t iry = ry - p.eye_stroke;
   if (irx > 0 && iry > 0) {
-    s.fillEllipse(cx, cy, irx, iry, kBg);
+    s.fillEllipse(cx, cy, irx, iry, kBg());
   }
   if (p.pupil_r > 0 && blinkAmt < 0.6f) {
     const float ldx = (float)(p.pupil_dx + gdx);
@@ -55,7 +55,7 @@ static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy,
     int16_t effR = p.pupil_r;
     if (effR > maxR) effR = maxR;
 
-    s.fillSmoothCircle(cx + (int16_t)rdx, cy + (int16_t)rdy, effR, kFg, kBg);
+    s.fillSmoothCircle(cx + (int16_t)rdx, cy + (int16_t)rdy, effR, kFg(), kBg());
   }
 }
 
@@ -71,7 +71,7 @@ static void drawHalfEllipse(TFT_eSprite& s, int16_t cx, int16_t cy, int16_t rx,
     const float bot_rx = (float)lx * cosA - h * sinA;
     const float bot_ry = (float)lx * sinA + h * cosA;
     s.drawLine(cx + (int16_t)top_rx, cy + (int16_t)top_ry,
-               cx + (int16_t)bot_rx, cy + (int16_t)bot_ry, kFg);
+               cx + (int16_t)bot_rx, cy + (int16_t)bot_ry, kFg());
   }
 }
 
@@ -94,7 +94,7 @@ static void drawZigZagMouth(TFT_eSprite& s, int16_t cx, int16_t cy,
     const float ry1 = lx1 * sinA + ly1 * cosA;
     for (int16_t o = -(thick / 2); o <= (thick / 2); ++o) {
       s.drawLine(cx + (int16_t)rx0, cy + (int16_t)ry0 + o,
-                 cx + (int16_t)rx1, cy + (int16_t)ry1 + o, kFg);
+                 cx + (int16_t)rx1, cy + (int16_t)ry1 + o, kFg());
     }
     lx0 = lx1;
     ly0 = ly1;
@@ -111,7 +111,7 @@ static void drawMouth(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t c
     if (p.mouth_curve < 0) {
       drawHalfEllipse(s, cx, cy, p.mouth_w / 2, p.mouth_open_h, cosA, sinA);
     } else {
-      s.fillEllipse(cx, cy, p.mouth_w / 2, p.mouth_open_h, kFg);
+      s.fillEllipse(cx, cy, p.mouth_w / 2, p.mouth_open_h, kFg());
     }
     return;
   }

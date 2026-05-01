@@ -9,11 +9,37 @@
 #include "Personality.h"
 #include "Scene.h"
 #include "SceneTypes.h"
+#include "Settings.h"
 #include "TextScene.h"
 
 namespace Face {
 
 static constexpr float   kMoodRingTauMs  = 200.0f;
+static FaceParams makeFaceParamsWithMood(const FaceParams& base, Settings::NamedColor moodColor) {
+  FaceParams p = base;
+  const Settings::Rgb888 c = Settings::colorRgb(moodColor);
+  p.ring_r = c.r;
+  p.ring_g = c.g;
+  p.ring_b = c.b;
+  return p;
+}
+static Settings::NamedColor moodColorForState(Personality::State s) {
+  switch (s) {
+    case Personality::THINKING:      return Settings::NamedColor::Thinking;
+    case Personality::READING:       return Settings::NamedColor::Reading;
+    case Personality::WRITING:       return Settings::NamedColor::Writing;
+    case Personality::EXECUTING:     return Settings::NamedColor::Executing;
+    case Personality::EXECUTING_LONG:return Settings::NamedColor::ExecutingLong;
+    case Personality::FINISHED:      return Settings::NamedColor::Finished;
+    case Personality::EXCITED:       return Settings::NamedColor::Excited;
+    case Personality::BLOCKED:       return Settings::NamedColor::Blocked;
+    case Personality::WANTS_ATTENTION:return Settings::NamedColor::WantsAt;
+    default:                         return Settings::NamedColor::Background;
+  }
+}
+static FaceParams targetForState(Personality::State s, const FaceParams* baseTargets) {
+  return makeFaceParamsWithMood(baseTargets[s], moodColorForState(s));
+}
 
 // Per-state target params. Row order must match Personality::State.
 //
@@ -23,20 +49,20 @@ static constexpr float   kMoodRingTauMs  = 200.0f;
 //
 // face_rot represents the "default" tilt (sign = +1). The thinking
 // modulator periodically flips this sign so the tilt swaps direction.
-static const FaceParams kTargets[Personality::kStateCount] = {
+static const FaceParams kBaseTargets[Personality::kStateCount] = {
   /* IDLE     */ {  2, 30, 26, 3,   0,  0,  3, 15,  0, 30,   -2,  0, 3,   0,  0,    0,   0,   0 },
-  /* THINKING */ {  0, 30, 30, 3,   0,  7, -9, 15,  0, 22,  -3,  0, 3, -10,  0,   36,  56, 120 },  // dark blue
-  /* READING  */ {  0, 28, 26, 3,   0,  0,  8, 12,  0, 18,  -3,  0, 3,   0, 12,   78, 146, 210 },  // looks down, round eyes, pupils low, slight smile
-  /* WRITING  */ {  0, 30, 26, 3,   0,  0, -8, 15,  0, 30,  -1, 14, 3,   0,  0,  104, 118, 228 },  // light blue (more purple than thinking)
-  /* EXECUTING */ {  0, 30, 16, 3,   0,  0, -4, 10,  0, 18,  -2,  0, 3,   0,  0,  156,  64, 216 },  // purple, narrow eyes, small smile
-  /* EXEC_LONG */ {  0, 30, 22, 3,   0,  0, -3, 10,  0, 18,   0,  0, 3,   0,  0,  210,  75, 220 },  // slightly redder purple, wider eyes
-  /* FINISHED */ { -4, 24,  4, 4,   7,  0,  0,  0,  0, 36,  -1, 14, 4,   0,  0,  255, 228,  32 },  // bright yellow
-  /* EXCITED  */ {  0, 30, 30, 3,   0,  0,  0, 15,  0, 30,  -8,  0, 3,   0,  0,   40, 255,  80 },  // bright green
+  /* THINKING */ {  0, 30, 30, 3,   0,  7, -9, 15,  0, 22,  -3,  0, 3, -10,  0,    0,   0,   0 },  // dark blue
+  /* READING  */ {  0, 28, 26, 3,   0,  0,  8, 12,  0, 18,  -3,  0, 3,   0, 12,    0,   0,   0 },  // looks down, round eyes, pupils low, slight smile
+  /* WRITING  */ {  0, 30, 26, 3,   0,  0, -8, 15,  0, 30,  -1, 14, 3,   0,  0,    0,   0,   0 },  // light blue (more purple than thinking)
+  /* EXECUTING */ {  0, 30, 16, 3,   0,  0, -4, 10,  0, 18,  -2,  0, 3,   0,  0,    0,   0,   0 },  // purple, narrow eyes, small smile
+  /* EXEC_LONG */ {  0, 30, 22, 3,   0,  0, -3, 10,  0, 18,   0,  0, 3,   0,  0,    0,   0,   0 },  // slightly redder purple, wider eyes
+  /* FINISHED */ { -4, 24,  4, 4,   7,  0,  0,  0,  0, 36,  -1, 14, 4,   0,  0,    0,   0,   0 },  // bright yellow
+  /* EXCITED  */ {  0, 30, 30, 3,   0,  0,  0, 15,  0, 30,  -8,  0, 3,   0,  0,    0,   0,   0 },  // bright green
   /* READY    */ {  0, 30, 30, 3,   0,  0,  0, 15,  0, 26,  -3,  0, 3,   0,  0,    0,   0,   0 },
   /* WAKING   */ { -2, 34, 34, 3,   0,  0,  0, 18,  0, 14,   0,  9, 3,   0,  0,    0,   0,   0 },
   /* SLEEP    */ {  8, 26,  2, 3,   0,  0,  0,  0,  0, 18,   0,  0, 3,   0,  0,    0,   0,   0 },
-  /* BLOCKED  */ {  2, 30, 22, 3,  -6,  0,  3, 15,  4, 26,   8,  0, 3,   0,  0,  255,  48,  24 },  // red
-  /* WANTS_AT */ { -2, 34, 34, 3,   0,  0,  0, 18,  0, 14,   0,  9, 3,   0,  0,  255, 200,  40 },  // wide eyes + "oh!" mouth + amber ring
+  /* BLOCKED  */ {  2, 30, 22, 3,  -6,  0,  3, 15,  4, 26,   8,  0, 3,   0,  0,    0,   0,   0 },  // red
+  /* WANTS_ATTN */ { -2, 34, 34, 3,   0,  0,  0, 18,  0, 14,   0,  9, 3,   0,  0,    0,   0,   0 },  // wide eyes + "oh!" mouth + amber ring
 };
 
 // Tween duration between state targets.
@@ -78,6 +104,7 @@ static uint16_t sFadeWriteCount = 0;
 static float    sTextStreamAlpha = 0.0f;
 static float    sWriteStreamAlpha = 0.0f;
 static uint32_t sLastEffectsMs = 0;
+static uint32_t sLastSettingsVersion = 0;
 
 // Thinking tilt-flip state.
 static float    sThinkFromSign     = 1.0f;
@@ -301,7 +328,7 @@ void begin() {
 
   sLastState    = Personality::kStateCount;
   // Seed the initial frame to match the boot personality state.
-  sFrom         = kTargets[Personality::SLEEP];
+  sFrom         = targetForState(Personality::SLEEP, kBaseTargets);
   sTo           = sFrom;
   sTweenStartMs = millis();
   sNextBlinkMs  = 0;
@@ -314,9 +341,9 @@ void begin() {
   sThinkFlipStartMs = 0;
   sNextThinkFlipMs  = 0;
 
-  sMoodR = (float)kTargets[Personality::SLEEP].ring_r;
-  sMoodG = (float)kTargets[Personality::SLEEP].ring_g;
-  sMoodB = (float)kTargets[Personality::SLEEP].ring_b;
+  sMoodR = (float)sFrom.ring_r;
+  sMoodG = (float)sFrom.ring_g;
+  sMoodB = (float)sFrom.ring_b;
   sLastMoodMs = millis();
   sTextStreamAlpha = 0.0f;
   sWriteStreamAlpha = 0.0f;
@@ -330,6 +357,7 @@ void begin() {
   sIdleGlanceFromDy = 0;
   sIdleGlanceStartMs = 0;
   sNextIdleGlanceMs = 0;
+  sLastSettingsVersion = Settings::settingsVersion();
 }
 
 void invalidate() {
@@ -350,7 +378,7 @@ static void onStateChange(Personality::State newState, uint32_t now) {
   }
 
   sFrom         = currentFrame;
-  sTo           = kTargets[newState];
+  sTo           = targetForState(newState, kBaseTargets);
   sTweenStartMs = now;
   if (sLastState == Personality::READY && newState == Personality::IDLE) {
     const AgentEvents::AgentState& cs = AgentEvents::state();
@@ -392,6 +420,18 @@ void tick() {
 
   const uint32_t now = millis();
   const Personality::State sNow = Personality::current();
+  const uint32_t settingsVersion = Settings::settingsVersion();
+  if (settingsVersion != sLastSettingsVersion) {
+    sLastSettingsVersion = settingsVersion;
+    sTo = targetForState(sNow, kBaseTargets);
+    sFrom.ring_r = sTo.ring_r;
+    sFrom.ring_g = sTo.ring_g;
+    sFrom.ring_b = sTo.ring_b;
+    sMoodR = (float)sTo.ring_r;
+    sMoodG = (float)sTo.ring_g;
+    sMoodB = (float)sTo.ring_b;
+    sLastMoodMs = now;
+  }
   const bool streamFrame =
       sNow == Personality::READING || sNow == Personality::WRITING ||
       sTextStreamAlpha > 0.02f || sWriteStreamAlpha > 0.02f;
@@ -413,7 +453,7 @@ void tick() {
   // Shared mood color easing with a 200ms time constant.
   const uint32_t moodDt = (sLastMoodMs == 0) ? 0 : (now - sLastMoodMs);
   const float alpha = 1.0f - expf(-(float)moodDt / kMoodRingTauMs);
-  const FaceParams& moodTarget = kTargets[s];
+  const FaceParams moodTarget = targetForState(s, kBaseTargets);
   sMoodR += ((float)moodTarget.ring_r - sMoodR) * alpha;
   sMoodG += ((float)moodTarget.ring_g - sMoodG) * alpha;
   sMoodB += ((float)moodTarget.ring_b - sMoodB) * alpha;
@@ -482,10 +522,10 @@ void tick() {
   SceneRenderState renderState = {
       s,       sMoodR, sMoodG, sMoodB, sTextStreamAlpha, sWriteStreamAlpha,
       sProgressFadeStartMs, sFadeReadCount, sFadeWriteCount};
-  if (AgentEvents::renderMode() == AgentEvents::RENDER_TEXT) {
-    renderTextScene(spr, renderState, AgentEvents::state(), now);
-  } else {
+  if (Settings::faceModeEnabled()) {
     renderScene(spr, p, blinkAmt, gdx, gdy, renderState, AgentEvents::state(), now);
+  } else {
+    renderTextScene(spr, renderState, AgentEvents::state(), now);
   }
   Display::pushFrame();
 }

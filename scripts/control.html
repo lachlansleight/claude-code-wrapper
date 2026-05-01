@@ -77,6 +77,70 @@
     .status.connected .dot { background: var(--good); }
     .btn-face { border-color: var(--accent); }
     .btn-text { border-color: var(--warn); }
+    .color-grid {
+      display: grid;
+      grid-template-columns: 11em 1fr auto auto;
+      gap: 0.45em 0.6em;
+      align-items: center;
+      margin: 0.45em 0 0.2em;
+    }
+    .color-grid .hdr {
+      font-size: 0.74em;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding-bottom: 0.2em;
+    }
+    .color-name {
+      font-size: 0.9em;
+      color: var(--text);
+    }
+    .rgb-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.4em;
+      min-width: 360px;
+    }
+    .rgb-item {
+      display: flex;
+      align-items: center;
+      gap: 0.35em;
+      min-width: 0;
+    }
+    .rgb-item span {
+      font-size: 0.78em;
+      color: var(--muted);
+      width: 0.9em;
+      text-align: center;
+      flex: 0 0 auto;
+    }
+    .rgb-item input[type="range"] {
+      width: 100%;
+      min-width: 6.5em;
+      padding: 0;
+      border: none;
+      background: transparent;
+    }
+    .rgb-item input[type="number"] {
+      width: 3.9em;
+      padding: 0.3em 0.45em;
+      text-align: right;
+    }
+    .color-preview {
+      width: 2.2em;
+      height: 2.2em;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: #000;
+    }
+    @media (max-width: 900px) {
+      .color-grid {
+        grid-template-columns: 1fr;
+      }
+      .rgb-group {
+        min-width: 0;
+      }
+    }
     #dropZone {
       flex: 1;
       min-height: 3em;
@@ -317,6 +381,8 @@
     <button id="faceBtn" class="btn-face" disabled>Face Mode</button>
     <button id="textBtn" class="btn-text" disabled>Text Mode</button>
   </div>
+  <h3>Colours</h3>
+  <div id="colorControls" class="color-grid"></div>
   <h3>Session Context</h3>
   <div class="row">
     <input id="sessionIdInput" type="text" value="simulator" />
@@ -382,6 +448,24 @@
     const getTurnId = () => document.getElementById("turnIdInput").value.trim() || "turn_1";
 
     const BRIDGE_WS_DEV_TOKEN_KEY = "claude-code-wrapper.bridge_ws_dev_token";
+    const COLOR_DEFS = [
+      { key: "background", label: "Background", rgb: [0, 0, 0] },
+      { key: "foreground", label: "Foreground", rgb: [255, 255, 255] },
+      { key: "thinking", label: "Thinking", rgb: [36, 56, 120] },
+      { key: "reading", label: "Reading", rgb: [78, 146, 210] },
+      { key: "writing", label: "Writing", rgb: [104, 118, 228] },
+      { key: "executing", label: "Executing", rgb: [156, 64, 216] },
+      { key: "executing_long", label: "Executing Long", rgb: [210, 75, 220] },
+      { key: "blocked", label: "Blocked", rgb: [255, 48, 24] },
+      { key: "finished", label: "Finished", rgb: [255, 228, 32] },
+      { key: "excited", label: "Excited", rgb: [40, 255, 80] },
+      { key: "wants_at", label: "Wants @", rgb: [255, 200, 40] },
+    ];
+    const clampRgbByte = (v) => {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return 0;
+      return Math.max(0, Math.min(255, Math.round(n)));
+    };
     const tokenFromBridgeWsUrl = (urlStr) => {
       try {
         return new URL(urlStr).searchParams.get("token") || "";
@@ -935,6 +1019,9 @@
       buttonIds.forEach((id) => {
         document.getElementById(id).disabled = !connected;
       });
+      document.querySelectorAll("[data-color-send]").forEach((btn) => {
+        btn.disabled = !connected;
+      });
       if (!connected) {
         activeActivities["file.read"] = null;
         activeActivities["file.write"] = null;
@@ -953,6 +1040,21 @@
         return;
       }
       const payload = { type: "config_change", display_mode: mode };
+      ws.send(JSON.stringify(payload));
+      log(">> " + JSON.stringify(payload));
+    };
+    const sendSetColor = (key, r, g, b) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        log("WebSocket is not connected.");
+        return;
+      }
+      const payload = {
+        type: "setColor",
+        key,
+        r: clampRgbByte(r),
+        g: clampRgbByte(g),
+        b: clampRgbByte(b),
+      };
       ws.send(JSON.stringify(payload));
       log(">> " + JSON.stringify(payload));
     };
@@ -1040,6 +1142,98 @@
 
     document.getElementById("faceBtn").addEventListener("click", () => sendMode("face"));
     document.getElementById("textBtn").addEventListener("click", () => sendMode("text"));
+    const initColorControls = () => {
+      const root = document.getElementById("colorControls");
+      root.innerHTML = `
+        <div class="hdr">Key</div>
+        <div class="hdr">RGB</div>
+        <div class="hdr">Preview</div>
+        <div class="hdr">Action</div>
+      `;
+      COLOR_DEFS.forEach((def) => {
+        const row = document.createElement("div");
+        row.className = "color-name";
+        row.textContent = def.label;
+        root.appendChild(row);
+
+        const sliders = document.createElement("div");
+        sliders.className = "rgb-group";
+        ["r", "g", "b"].forEach((chan, idx) => {
+          const item = document.createElement("div");
+          item.className = "rgb-item";
+          item.innerHTML = `
+            <span>${chan.toUpperCase()}</span>
+            <input type="range" min="0" max="255" step="1" value="${def.rgb[idx]}" data-color-key="${def.key}" data-color-chan="${chan}" />
+            <input type="number" min="0" max="255" step="1" value="${def.rgb[idx]}" data-color-key="${def.key}" data-color-num="${chan}" />
+          `;
+          sliders.appendChild(item);
+        });
+        root.appendChild(sliders);
+
+        const preview = document.createElement("div");
+        preview.className = "color-preview";
+        preview.dataset.colorPreview = def.key;
+        root.appendChild(preview);
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = "Set colour";
+        btn.disabled = true;
+        btn.dataset.colorSend = def.key;
+        root.appendChild(btn);
+      });
+
+      const updatePreview = (key) => {
+        const r = clampRgbByte(
+          document.querySelector(`input[data-color-key="${key}"][data-color-num="r"]`)?.value,
+        );
+        const g = clampRgbByte(
+          document.querySelector(`input[data-color-key="${key}"][data-color-num="g"]`)?.value,
+        );
+        const b = clampRgbByte(
+          document.querySelector(`input[data-color-key="${key}"][data-color-num="b"]`)?.value,
+        );
+        const box = document.querySelector(`[data-color-preview="${key}"]`);
+        if (box) box.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+      };
+
+      const syncPair = (key, chan, fromRange) => {
+        const rangeEl = document.querySelector(
+          `input[data-color-key="${key}"][data-color-chan="${chan}"]`,
+        );
+        const numEl = document.querySelector(
+          `input[data-color-key="${key}"][data-color-num="${chan}"]`,
+        );
+        if (!rangeEl || !numEl) return;
+        const source = fromRange ? rangeEl : numEl;
+        const next = clampRgbByte(source.value);
+        rangeEl.value = String(next);
+        numEl.value = String(next);
+        updatePreview(key);
+      };
+
+      root.querySelectorAll("input[data-color-chan]").forEach((el) => {
+        el.addEventListener("input", () => {
+          syncPair(el.dataset.colorKey, el.dataset.colorChan, true);
+        });
+      });
+      root.querySelectorAll("input[data-color-num]").forEach((el) => {
+        el.addEventListener("input", () => {
+          syncPair(el.dataset.colorKey, el.dataset.colorNum, false);
+        });
+      });
+      root.querySelectorAll("[data-color-send]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const key = btn.dataset.colorSend;
+          const r = document.querySelector(`input[data-color-key="${key}"][data-color-num="r"]`)?.value;
+          const g = document.querySelector(`input[data-color-key="${key}"][data-color-num="g"]`)?.value;
+          const b = document.querySelector(`input[data-color-key="${key}"][data-color-num="b"]`)?.value;
+          sendSetColor(key, r, g, b);
+        });
+      });
+      COLOR_DEFS.forEach((def) => updatePreview(def.key));
+    };
+    initColorControls();
     document.getElementById("readToggleBtn").addEventListener("click", () => {
       if (activeActivities["file.read"]) {
         stopActivity("file.read", "Read", "Read file");
