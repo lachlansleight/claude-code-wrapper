@@ -16,6 +16,9 @@ const LOGS_DIR = 'logs'
 interface TurnLog {
   path: string
   startedAt: number
+  startStamp: string
+  agentSlug: string
+  eventCount: number
 }
 
 const activeTurnLogs = new Map<string, TurnLog>()
@@ -24,15 +27,32 @@ function safeAgentSlug(name: string): string {
   return name.replace(/[^A-Za-z0-9_-]/g, '_') || 'agent'
 }
 
-function isoStamp(d: Date): string {
-  return d.toISOString().replace(/[:.]/g, '-')
+function startStamp(d: Date): string {
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}`
+}
+
+function turnLogPath(log: Pick<TurnLog, 'agentSlug' | 'startStamp' | 'eventCount'>, durationSeconds?: number): string {
+  const suffix =
+    durationSeconds === undefined
+      ? ''
+      : `_${log.eventCount}i-${durationSeconds}s`
+  return path.join(LOGS_DIR, log.agentSlug, `${log.agentSlug}_${log.startStamp}${suffix}.log`)
 }
 
 function openTurnLog(agent: string): TurnLog {
   fs.mkdirSync(LOGS_DIR, { recursive: true })
   const startedAt = Date.now()
-  const filePath = path.join(LOGS_DIR, `${safeAgentSlug(agent)}-${isoStamp(new Date(startedAt))}.log`)
-  const log: TurnLog = { path: filePath, startedAt }
+  const log: TurnLog = {
+    path: '',
+    startedAt,
+    startStamp: startStamp(new Date(startedAt)),
+    agentSlug: safeAgentSlug(agent),
+    eventCount: 0,
+  }
+  const filePath = turnLogPath(log)
+  log.path = filePath
+  fs.mkdirSync(path.dirname(filePath), { recursive: true })
   fs.writeFileSync(filePath, '')
   logger.info(`turn log opened agent=${agent} path=${filePath}`)
   return log
@@ -61,6 +81,13 @@ function recordTurnHook(agent: string, hook_type: string, payload: unknown, pars
   }
   try {
     fs.appendFileSync(log.path, JSON.stringify(entry) + '\n')
+    log.eventCount += 1
+    const durationSeconds = Math.round((ts - log.startedAt) / 1000)
+    const nextPath = turnLogPath(log, durationSeconds)
+    if (nextPath !== log.path) {
+      fs.renameSync(log.path, nextPath)
+      log.path = nextPath
+    }
   } catch (err) {
     logger.warn(`turn log append failed path=${log.path} err=${String(err)}`)
   }
