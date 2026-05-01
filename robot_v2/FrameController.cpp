@@ -142,26 +142,27 @@ static int16_t bodyBobFor(Personality::State s, uint32_t now) {
 
   int8_t amp = 0;
   switch (s) {
-    // SLEEP — slow breath. Motor: OSCILLATE, period 8000 ms. Bigger
-    //   amplitude than the other bobs because it's the *only* face
-    //   animation while sleeping.
-    case Personality::SLEEP:           amp = 3; break;
+    // SLEEP — slow breath. Motor: OSCILLATE, period 8000 ms. The only
+    //   face animation while sleeping, so make it visible.
+    case Personality::SLEEP:           amp = 10; break;
 
-    // EXECUTING family — small body-bob in time with the arm sway.
+    // EXECUTING family — body-bob in time with the arm sway.
     case Personality::EXECUTING:
     case Personality::EXECUTING_LONG:
-    case Personality::EXCITED:         amp = 1; break;
+    case Personality::EXCITED:         amp = 5;  break;
 
-    // FINISHED — bobs with each waggle. period is the full retrigger
-    //   cycle (waggle + pause), so this gives one bob per waggle,
-    //   which reads as "hey! hey!" without being too noisy.
-    case Personality::FINISHED:        amp = 2; break;
+    // FINISHED — one head-bob per waggle (period is the full retrigger
+    //   cycle), reads as "hey! hey!" excited bouncing.
+    case Personality::FINISHED:        amp = 7;  break;
 
     default: return 0;
   }
 
+  // Negative so that when the motor swings to its "up" end (positive
+  // offset) the face also moves up. face_y > 0 shifts the face DOWN
+  // (see FaceRenderer.cpp), so we invert the sine.
   const float t = (float)(now % period) / (float)period;
-  return (int16_t)(sinf(t * 2.0f * (float)PI) * (float)amp);
+  return (int16_t)(-sinf(t * 2.0f * (float)PI) * (float)amp);
 }
 
 static void gazeFor(Personality::State s, uint32_t now,
