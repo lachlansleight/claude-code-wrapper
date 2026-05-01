@@ -18,8 +18,8 @@ namespace MotionBehaviors {
 // (0 = centre, +90 / -90 = extremes). Anything outside this range can
 // damage the chassis. `Motion` clamps every output to this range, so a
 // typo in the table below can't drive into something solid.
-static constexpr int8_t kSafeMin = -25;
-static constexpr int8_t kSafeMax =  25;
+static constexpr int8_t kSafeMin = -45;
+static constexpr int8_t kSafeMax =  45;
 
 // ---- Default slew durations ------------------------------------------------
 //

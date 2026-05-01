@@ -24,8 +24,11 @@ struct Config {
 };
 
 struct NetEntry {
-  String ssid;
-  String password;
+  String   ssid;
+  String   password;
+  String   bridge_host;
+  uint16_t bridge_port;
+  String   bridge_token;
 };
 
 // Max known networks remembered across reboots. New connects past this
@@ -50,10 +53,14 @@ size_t loadNetworks(NetEntry* out, size_t maxCount);
 // (oldest evicted). Also mirrors into the legacy `ssid`/`pass` NVS keys
 // so `Provisioning::load()` and `WifiMgr::tick()` keep working without
 // list awareness. Persists immediately.
-void rememberNetwork(const char* ssid, const char* password);
+void rememberNetwork(const NetEntry& entry);
 
 // Wipe all provisioning keys from NVS.
 void clear();
+
+// Set / consume a one-shot "enter portal at next boot" request in NVS.
+void requestOneTimePortal();
+bool consumeOneTimePortalRequest();
 
 // True if the BOOT button (GPIO0 by default) is held low at boot. Call from
 // setup() before starting WiFi.

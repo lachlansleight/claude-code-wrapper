@@ -43,6 +43,51 @@
 #include "config.h"
 
 static Provisioning::Config cfg;
+static bool g_forceHardcodedProvisioning = false;
+
+static void processSerialCommand(const String& raw) {
+  String cmd = raw;
+  cmd.trim();
+  cmd.toLowerCase();
+  if (cmd.length() == 0) return;
+
+  if (cmd == "reboot") {
+    LOG_INFO("serial: reboot requested");
+    delay(100);
+    ESP.restart();
+    return;
+  }
+  if (cmd == "provision-once" || cmd == "provision_once" || cmd == "provision") {
+    LOG_INFO("serial: one-time provisioning requested");
+    Provisioning::requestOneTimePortal();
+    delay(100);
+    ESP.restart();
+    return;
+  }
+  if (cmd == "clear-provisioning" || cmd == "forget-all") {
+    LOG_INFO("serial: clearing all provisioning data");
+    Provisioning::clear();
+    return;
+  }
+
+  LOG_WARN("serial: unknown command \"%s\"", cmd.c_str());
+}
+
+static void tickSerialCommands() {
+  static char buf[96];
+  static size_t len = 0;
+  while (Serial.available() > 0) {
+    const char c = (char)Serial.read();
+    if (c == '\r') continue;
+    if (c == '\n') {
+      buf[len] = '\0';
+      processSerialCommand(String(buf));
+      len = 0;
+      continue;
+    }
+    if (len < sizeof(buf) - 1) buf[len++] = c;
+  }
+}
 
 static void onPermissionRequest(const AgentEvents::PermissionRequestEvent& e) {
   LOG_EVT("perm request id=%s tool=%s", e.request_id, e.tool_name);
@@ -64,28 +109,49 @@ void setup() {
 
   const bool haveNvs    = Provisioning::load(cfg);
   const bool buttonHeld = Provisioning::shouldEnterPortal();
+  const bool oneShotPortalRequested = Provisioning::consumeOneTimePortalRequest();
+
+#ifdef FORCE_HARDCODED_PROVISIONING
+  g_forceHardcodedProvisioning = FORCE_HARDCODED_PROVISIONING;
+#else
+  g_forceHardcodedProvisioning = false;
+#endif
 
   // Build the candidate-network list: nets-from-NVS, with the legacy
   // single-net entry promoted to the head if it's not already in there.
   Provisioning::NetEntry nets[Provisioning::kMaxKnownNetworks];
-  size_t netCount = Provisioning::loadNetworks(nets, Provisioning::kMaxKnownNetworks);
-  if (haveNvs && cfg.wifi_ssid.length() > 0) {
-    bool present = false;
-    for (size_t i = 0; i < netCount; ++i) {
-      if (nets[i].ssid == cfg.wifi_ssid) { present = true; break; }
-    }
-    if (!present && netCount < Provisioning::kMaxKnownNetworks) {
-      // Shift down so legacy entry sits at the head (most-recent).
-      for (size_t i = netCount; i > 0; --i) nets[i] = nets[i - 1];
-      nets[0].ssid     = cfg.wifi_ssid;
-      nets[0].password = cfg.wifi_password;
-      ++netCount;
+  size_t netCount = 0;
+  if (g_forceHardcodedProvisioning) {
+    LOG_INFO("provisioning: FORCE_HARDCODED_PROVISIONING enabled");
+    nets[0].ssid         = WIFI_SSID;
+    nets[0].password     = WIFI_PASSWORD;
+    nets[0].bridge_host  = BRIDGE_HOST;
+    nets[0].bridge_port  = BRIDGE_PORT;
+    nets[0].bridge_token = BRIDGE_TOKEN;
+    netCount = 1;
+  } else {
+    netCount = Provisioning::loadNetworks(nets, Provisioning::kMaxKnownNetworks);
+    if (haveNvs && cfg.wifi_ssid.length() > 0) {
+      bool present = false;
+      for (size_t i = 0; i < netCount; ++i) {
+        if (nets[i].ssid == cfg.wifi_ssid) { present = true; break; }
+      }
+      if (!present && netCount < Provisioning::kMaxKnownNetworks) {
+        // Shift down so legacy entry sits at the head (most-recent).
+        for (size_t i = netCount; i > 0; --i) nets[i] = nets[i - 1];
+        nets[0].ssid         = cfg.wifi_ssid;
+        nets[0].password     = cfg.wifi_password;
+        nets[0].bridge_host  = cfg.bridge_host;
+        nets[0].bridge_port  = cfg.bridge_port;
+        nets[0].bridge_token = cfg.bridge_token;
+        ++netCount;
+      }
     }
   }
 
-  if (buttonHeld || netCount == 0) {
-    LOG_INFO("provisioning: entering portal (button=%d nets=%u)",
-             buttonHeld, (unsigned)netCount);
+  if (buttonHeld || oneShotPortalRequested || netCount == 0) {
+    LOG_INFO("provisioning: entering portal (button=%d one-shot=%d nets=%u)",
+             buttonHeld, oneShotPortalRequested, (unsigned)netCount);
     Provisioning::runPortal(cfg);  // blocks; reboots on save/forget
   }
 
@@ -97,8 +163,12 @@ void setup() {
                             /*timeoutMs=*/15000)) {
       cfg.wifi_ssid     = nets[i].ssid;
       cfg.wifi_password = nets[i].password;
-      Provisioning::rememberNetwork(nets[i].ssid.c_str(),
-                                    nets[i].password.c_str());
+      cfg.bridge_host   = nets[i].bridge_host;
+      cfg.bridge_port   = nets[i].bridge_port;
+      cfg.bridge_token  = nets[i].bridge_token;
+      if (!g_forceHardcodedProvisioning) {
+        Provisioning::rememberNetwork(nets[i]);
+      }
       wifiUp = true;
       break;
     }
@@ -123,6 +193,7 @@ void setup() {
 }
 
 void loop() {
+  tickSerialCommands();
   WifiMgr::tick(cfg.wifi_ssid.c_str(), cfg.wifi_password.c_str());
   AgentEvents::setWifiConnected(WifiMgr::isConnected());
 

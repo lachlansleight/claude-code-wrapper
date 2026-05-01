@@ -15,6 +15,10 @@
 #define BRIDGE_PORT    8787
 #define BRIDGE_TOKEN   "REPLACE_WITH_BRIDGE_TOKEN"
 
+// When true, ignore all saved provisioning values in NVS and always use the
+// hardcoded WIFI_* / BRIDGE_* values above.
+#define FORCE_HARDCODED_PROVISIONING false
+
 // ---- Debug -----------------------------------------------------------------
 // When true, every WebSocket frame is dumped to Serial verbatim.
 // When false, only decoded event summaries are logged.

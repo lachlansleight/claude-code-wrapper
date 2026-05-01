@@ -20,10 +20,12 @@ static constexpr const char* kKeyPass  = "pass";
 static constexpr const char* kKeyHost  = "host";
 static constexpr const char* kKeyPort  = "port";
 static constexpr const char* kKeyToken = "token";
-// Known-networks list, packed as `ssid\tpass\nssid\tpass\n...`.
+// Known-networks list, packed as
+// `ssid\tpass\thost\tport\ttoken\n...` (legacy `ssid\tpass` still supported).
 // SSIDs / passwords containing literal '\t' or '\n' are not supported,
 // which is fine for the standards-compliant inputs the portal accepts.
 static constexpr const char* kKeyNets  = "nets";
+static constexpr const char* kKeyPortalOnce = "portal_once";
 
 // BOOT button on most ESP32 dev boards. Active low when pressed.
 #ifndef PORTAL_BUTTON_PIN
@@ -69,18 +71,48 @@ void save(const Config& c) {
   LOG_INFO("provisioning: saved");
 }
 
-static size_t parseNetworks(const String& packed, NetEntry* out, size_t maxCount) {
+static size_t parseNetworks(const String& packed,
+                            NetEntry* out,
+                            size_t maxCount,
+                            const String& defaultHost,
+                            uint16_t defaultPort,
+                            const String& defaultToken) {
   size_t n = 0;
   int start = 0;
   const int len = (int)packed.length();
   while (start < len && n < maxCount) {
     int nl = packed.indexOf('\n', start);
     if (nl < 0) nl = len;
-    int tab = packed.indexOf('\t', start);
-    if (tab >= 0 && tab < nl) {
-      out[n].ssid     = packed.substring(start, tab);
-      out[n].password = packed.substring(tab + 1, nl);
-      if (out[n].ssid.length() > 0) ++n;
+    const String line = packed.substring(start, nl);
+    int p1 = line.indexOf('\t');
+    if (p1 >= 0) {
+      int p2 = line.indexOf('\t', p1 + 1);
+      int p3 = (p2 >= 0) ? line.indexOf('\t', p2 + 1) : -1;
+      int p4 = (p3 >= 0) ? line.indexOf('\t', p3 + 1) : -1;
+
+      out[n] = NetEntry();
+
+      // Backward-compat with old format: ssid\tpassword
+      if (p2 < 0) {
+        out[n].ssid         = line.substring(0, p1);
+        out[n].password     = line.substring(p1 + 1);
+        out[n].bridge_host  = defaultHost;
+        out[n].bridge_port  = defaultPort;
+        out[n].bridge_token = defaultToken;
+      } else if (p3 >= 0 && p4 >= 0) {
+        out[n].ssid         = line.substring(0, p1);
+        out[n].password     = line.substring(p1 + 1, p2);
+        out[n].bridge_host  = line.substring(p2 + 1, p3);
+        out[n].bridge_port  = (uint16_t)line.substring(p3 + 1, p4).toInt();
+        out[n].bridge_token = line.substring(p4 + 1);
+      }
+
+      if (out[n].ssid.length() > 0) {
+        if (out[n].bridge_host.length() == 0) out[n].bridge_host = defaultHost;
+        if (out[n].bridge_port == 0) out[n].bridge_port = defaultPort;
+        if (out[n].bridge_token.length() == 0) out[n].bridge_token = defaultToken;
+        ++n;
+      }
     }
     start = nl + 1;
   }
@@ -94,6 +126,12 @@ static String packNetworks(const NetEntry* entries, size_t count) {
     out += entries[i].ssid;
     out += '\t';
     out += entries[i].password;
+    out += '\t';
+    out += entries[i].bridge_host;
+    out += '\t';
+    out += String(entries[i].bridge_port);
+    out += '\t';
+    out += entries[i].bridge_token;
     out += '\n';
   }
   return out;
@@ -104,12 +142,15 @@ size_t loadNetworks(NetEntry* out, size_t maxCount) {
   Preferences p;
   p.begin(kNamespace, /*readOnly=*/true);
   const String packed = p.getString(kKeyNets, "");
+  const String defaultHost = p.getString(kKeyHost, BRIDGE_HOST);
+  const uint16_t defaultPort = p.getUShort(kKeyPort, BRIDGE_PORT);
+  const String defaultToken = p.getString(kKeyToken, BRIDGE_TOKEN);
   p.end();
-  return parseNetworks(packed, out, maxCount);
+  return parseNetworks(packed, out, maxCount, defaultHost, defaultPort, defaultToken);
 }
 
-void rememberNetwork(const char* ssid, const char* password) {
-  if (!ssid || !*ssid) return;
+void rememberNetwork(const NetEntry& entry) {
+  if (entry.ssid.length() == 0) return;
 
   NetEntry entries[kMaxKnownNetworks];
   size_t count = loadNetworks(entries, kMaxKnownNetworks);
@@ -117,7 +158,7 @@ void rememberNetwork(const char* ssid, const char* password) {
   // Drop any existing entry with the same SSID — we'll reinsert at the head.
   size_t writeIdx = 0;
   for (size_t i = 0; i < count; ++i) {
-    if (entries[i].ssid != ssid) {
+    if (entries[i].ssid != entry.ssid) {
       if (writeIdx != i) entries[writeIdx] = entries[i];
       ++writeIdx;
     }
@@ -128,8 +169,7 @@ void rememberNetwork(const char* ssid, const char* password) {
   // the new entry plus the kept ones fit).
   if (count > kMaxKnownNetworks - 1) count = kMaxKnownNetworks - 1;
   for (size_t i = count; i > 0; --i) entries[i] = entries[i - 1];
-  entries[0].ssid     = ssid;
-  entries[0].password = password ? password : "";
+  entries[0] = entry;
   count += 1;
 
   const String packed = packNetworks(entries, count);
@@ -139,10 +179,14 @@ void rememberNetwork(const char* ssid, const char* password) {
   p.putString(kKeyNets, packed);
   // Keep legacy single-net keys in sync — `load()` and `WifiMgr::tick()`
   // both still read these for the "current" network.
-  p.putString(kKeySsid, ssid);
-  p.putString(kKeyPass, password ? password : "");
+  p.putString(kKeySsid, entry.ssid);
+  p.putString(kKeyPass, entry.password);
+  p.putString(kKeyHost, entry.bridge_host);
+  p.putUShort(kKeyPort, entry.bridge_port);
+  p.putString(kKeyToken, entry.bridge_token);
   p.end();
-  LOG_INFO("provisioning: remembered \"%s\" (%u total)", ssid, (unsigned)count);
+  LOG_INFO("provisioning: remembered \"%s\" (%u total)", entry.ssid.c_str(),
+           (unsigned)count);
 }
 
 void clear() {
@@ -151,6 +195,24 @@ void clear() {
   p.clear();
   p.end();
   LOG_INFO("provisioning: cleared");
+}
+
+void requestOneTimePortal() {
+  Preferences p;
+  p.begin(kNamespace, /*readOnly=*/false);
+  p.putBool(kKeyPortalOnce, true);
+  p.end();
+  LOG_INFO("provisioning: one-time portal requested");
+}
+
+bool consumeOneTimePortalRequest() {
+  Preferences p;
+  p.begin(kNamespace, /*readOnly=*/false);
+  const bool requested = p.getBool(kKeyPortalOnce, false);
+  if (requested) p.putBool(kKeyPortalOnce, false);
+  p.end();
+  if (requested) LOG_INFO("provisioning: one-time portal consumed");
+  return requested;
 }
 
 bool shouldEnterPortal() {
@@ -226,6 +288,10 @@ static const char kPortalHtml[] PROGMEM = R"HTML(<!doctype html>
   <div class="actions">
     <button class="primary" type="submit">Save &amp; reboot</button>
     <button class="ghost" type="submit" formaction="/forget">Forget</button>
+    <button class="ghost" type="submit" formaction="/forget_all"
+            onclick="return confirm('Delete ALL saved provisioned networks and bridge settings?');">
+      Force delete all
+    </button>
   </div>
 </form>
 </body></html>
@@ -308,6 +374,13 @@ void runPortal(const Config& currentCfg) {
   });
 
   server.on("/forget", HTTP_POST, [&]() {
+    clear();
+    server.send(200, "text/html", FPSTR(kSavedHtml));
+    delay(500);
+    ESP.restart();
+  });
+
+  server.on("/forget_all", HTTP_POST, [&]() {
     clear();
     server.send(200, "text/html", FPSTR(kSavedHtml));
     delay(500);
