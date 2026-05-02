@@ -1,20 +1,22 @@
 # CLAUDE.md
 
-Orientation for Claude Code sessions working on this repo. Read `README.md`
-for the full picture and `plugin/src/OBJECT_INTERFACE.md` for the event
-vocabulary spec. This file calls out what's not obvious from those.
+Orientation for Claude Code sessions working on this repo. Read
+[`README.md`](README.md) for the project quickstart and
+[`docs/README.md`](docs/README.md) for the full doc index. This file
+calls out what's not obvious from those.
 
 ## Current shape
 
 A **standalone agent-agnostic bridge**: a Node HTTP/WS service that
 ingests lifecycle hooks from any agentic CLI (Claude Code, Codex, Cursor,
 OpenCode), parses them into a shared `AgentEvent` vocabulary, and
-broadcasts envelopes over WebSocket.
+broadcasts envelopes over WebSocket. The ESP32-S3 firmware in
+[`robot_v2/`](robot_v2/) is the canonical consumer.
 
 The bridge has **no opinion about presentation**. It emits lifecycle
 events (turn started, activity started/finished, permission requested),
-not derived states (`thinking`, `idle`, `blocked`). State derivation
-lives in the consumer — the firmware in `robot_v2/`.
+not derived states. State derivation lives in the firmware
+(`Personality`).
 
 Source lives in `plugin/src/`. Compiled output is `plugin/dist/`. The
 Claude Code plugin in `plugin/` only registers hooks now — there is no
@@ -24,32 +26,26 @@ MCP server, no `.mcp.json`. The bridge is started separately
 ## Repo layout
 
 ```
-plugin/
+plugin/                       # bridge service (Node)
   src/
-    index.ts                 # entry: HTTP + WS + Firebase
-    http.ts                  # /hooks/:agent + /api/* surface
-    ws.ts                    # WS hub
-    bus.ts                   # in-process EventEmitter
-    state.ts                 # in-memory chat / permission / session store
-    agent-event.ts           # AgentEvent type vocabulary (the spec, in code)
-    activity-classify.ts     # tool name → ActivityKind table
-    activity-summary.ts      # ActivityRef.summary builder
-    adapters/
-      types.ts               # Parser interface + ParsedEvent
-      claude.ts, codex.ts, cursor.ts, opencode.ts
-      index.ts               # parser registry
-    hook-forward.ts          # Claude-side stdin→HTTP forwarder
-    auth.ts, logger.ts, firebase.ts, types.ts
-    OBJECT_INTERFACE.md      # canonical event-vocabulary spec
-  hooks/hooks.json           # Claude Code hook wiring
-  .claude-plugin/plugin.json # plugin manifest (hooks only — NO mcpServers)
+    index.ts, http.ts, ws.ts, bus.ts, state.ts
+    agent-event.ts            # canonical event vocabulary (in code)
+    activity-classify.ts      # tool name → ActivityKind table
+    activity-summary.ts       # ActivityRef.summary builder
+    adapters/{claude,codex,cursor,opencode,index,types}.ts
+    hook-forward.ts           # Claude-side stdin→HTTP forwarder
+    auth.ts, logger.ts, firebase.ts, types.ts, mojibake.ts, dotenv.ts
+  hooks/hooks.json
+  .claude-plugin/plugin.json
 .claude-plugin/marketplace.json
-robot_experiment/, robot_v2/   # ESP32 firmware
-helpers/                       # forwarders for Codex / Cursor / OpenCode
-examples/                      # curl + browser WS client
+robot_v2/                     # ESP32-S3 firmware
+helpers/                      # forwarder scripts for Codex / Cursor / OpenCode
+examples/                     # browser WS client + sample hooks-settings.json
+docs/                         # all documentation (start at docs/README.md)
 ```
 
-`robot_v2/` is the in-progress firmware successor to `robot_experiment/`.
+`robot_experiment/` no longer exists — all firmware work lives in
+`robot_v2/`.
 
 ## Bridge architecture
 
@@ -66,8 +62,11 @@ examples/                      # curl + browser WS client
 ```
 
 The single bus channel of note is `agent_event` — `AgentEventEnvelope`
-broadcast as-is over WebSocket. See `OBJECT_INTERFACE.md` for the union
-of `event.kind` values.
+broadcast as-is over WebSocket. See
+[`docs/bridge/OBJECT_INTERFACE.md`](docs/bridge/OBJECT_INTERFACE.md)
+for the union of `event.kind` values, and
+[`docs/bridge/HOOK_MAPPING.md`](docs/bridge/HOOK_MAPPING.md) for the
+per-agent translation tables.
 
 ### Parsers
 
@@ -83,8 +82,9 @@ tool names to `activity-classify.ts`. Add per-tool summary helpers in
 `pattern`, `query`, `url`) don't match.
 
 `activity-classify.ts` is the single source of truth for tool →
-ActivityKind. Mirror it in `robot_v2/` if/when the firmware needs the
-same classification.
+ActivityKind. `AgentEvents::classifyActivity` in the firmware mirrors
+the same idea but on the consumer side, classifying for read/write
+heuristics — they are intentionally separate.
 
 ### Permissions
 
@@ -95,7 +95,8 @@ HTTP layer adds entries on `permission.requested`, removes them on
 Without an MCP channel back to the agent CLI, `POST /api/permissions/:id`
 cannot actually approve/deny in the agent — it only clears local state
 and broadcasts a resolve. The terminal user still has to answer the
-agent's own prompt.
+agent's own prompt. The firmware recovers from stuck `BLOCKED` state by
+clearing `pending_permission` on `turn.started`.
 
 ## Working on this repo
 
@@ -109,25 +110,34 @@ agent's own prompt.
   ```
   Use a Windows-style absolute path with forward slashes — Git-Bash
   paths (`/c/...`) get treated as git remotes and fail.
-- When editing firmware, test on-device. Type-checking / Arduino
+- When editing firmware, **test on-device**. Type-checking / Arduino
   compile aren't enough for servo or display work. If no hardware is
   available, say so explicitly.
-- There is no test suite. Verify via the smoke test in `README.md`.
+- There is no test suite. Verify the bridge via the smoke test in
+  `README.md`; verify firmware on hardware.
 
 ## Firmware quick-map
 
-See `robot_experiment/FIRMWARE_OVERVIEW.md` (and `robot_v2/`) for the
-full tour. Key invariants worth knowing:
+Full tour: [`docs/firmware/OVERVIEW.md`](docs/firmware/OVERVIEW.md).
+Key invariants worth knowing:
 
-- **`AmbientMotion` edge detection.** PreToolUse edges require
-  `current_tool` set AND `current_tool_end_ms == 0` AND (either prevTool
-  was empty OR prevEndMs was nonzero). Dropping any condition causes
-  runaway motion.
-- **`Motion::playJog`** slews to a new angle over ~250ms and holds
-  there. Successive jogs interpolate from the last commanded angle.
-- **Thinking mode** eases the base angle back to centre over 1s on
-  enable and ramps oscillation amplitude over the same window.
-
-The firmware is mid-migration from raw `hook_event` consumption to
-`agent_event`. Personality derivation now belongs in firmware, not the
-bridge.
+- **`Personality::tick` polls `pending_permission`.** It cannot use the
+  callback because the single `EventHandler` slot is owned by
+  Personality itself.
+- **Tool-linger.** `READING` / `WRITING` / `EXECUTING` survive 1 s past
+  `activity.finished` so bursts of same-type calls don't flap. Refreshed
+  by any matching `activity.started`; pre-empted by a different-type one.
+- **Protected `min_ms` windows.** `FINISHED` (1.5 s), `WAKING` (1 s),
+  `WANTS_ATTENTION` (1 s) play in full; pre-empting requests are queued
+  and fire when the window expires.
+- **`MotionBehaviors::periodMsFor(state)` is the face-sync source.**
+  `FrameController` reads it to body-bob the face in time with the arm.
+  Change a state's `periodMs` in `kMotion[]` and the face auto-resyncs.
+- **TFT_eSPI bakes pins at compile time.** `robot_v2/User_Setup.h`
+  governs display wiring; `config.h` does not.
+- **The sprite framebuffer must be in internal SRAM, not PSRAM** —
+  PSRAM is not DMA-safe for SPI master writes on ESP32-S3.
+- **`activity-classify.ts` (bridge) ≠ `AgentEvents::classifyActivity`
+  (firmware).** The bridge classifies tool names → ActivityKind; the
+  firmware classifies ActivityKind + shell-command shape → READ vs WRITE.
+  They serve different layers; don't unify.

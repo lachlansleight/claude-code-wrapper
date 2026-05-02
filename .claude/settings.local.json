@@ -11,7 +11,8 @@
       "WebFetch(domain:cursor.com)",
       "WebFetch(domain:developers.openai.com)",
       "WebFetch(domain:opencode.ai)",
-      "WebFetch(domain:docs.claude.com)"
+      "WebFetch(domain:docs.claude.com)",
+      "Bash(git mv *)"
     ]
   },
   "enabledMcpjsonServers": [

@@ -1,7 +1,7 @@
 import type { ActivityKind, AgentName } from './agent-event.js'
 
 // Per-agent tool-name → ActivityKind tables. Mirrors the classification
-// table at the bottom of OBJECT_INTERFACE.md. Case-sensitive match.
+// table at the bottom of docs/bridge/OBJECT_INTERFACE.md. Case-sensitive match.
 
 const CLAUDE: Record<string, ActivityKind> = {
   Read: 'file.read',

@@ -11,7 +11,7 @@ Wire OpenAI Codex CLI's lifecycle hooks into a running `agent-bridge`.
 
 ## 1. Build + start the bridge
 
-If you haven't already (see [GETTING_STARTED_CLAUDE.md](GETTING_STARTED_CLAUDE.md)
+If you haven't already (see [CLAUDE_CODE.md](CLAUDE_CODE.md)
 for the long version):
 
 ```bash

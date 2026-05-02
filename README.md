@@ -1,17 +1,20 @@
 # Agent Bridge
 
-A standalone Node service that ingests lifecycle hooks from agentic coding
-tools (Claude Code, OpenAI Codex, Cursor, OpenCode), classifies them into a
-shared event vocabulary, and broadcasts the result over WebSocket as a
-single typed `agent_event` stream.
+A standalone Node service that ingests lifecycle hooks from agentic
+coding tools (Claude Code, OpenAI Codex, Cursor, OpenCode), classifies
+them into a shared event vocabulary, and broadcasts the result over
+WebSocket as a single typed `agent_event` stream.
 
 The bridge has **no opinion about presentation**. It does not derive
 "thinking" / "idle" / "blocked" states. Those decisions live in the
 consumer — the ESP32 firmware in [`robot_v2/`](robot_v2/), a dashboard,
 or anything else that subscribes.
 
-See [`plugin/src/OBJECT_INTERFACE.md`](plugin/src/OBJECT_INTERFACE.md) for
-the full event vocabulary.
+For the full picture in one place, read
+[`docs/AGENT_TO_ROBOT_PIPELINE.md`](docs/AGENT_TO_ROBOT_PIPELINE.md).
+The full doc index is [`docs/README.md`](docs/README.md). The event
+vocabulary spec is
+[`docs/bridge/OBJECT_INTERFACE.md`](docs/bridge/OBJECT_INTERFACE.md).
 
 ## Architecture
 
@@ -51,13 +54,13 @@ plugin/
     adapters/                # per-agent parsers (claude/codex/cursor/opencode)
     hook-forward.ts          # Claude-side stdin→HTTP forwarder
     auth.ts, logger.ts, firebase.ts, types.ts
-    OBJECT_INTERFACE.md      # spec for the AgentEvent vocabulary
   hooks/hooks.json           # Claude Code hook wiring
   .claude-plugin/plugin.json # Claude Code plugin manifest
 .claude-plugin/marketplace.json
-robot_experiment/, robot_v2/  # ESP32 firmware
-examples/                     # curl recipes + browser WS client
-helpers/                      # forwarder scripts for Codex / Cursor / OpenCode
+robot_v2/                    # ESP32-S3 firmware (face + servo)
+helpers/                     # forwarder scripts for Codex / Cursor / OpenCode
+examples/                    # browser WS client + sample hooks-settings.json
+docs/                        # everything else (start at docs/README.md)
 ```
 
 ## Run the bridge
@@ -104,10 +107,10 @@ Each agent posts hook events to `POST /hooks/<agent>` with body
 `{ "hook_type": "...", "payload": <agent-native-payload> }`. See the
 per-agent guides:
 
-- [Claude Code](GETTING_STARTED_CLAUDE.md)
-- [Codex CLI](GETTING_STARTED_CODEX.md)
-- [Cursor 1.7+](GETTING_STARTED_CURSOR.md)
-- [OpenCode](GETTING_STARTED_OPENCODE.md)
+- [Claude Code](docs/getting-started/CLAUDE_CODE.md)
+- [Codex CLI](docs/getting-started/CODEX.md)
+- [Cursor 1.7+](docs/getting-started/CURSOR.md)
+- [OpenCode](docs/getting-started/OPENCODE.md)
 
 ## HTTP API
 
@@ -118,7 +121,6 @@ All endpoints except `/api/health` require
 |--------|-----------------------------|-----------------------------------------------------------|
 | GET    | `/api/health`               | Liveness; lists registered agent adapters.                |
 | POST   | `/hooks/:agent`             | Ingest a lifecycle hook from a named agent.               |
-| POST   | `/api/hook-event`           | Legacy alias for `/hooks/claude`.                         |
 | POST   | `/api/messages`             | Inject a message (broadcast on WS only — no MCP delivery).|
 | GET    | `/api/messages/:chat_id`    | Read message log for a chat.                              |
 | GET    | `/api/state`                | Bridge state (chats, pending permissions, uptime).        |
@@ -126,6 +128,8 @@ All endpoints except `/api/health` require
 | GET    | `/api/permissions`          | Currently-pending permission requests.                    |
 | POST   | `/api/permissions/:id`      | Resolve a pending permission locally + broadcast.         |
 | GET    | `/api/firebaseData`         | Proxy the agent's Firebase RTDB record.                   |
+
+Curl recipes for each: [`docs/bridge/CURL_RECIPES.md`](docs/bridge/CURL_RECIPES.md).
 
 ### Note on permission verdicts
 
@@ -145,7 +149,7 @@ code `4401`.
 |-----------------------|--------------------------------------------------------------------|
 | `hello`               | First frame: `{ client_id, server_version }`                       |
 | `active_sessions`     | Current session id list                                            |
-| `agent_event`         | Classified `AgentEventEnvelope` — see [OBJECT_INTERFACE.md](plugin/src/OBJECT_INTERFACE.md) |
+| `agent_event`         | Classified `AgentEventEnvelope` — see [OBJECT_INTERFACE.md](docs/bridge/OBJECT_INTERFACE.md) |
 | `inbound_message`     | Echo of `POST /api/messages`                                       |
 | `permission_request`  | Pending-permission state mirror (also surfaces as `agent_event`)   |
 | `permission_resolved` | Best-effort verdict broadcast                                      |
@@ -157,6 +161,10 @@ code `4401`.
 ```ts
 { type: "send_message", content, chat_id?, meta? }
 { type: "permission_verdict", request_id, behavior: "allow"|"deny" }
+{ type: "set_servo_position", position, duration_ms? }       // -90..+90
+{ type: "setColor", key, color: { r, g, b } }                // mood-ring palette
+{ type: "config_change", display_mode: "face"|"text" }
+{ type: "emit_agent_event", agent?, session_id?, turn_id?, event }   // simulator path
 { type: "request_sessions" }
 { type: "ping" }
 ```
@@ -171,7 +179,6 @@ Each `agent_event` envelope looks like:
   session_id?: string,
   turn_id?: string,
   event: AgentEvent,             // discriminated union — see spec
-  raw: { hook_type, payload },   // unmodified vendor payload
 }
 ```
 
@@ -209,9 +216,10 @@ clients don't need to pin Firebase's TLS cert.
 
 ## ESP32 firmware
 
-[`robot_v2/`](robot_v2/) is the in-progress firmware client (successor to
-[`robot_experiment/`](robot_experiment/)). Personality state derivation
-lives there now — the bridge only emits raw lifecycle events.
+[`robot_v2/`](robot_v2/) is the firmware client. Personality state
+derivation lives there — the bridge only emits raw lifecycle events.
+See [`docs/firmware/OVERVIEW.md`](docs/firmware/OVERVIEW.md) for the
+module map.
 
 ## Security
 
@@ -237,7 +245,10 @@ lives there now — the bridge only emits raw lifecycle events.
 
 ## Further reading
 
-- [`plugin/src/OBJECT_INTERFACE.md`](plugin/src/OBJECT_INTERFACE.md) —
+- [`docs/README.md`](docs/README.md) — full documentation index.
+- [`docs/AGENT_TO_ROBOT_PIPELINE.md`](docs/AGENT_TO_ROBOT_PIPELINE.md) —
+  end-to-end pipeline tour.
+- [`docs/bridge/OBJECT_INTERFACE.md`](docs/bridge/OBJECT_INTERFACE.md) —
   canonical event vocabulary spec.
 - [`CLAUDE.md`](CLAUDE.md) — orientation notes for Claude Code sessions
   working on this repo.

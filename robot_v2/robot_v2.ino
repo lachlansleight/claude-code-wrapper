@@ -2,7 +2,7 @@
 // drives a procedural face on a 240x240 round GC9A01 TFT, and surfaces
 // Claude Code activity via personality state + motion behaviours.
 //
-// Module map (see FIRMWARE_OVERVIEW.md for the full tour):
+// Module map (see ../docs/firmware/OVERVIEW.md for the full tour):
 //   config.h          — wifi + bridge credentials (copy from config.example.h)
 //   Provisioning      — NVS-backed runtime config + AP-mode config portal
 //   WiFiManager       — connect & auto-reconnect

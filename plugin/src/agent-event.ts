@@ -1,5 +1,5 @@
 // Canonical agent event vocabulary the bridge emits over WebSocket.
-// See OBJECT_INTERFACE.md for the full spec.
+// See docs/bridge/OBJECT_INTERFACE.md for the full spec.
 
 export type AgentName = 'claude' | 'cursor' | 'codex' | 'opencode' | 'simulator'
 

@@ -5,7 +5,7 @@
 // One module owns both the short upper-case **label** (EDIT, BASH, GREP, ...)
 // and the per-tool **detail** string (filename, command, pattern, ...). Keep
 // them together so customizing a tool's on-screen appearance is a single
-// file edit — see TOOL_DISPLAY.md for the catalogue and budget guidance.
+// file edit. Currently unused by the face renderer — kept for future overlays.
 
 #include <Arduino.h>
 #include <ArduinoJson.h>

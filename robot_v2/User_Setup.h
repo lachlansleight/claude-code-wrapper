@@ -28,7 +28,7 @@
 
 // ---- SPI bus ---------------------------------------------------------------
 // USE_HSPI_PORT selects SPI2 on the S3. Required for stable DMA on this MCU
-// — without it, only the first frame renders. See GC9A01_RESEARCH.md.
+// — without it, only the first frame renders. See ../docs/firmware/DISPLAY_AND_FACE.md.
 #define USE_HSPI_PORT
 
 // ---- Pins (ESP32-S3) -------------------------------------------------------
