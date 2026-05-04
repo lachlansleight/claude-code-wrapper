@@ -63,7 +63,7 @@ void onAgentEvent(const AgentEvents::Event& e) {
     return;
   }
   if (strcmp(e.kind, "turn.started") == 0) {
-    if(VerbSystem::sCurrent == VerbSystem::Verb::Sleepping) {
+    if(VerbSystem::current() == VerbSystem::Verb::Sleeping) {
       VerbSystem::fireOverlay(VerbSystem::Verb::Waking, kOverlayMs, VerbSystem::Verb::Thinking);
     } else {
       VerbSystem::setVerb(VerbSystem::Verb::Thinking);
