@@ -33,6 +33,19 @@ void dispatch(JsonDocument& doc) {
 
   if (strcmp(type, "config_change") == 0) {
     if (!sModeHandler) return;
+    JsonVariantConst modeVar = doc["display_mode"];
+    if (modeVar.isNull()) modeVar = doc["config"]["display_mode"];
+    if (!modeVar.isNull()) {
+      const char* mode = modeVar.as<const char*>();
+      if (mode && !strcmp(mode, "text")) {
+        sModeHandler(DisplayMode::Text);
+        return;
+      }
+      if (mode && !strcmp(mode, "face")) {
+        sModeHandler(DisplayMode::Face);
+        return;
+      }
+    }
     const bool faceEnabled = doc["face_mode_enabled"] | true;
     sModeHandler(faceEnabled ? DisplayMode::Face : DisplayMode::Text);
     return;

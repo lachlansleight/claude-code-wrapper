@@ -6,6 +6,7 @@
 #include "../agents/BridgeControl.h"
 #include "../behaviour/EmotionSystem.h"
 #include "../behaviour/VerbSystem.h"
+#include "../bridge/BridgeClient.h"
 #include "../core/DebugLog.h"
 #include "../hal/Motion.h"
 #include "../hal/Settings.h"
@@ -22,6 +23,8 @@ static constexpr float kStrainV = -0.4f;
 
 bool sPendingPermissionHeld = false;
 bool sStrainHeld = false;
+uint32_t sLastSessionPollMs = 0;
+static constexpr uint32_t kSessionPollMs = 5000;
 
 const char* getCommandAction(JsonDocument& doc) {
   const char* type = doc["type"] | "";
@@ -36,12 +39,12 @@ JsonVariantConst getCommandParams(JsonDocument& doc) {
 }
 
 void setVerbFromActivity(const AgentEvents::Event& e) {
-  const char* activityKind = e.event["activity"]["kind"] | "";
-  if (strcmp(activityKind, "shell.exec") == 0) {
+  if (e.activity_kind && !strcmp(e.activity_kind, "shell.exec")) {
     VerbSystem::setVerb(VerbSystem::Verb::Executing);
     return;
   }
-  if (strstr(activityKind, "write") || strstr(activityKind, "edit")) {
+  if (AgentEvents::classifyActivity(e.activity_kind, e.activity_tool, e.activity_summary) ==
+      AgentEvents::ACTIVITY_WRITE) {
     VerbSystem::setVerb(VerbSystem::Verb::Writing);
     return;
   }
@@ -89,7 +92,9 @@ void onPaletteChange(Settings::NamedColor color, uint8_t r, uint8_t g, uint8_t b
 }
 
 void onDisplayMode(BridgeControl::DisplayMode mode) {
-  Settings::setFaceModeEnabled(mode == BridgeControl::DisplayMode::Face);
+  const bool face = (mode == BridgeControl::DisplayMode::Face);
+  Settings::setFaceModeEnabled(face);
+  AgentEvents::setRenderMode(face ? AgentEvents::RENDER_FACE : AgentEvents::RENDER_TEXT);
 }
 
 void onServoOverride(int8_t angle, uint32_t durationMs) { Motion::holdPosition(angle, durationMs); }
@@ -152,6 +157,7 @@ void dispatchRawCommand(JsonDocument& doc) {
 }  // namespace
 
 void begin() {
+  AgentEvents::begin();
   EmotionSystem::begin();
   VerbSystem::begin();
   AgentEvents::onEvent(&onAgentEvent);
@@ -160,12 +166,25 @@ void begin() {
   BridgeControl::onServoOverride(&onServoOverride);
   sPendingPermissionHeld = false;
   sStrainHeld = false;
+  sLastSessionPollMs = 0;
+  AgentEvents::setRenderMode(Settings::faceModeEnabled() ? AgentEvents::RENDER_FACE
+                                                        : AgentEvents::RENDER_TEXT);
 }
 
 void tick() {
+  AgentEvents::tick();
+
+  if (Bridge::isConnected() && AgentEvents::state().latched_session[0] == '\0') {
+    const uint32_t now = millis();
+    if (now - sLastSessionPollMs >= kSessionPollMs) {
+      sLastSessionPollMs = now;
+      Bridge::requestSessions();
+    }
+  }
+
   VerbSystem::tick();
 
-  const bool pendingPermission = AgentEvents::state().pendingPermission[0] != '\0';
+  const bool pendingPermission = AgentEvents::state().pending_permission[0] != '\0';
   if (pendingPermission && !sPendingPermissionHeld) {
     EmotionSystem::setHeldTarget(EmotionSystem::Drivers::PendingPermission, kBlockedV);
     sPendingPermissionHeld = true;

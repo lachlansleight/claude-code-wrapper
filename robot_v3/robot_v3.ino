@@ -1,7 +1,8 @@
 #include "src/core/DebugLog.h"
 #include "src/app/EventRouter.h"
+#include "src/app/SceneContextFill.h"
 #include "src/bridge/BridgeClient.h"
-#include "src/agents/AgentEvents.h"
+#include "src/face/SceneTypes.h"
 #include "src/hal/Display.h"
 #include "src/hal/Motion.h"
 #include "src/hal/Provisioning.h"
@@ -11,6 +12,8 @@
 
 namespace {
 Provisioning::Config gCfg;
+constexpr uint32_t kSceneContextLogMs = 500;
+uint32_t sLastSceneContextLogMs = 0;
 }
 
 void setup() {
@@ -33,7 +36,6 @@ void setup() {
     Display::drawFailedToConnect();
   }
 
-  AgentEvents::begin();
   EventRouter::begin();
   Bridge::onMessage(&EventRouter::onBridgeMessage);
   Bridge::onConnection(&EventRouter::onBridgeConnection);
@@ -47,5 +49,19 @@ void loop() {
   Bridge::tick();
   EventRouter::tick();
   Motion::tick();
+
+  const uint32_t now = millis();
+  if (now - sLastSceneContextLogMs >= kSceneContextLogMs) {
+    sLastSceneContextLogMs = now;
+    Face::SceneContext ctx;
+    SceneContextFill::fill(ctx);
+    LOG_INFO(
+        "[ctx] expr=%s V=%d A=%d latch=%s pend=%s rw=%u/%u ws=%d st=%.40s",
+        Face::expressionName(ctx.effective_expression),
+        (int)(ctx.mood_v * 100.0f), (int)(ctx.mood_a * 100.0f), ctx.latched_session[0] ? ctx.latched_session : "-",
+        ctx.pending_permission[0] ? ctx.pending_permission : "-", (unsigned)ctx.read_tools_this_turn,
+        (unsigned)ctx.write_tools_this_turn, ctx.ws_connected ? 1 : 0, ctx.status_line);
+  }
+
   delay(10);
 }
