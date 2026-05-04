@@ -376,7 +376,7 @@ write the parser).
 The bridge emits a single typed WebSocket frame: `agent_event`,
 matching the `AgentEventEnvelope` shape above. The earlier `hook_event`
 and `state_event` frames have been removed. Personality derivation
-lives in consumers (the firmware in `robot_v2/`), not the bridge.
+lives in consumers (the firmware in `robot_v3/`), not the bridge.
 
 Implemented by:
 

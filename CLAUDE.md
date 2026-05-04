@@ -11,12 +11,12 @@ A **standalone agent-agnostic bridge**: a Node HTTP/WS service that
 ingests lifecycle hooks from any agentic CLI (Claude Code, Codex, Cursor,
 OpenCode), parses them into a shared `AgentEvent` vocabulary, and
 broadcasts envelopes over WebSocket. The ESP32-S3 firmware in
-[`robot_v2/`](robot_v2/) is the canonical consumer.
+[`robot_v3/`](robot_v3/) is the canonical consumer.
 
 The bridge has **no opinion about presentation**. It emits lifecycle
 events (turn started, activity started/finished, permission requested),
-not derived states. State derivation lives in the firmware
-(`Personality`).
+not derived states. Behaviour derivation lives in the firmware
+(`VerbSystem` + `EmotionSystem` + `EventRouter`).
 
 Source lives in `plugin/src/`. Compiled output is `plugin/dist/`. The
 Claude Code plugin in `plugin/` only registers hooks now — there is no
@@ -38,14 +38,14 @@ plugin/                       # bridge service (Node)
   hooks/hooks.json
   .claude-plugin/plugin.json
 .claude-plugin/marketplace.json
-robot_v2/                     # ESP32-S3 firmware
+robot_v3/                     # ESP32-S3 firmware
 helpers/                      # forwarder scripts for Codex / Cursor / OpenCode
 examples/                     # browser WS client + sample hooks-settings.json
 docs/                         # all documentation (start at docs/README.md)
 ```
 
 `robot_experiment/` no longer exists — all firmware work lives in
-`robot_v2/`.
+`robot_v3/`.
 
 ## Bridge architecture
 

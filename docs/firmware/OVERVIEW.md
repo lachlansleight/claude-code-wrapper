@@ -1,10 +1,18 @@
-# Firmware Overview (`robot_v2/`)
+# Firmware Overview (`robot_v3/`)
 
-ESP32-S3 firmware that connects to the agent bridge over WebSocket,
-runs a personality state machine driven by `agent_event` frames, and
-expresses that state via a procedural face on a 240×240 GC9A01 round
-TFT plus a single hobby servo for arm motion. WiFi + bridge credentials
-are provisioned on-device via a captive-AP portal.
+ESP32-S3 firmware that connects to the agent bridge over WebSocket and
+expresses behaviour via a procedural face on a 240×240 GC9A01 round TFT
+plus a single hobby servo for arm motion. WiFi + bridge credentials are
+provisioned on-device via a captive-AP portal.
+
+Unlike `robot_v2`, `robot_v3` does **not** derive behaviour via a single
+monolithic `Personality` state machine. Behaviour is composed from:
+
+- `VerbSystem` (discrete “what it’s doing”)
+- `EmotionSystem` (continuous “how it feels”)
+
+Face + motion consume a single effective `Face::Expression` derived from
+those systems (see [`BEHAVIOUR.md`](BEHAVIOUR.md)).
 
 For the cross-system tour, read
 [`AGENT_TO_ROBOT_PIPELINE.md`](../AGENT_TO_ROBOT_PIPELINE.md) first.
@@ -18,8 +26,8 @@ For the cross-system tour, read
 | SG92R servo           | configured in `config.h`        | clamped to ±45° in `MotionBehaviors`             |
 | BOOT button           | GPIO 0                          | hold 800 ms at boot for the provisioning portal  |
 
-Pin numbers, WiFi defaults, and bridge credentials live in `config.h`
-(copy `config.example.h` first; gitignored).
+Pin numbers, WiFi defaults, and bridge credentials live in
+`robot_v3/src/hal/config.h` (copy `config.example.h` first; gitignored).
 
 ## Runtime flow
 
@@ -33,18 +41,18 @@ boot
   │
   WifiMgr::tryConnect on each known network in turn
   │
-  Personality::begin()
+  EventRouter::begin()
   Bridge::begin(host, port, token)
   │
   ┌───────────────── loop() ─────────────────┐
   │  tickSerialCommands                       │
   │  WifiMgr::tick           auto-reconnect   │
   │  Bridge::tick            ws.loop + poll   │
-  │  AgentEvents::tick       linger expiry    │
-  │  Personality::tick       state transitions│
-  │  MotionBehaviors::tick   per-state motor  │
+  │  EventRouter::tick       dispatch + behaviour ticks
+  │  MotionBehaviors::tick   expression-driven motion
   │  Motion::tick            slew the PWM     │
-  │  Face::tick              render + push    │
+  │  SceneContextFill::fill  build SceneContext
+  │  Face::tick(ctx)         render + push
   └───────────────────────────────────────────┘
 ```
 
@@ -57,29 +65,25 @@ more `tick()` that observes the same state.
 
 | Module           | Files                              | Responsibility |
 |------------------|------------------------------------|----------------|
-| Entry            | `robot_v2.ino`                     | setup/loop, wires modules together, serial command shim |
-| Config           | `config.h`, `config.example.h`     | compile-time defaults (WiFi, bridge) and feature flags |
-| Provisioning     | `Provisioning.{h,cpp}`             | NVS-backed multi-network store + captive-AP portal |
-| WiFi             | `WiFiManager.{h,cpp}`              | connect-with-timeout + auto-reconnect |
-| Bridge transport | `BridgeClient.{h,cpp}`             | WS client, reconnect, JSON send helpers, session polling |
-| Settings         | `Settings.{h,cpp}`                 | NVS-backed palette + face/text mode toggle, version counter |
-| Event core       | `AgentEvents.{h,cpp}`              | dispatch WS frames, polled `AgentState`, callback registry, session latching |
-| Personality      | `Personality.{h,cpp}`              | 13-state machine — see [PERSONALITY.md](PERSONALITY.md) |
-| Motion primitives| `Motion.{h,cpp}`                   | servo attach + jog/waggle/thinking-osc/hold with safe-range clamp |
-| Motion table     | `MotionBehaviors.{h,cpp}`          | per-state motor recipe — see [MOTION_BEHAVIORS.md](MOTION_BEHAVIORS.md) |
-| Display driver   | `Display.{h,cpp}`                  | TFT init, full-screen sprite framebuffer, DMA push |
-| Frame controller | `FrameController.{h,cpp}`          | tween FaceParams, layer modulators, dispatch to scene |
-| Face renderer    | `FaceRenderer.{h,cpp}`             | draws eyes/mouth/face from `FaceParams` |
-| Mood ring        | `MoodRingRenderer.{h,cpp}`         | colour halo around the face |
-| Activity dots    | `ActivityDots.{h,cpp}`             | per-turn read/write tally pips |
-| Effects overlay  | `EffectsRenderer.{h,cpp}`          | scrolling text streams (read/write content) |
-| Scene composer   | `Scene.{h,cpp}`, `SceneTypes.h`    | composes face + ring + effects each frame |
-| Text scene       | `TextScene.{h,cpp}`                | non-face text-status mode |
-| String utility   | `AsciiCopy.{h,cpp}`                | UTF-8 → ASCII transliteration for the OLED font |
-| Logging          | `DebugLog.h`                       | LOG_INFO/WARN/ERR/WS/EVT serial macros |
+| Entry / composition | `robot_v3/robot_v3.ino` | setup/loop, wires modules together |
+| Config | `robot_v3/src/hal/config.h`, `config.example.h` | compile-time defaults (WiFi, bridge) |
+| Provisioning | `robot_v3/src/hal/Provisioning.*` + `ProvisioningUI.*` | NVS-backed creds store + captive portal, plus optional display glue |
+| WiFi | `robot_v3/src/hal/WiFiManager.*` | connect-with-timeout + auto-reconnect |
+| Display | `robot_v3/src/hal/Display.*` | TFT init, sprite framebuffer, DMA push |
+| Motion (HAL) | `robot_v3/src/hal/Motion.*` | servo primitive + slew + hold override |
+| Settings | `robot_v3/src/hal/Settings.*` | NVS-backed palette + face/text mode, version counter |
+| Bridge transport | `robot_v3/src/bridge/BridgeClient.*` | WS client + JSON parse → callbacks |
+| AgentEvents | `robot_v3/src/agents/AgentEvents.*` | semantic `agent_event` parsing into `AgentState` (side-effect free) |
+| BridgeControl | `robot_v3/src/agents/BridgeControl.*` | parses non-semantic WS controls (palette/mode/servo) |
+| Behaviour | `robot_v3/src/behaviour/{VerbSystem,EmotionSystem}.*` | verb + emotion state machines |
+| Router | `robot_v3/src/app/EventRouter.*` | firmware-owned mapping + deterministic dispatch ordering |
+| SceneContextFill | `robot_v3/src/app/SceneContextFill.*` | builds `Face::SceneContext` from behaviour + agent state |
+| Face stack | `robot_v3/src/face/*` | `SceneTypes`, renderers, `FrameController::tick(ctx)` |
+| MotionBehaviors | `robot_v3/src/hal/MotionBehaviors.*` | expression-indexed motor behaviour table |
+| Core utils | `robot_v3/src/core/*` | logging + string sanitization |
 
-The face / display layer is described in
-[DISPLAY_AND_FACE.md](DISPLAY_AND_FACE.md).
+The face / display layer is described in [`DISPLAY_AND_FACE.md`](DISPLAY_AND_FACE.md).
+The behaviour model is described in [`BEHAVIOUR.md`](BEHAVIOUR.md).
 
 ## Provisioning portal
 
@@ -107,7 +111,7 @@ Available on the USB serial console at 115200 baud:
   display work.** Test on-device. If no hardware is available, say so
   explicitly rather than guessing.
 - TFT_eSPI bakes pin selection in at compile time via
-  `robot_v2/User_Setup.h` — the runtime `config.h` cannot override
+  `robot_v3/User_Setup.h` — the runtime `config.h` cannot override
   display pins. Keep the two in sync if you change wiring.
 - DMA on ESP32-S3 needs the Arduino-ESP32 core 3.x (IDF ≥ 2.0.14) and
   `USE_HSPI_PORT` defined in `User_Setup.h`. The sprite framebuffer must
@@ -120,7 +124,7 @@ Install via the Library Manager:
 
 - **WebSockets** by Markus Sattler
 - **ArduinoJson** by Benoit Blanchon (v7+)
-- **TFT_eSPI** by Bodmer (configure via `robot_v2/User_Setup.h`)
+- **TFT_eSPI** by Bodmer (configure via `robot_v3/User_Setup.h`)
 - **ESP32Servo** by Kevin Harrington (≥ 3.0 for Arduino-ESP32 core 3.x)
 
 Board: ESP32-S3 with Arduino-ESP32 core 3.x.
@@ -129,8 +133,7 @@ Board: ESP32-S3 with Arduino-ESP32 core 3.x.
 
 - **One namespace per module**, no classes unless there's genuine state
   to encapsulate.
-- **Polled state is primary**; callbacks are offered but optional. The
-  single `EventHandler` slot in `AgentEvents` is taken by `Personality`.
+- **Polled state is primary**; callbacks are offered but optional.
 - **All display strings go through `AsciiCopy::copy`.** Anything from
   vendor payloads can carry UTF-8 punctuation that the OLED font has no
   glyphs for.

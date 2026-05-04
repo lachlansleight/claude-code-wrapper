@@ -7,7 +7,7 @@ WebSocket as a single typed `agent_event` stream.
 
 The bridge has **no opinion about presentation**. It does not derive
 "thinking" / "idle" / "blocked" states. Those decisions live in the
-consumer — the ESP32 firmware in [`robot_v2/`](robot_v2/), a dashboard,
+consumer — the ESP32 firmware in [`robot_v3/`](robot_v3/), a dashboard,
 or anything else that subscribes.
 
 For the full picture in one place, read
@@ -57,7 +57,7 @@ plugin/
   hooks/hooks.json           # Claude Code hook wiring
   .claude-plugin/plugin.json # Claude Code plugin manifest
 .claude-plugin/marketplace.json
-robot_v2/                    # ESP32-S3 firmware (face + servo)
+robot_v3/                    # ESP32-S3 firmware (face + servo)
 helpers/                     # forwarder scripts for Codex / Cursor / OpenCode
 examples/                    # browser WS client + sample hooks-settings.json
 docs/                        # everything else (start at docs/README.md)
@@ -128,6 +128,8 @@ All endpoints except `/api/health` require
 | GET    | `/api/permissions`          | Currently-pending permission requests.                    |
 | POST   | `/api/permissions/:id`      | Resolve a pending permission locally + broadcast.         |
 | GET    | `/api/firebaseData`         | Proxy the agent's Firebase RTDB record.                   |
+| GET    | `/api/raw/capabilities`     | Discover raw control endpoints (broadcast to WS clients). |
+| POST   | `/api/raw/*`                | Raw verb/emotion/config controls (broadcast to WS clients).|
 
 Curl recipes for each: [`docs/bridge/CURL_RECIPES.md`](docs/bridge/CURL_RECIPES.md).
 
@@ -165,6 +167,10 @@ code `4401`.
 { type: "setColor", key, color: { r, g, b } }                // mood-ring palette
 { type: "config_change", display_mode: "face"|"text" }
 { type: "emit_agent_event", agent?, session_id?, turn_id?, event }   // simulator path
+{ type: "startVerb", verb }
+{ type: "clearVerb" }
+{ type: "setOverlay", verb, duration_ms? }
+{ type: "emotion.command", action, params? }
 { type: "request_sessions" }
 { type: "ping" }
 ```
@@ -216,10 +222,15 @@ clients don't need to pin Firebase's TLS cert.
 
 ## ESP32 firmware
 
-[`robot_v2/`](robot_v2/) is the firmware client. Personality state
-derivation lives there — the bridge only emits raw lifecycle events.
-See [`docs/firmware/OVERVIEW.md`](docs/firmware/OVERVIEW.md) for the
-module map.
+[`robot_v3/`](robot_v3/) is the firmware client. Behaviour mapping lives
+there — the bridge only emits lifecycle events plus optional direct
+control frames.
+
+Start here:
+
+- [`docs/firmware/OVERVIEW.md`](docs/firmware/OVERVIEW.md)
+- [`docs/firmware/BEHAVIOUR.md`](docs/firmware/BEHAVIOUR.md)
+- [`docs/bridge/CONTROL.md`](docs/bridge/CONTROL.md)
 
 ## Security
 

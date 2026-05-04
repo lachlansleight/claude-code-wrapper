@@ -15,6 +15,8 @@ quickstart; the rest lives here.
 
 - [bridge/OBJECT_INTERFACE.md](bridge/OBJECT_INTERFACE.md) — canonical
   `AgentEvent` vocabulary the bridge emits over WebSocket.
+- [bridge/CONTROL.md](bridge/CONTROL.md) — how to control the robot via
+  semantic `agent_event` and raw verb/emotion commands (WS + HTTP).
 - [bridge/HOOK_MAPPING.md](bridge/HOOK_MAPPING.md) — per-agent hook →
   generic event translation tables.
 - [bridge/CURL_RECIPES.md](bridge/CURL_RECIPES.md) — curl recipes for
@@ -27,22 +29,15 @@ quickstart; the rest lives here.
 - [getting-started/CURSOR.md](getting-started/CURSOR.md)
 - [getting-started/OPENCODE.md](getting-started/OPENCODE.md)
 
-## Firmware (`robot_v2/`)
+## Firmware (`robot_v3/`)
 
-- [firmware/OVERVIEW.md](firmware/OVERVIEW.md) — module map, runtime
-  flow, hardware, libraries.
-- [firmware/PERSONALITY.md](firmware/PERSONALITY.md) — 13-state machine
-  spec (event triggers, transitions, protected windows, tool-linger,
-  permission gating).
-- [firmware/MOTION_BEHAVIORS.md](firmware/MOTION_BEHAVIORS.md) —
-  per-state motor recipe table; modes (`STATIC` / `OSCILLATE` /
-  `WAGGLE` / `THINKING` / etc.) and the face-sync `periodMsFor` helper.
+- [firmware/OVERVIEW.md](firmware/OVERVIEW.md) — what the firmware does,
+  runtime flow, and module map.
+- [firmware/BEHAVIOUR.md](firmware/BEHAVIOUR.md) — `VerbSystem` +
+  `EmotionSystem`, precedence rules, and the raw command surface.
 - [firmware/DISPLAY_AND_FACE.md](firmware/DISPLAY_AND_FACE.md) — GC9A01
-  hardware notes, sprite framebuffer, `FaceParams` model, modulators
-  (breath / body-bob / blink / gaze / mood-ring), text mode, effects
-  overlays.
-- [firmware/EXPRESSION_PLANS.md](firmware/EXPRESSION_PLANS.md) —
-  in-progress: expression-name refactor brain-dump.
+  hardware notes, sprite framebuffer, `FaceParams`/`SceneContext`, face
+  modulators, text scene, effects overlays.
 
 ## Forward-looking ideas
 

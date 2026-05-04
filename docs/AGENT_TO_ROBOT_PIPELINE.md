@@ -23,23 +23,27 @@ of the whole system; the per-layer docs go deeper on each stage.
                                                   WS frame
                                                        │
                                           ┌────────────▼──────────────┐
-                                          │   ESP32-S3 (robot_v2/)    │
+                                          │   ESP32-S3 (robot_v3/)    │
                                           │                           │
-                                          │  BridgeClient   ──► AgentEvents.dispatch
+                                          │  BridgeClient   ──► EventRouter::onBridgeMessage
                                           │                              │
-                                          │                       mutate AgentState
-                                          │                              │
-                                          │           ┌──────────────────┴──────────┐
-                                          │           ▼                              ▼
-                                          │     Personality                  (event callbacks)
-                                          │   (state machine)
-                                          │           │
-                                          │           ▼
-                                          │   ┌───────┴───────┐
-                                          │   ▼               ▼
-                                          │ MotionBehaviors  FrameController
-                                          │   │               │
-                                          │ Motion (servo)   Display (TFT sprite + DMA)
+                                          │       dispatch ordering:
+                                          │         1) raw behaviour commands
+                                          │         2) AgentEvents (semantic agent_event)
+                                          │         3) BridgeControl (palette/mode/servo)
+                                          │
+                                          │  ┌─────────────── behaviour ───────────────┐
+                                          │  ▼                                         ▼
+                                          │ VerbSystem                             EmotionSystem
+                                          │  │                                         │
+                                          │  └──────────────► SceneContextFill ◄────────┘
+                                          │                    (effective Expression)
+                                          │
+                                          │  ┌─────────────── outputs ────────────────┐
+                                          │  ▼                                        ▼
+                                          │ MotionBehaviors(Expression)          Face::FrameController(ctx)
+                                          │  │                                        │
+                                          │ Motion (servo)                      Display (TFT sprite + DMA)
                                           └───────────────────────────┘
 ```
 
@@ -165,118 +169,59 @@ Clients can also send messages **back** to the bridge:
   Claude Code today.
 - `send_message` — appended to a chat log; broadcast as `inbound_message`.
 
-## Stage 6 — Firmware decodes and updates `AgentState`
+## Stage 6 — Firmware routes messages and updates behaviour
 
-`robot_v2/BridgeClient.cpp` is a thin wrapper over Markus Sattler's
+`robot_v3/src/bridge/BridgeClient.cpp` is a thin wrapper over Markus Sattler's
 WebSocketsClient — auto-reconnect, 15 s heartbeat, polls the bridge for
 the active session list every 5 s while no session is latched. Every
 text frame is parsed into an `ArduinoJson::JsonDocument` and handed to
-`AgentEvents::dispatch`.
+`EventRouter::onBridgeMessage()`.
 
-`AgentEvents` (`robot_v2/AgentEvents.cpp`) is the firmware's analogue of
-`state.ts`: it owns a single `AgentState` struct holding everything the
-renderers might need (`working`, `current_tool`, `tool_detail`,
-`pending_permission`, `last_summary`, `read_tools_this_turn`,
-`latest_shell_command`, `body_text`, …). The dispatcher is a flat switch
-on the WS frame `type` (`agent_event`, `setColor`, `config_change`,
-`active_sessions`, `set_servo_position`, …).
+`EventRouter` applies three dispatch passes in deterministic order:
 
-`agent_event` frames are routed by `event.kind` into mutations of
-`AgentState`. For example:
+1. **Raw behaviour commands** (e.g. `emotion.command`, `startVerb`) are applied
+   first so you can test behaviour independently of any agent.
+2. **Semantic `agent_event`** frames are parsed into `AgentEvents::AgentState`
+   (a side-effect-free store) and routed into tiny behaviour writes (Verb/Emotion).
+3. **Bridge controls** (`config_change`, `setColor`, `set_servo_position`) are
+   routed via `BridgeControl` into Settings / motion hold overrides.
 
-- `turn.started` → resets per-turn counters, sets `status_line` to "Thinking",
-  clears stale fields, clears any stale pending permission.
-- `activity.started` → writes `current_tool` + `tool_detail`, picks a
-  status title (`Reading` / `Writing` / `Executing`) from the
-  `activity.kind`, derives `latest_shell_command` / `latest_read_target`
-  / `latest_write_target` from the summary.
-- `activity.finished` / `activity.failed` → arms a 1 s `text_tool_linger`
-  so the tool label doesn't disappear instantly, increments
-  `read_tools_this_turn` / `write_tools_this_turn`.
-- `message.assistant` → flips the title to "Done", populates `body_text`,
-  records the turn duration.
-- `permission.requested` → populates `pending_permission`, `pending_tool`,
-  `pending_detail`.
+Behaviour is split into `VerbSystem` + `EmotionSystem`, and composed into a
+single effective `Face::Expression` by `SceneContextFill` each frame.
 
 A **session latch** ensures only one agent session drives the robot at
 a time — if you have two terminals open, the first one through the door
 wins, others are filtered out until the latch releases (session ended,
 or vanished from the active-sessions poll).
 
-After mutating state, `AgentEvents` fires the single registered
-`EventHandler` (`onAgentEvent`) — that's how `Personality` finds out an
-event happened.
+## Stage 7 — Firmware composes behaviour into an expression
 
-## Stage 7 — Personality derives a state
+`robot_v3` does not use the old monolithic `Personality` module. Instead:
 
-`Personality` (`robot_v2/Personality.cpp`) is a 13-state machine that
-reduces the raw event stream into one current "what is the robot doing
-right now?" answer. The full state table lives at the top of
-Personality.cpp; see `docs/firmware/PERSONALITY.md` for the as-built spec.
+- `VerbSystem` holds a discrete “what it’s doing” verb (plus timed overlays).
+- `EmotionSystem` holds continuous valence/activation and snaps to a named emotion.
+- `SceneContextFill` combines these into a single effective `Face::Expression`.
 
-Quick sketch:
+That single effective expression drives **both** motion and face rendering.
 
-```
-SLEEP  ──session.started──►  WAKING  ──(1s)──►  EXCITED  ──(10s)──►  READY  ──(60s)──►  IDLE  ──(30min)──►  SLEEP
-                                                         ▲                                      │
-              ┌──turn.started/activity──────────────────►┘                                      │
-              │                                                                                 │
-              ▼                                                                                 │
-         THINKING ◄──(linger)──── READING / WRITING                                             │
-              │                                                                                 │
-              │                   EXECUTING ──(5s)──► EXECUTING_LONG ──(30s)──► BLOCKED         │
-              │                                                                                 │
-              ▼                                                                                 │
-          turn.ended ──► FINISHED ──(1.5s)──► EXCITED ──────────────────────────────────────────┘
+## Stage 8 — MotionBehaviors + FrameController react each tick
 
-  Permission pending (polled from AgentState):  current ──► BLOCKED ──► (resume on resolve)
-  "Claude needs ..."  Notification:             current ──► WANTS_ATTENTION ──(1s)──► current
-```
+Two output systems consume the same effective `Face::Expression`:
 
-Two states are *protected* with a `min_ms` window — `FINISHED` (1.5 s)
-and `WAKING`/`WANTS_ATTENTION` (1 s) — so their entry animations can't
-be cut short. Pre-empting requests get queued and fire when the window
-expires.
+- **`MotionBehaviors`** (`robot_v3/src/hal/MotionBehaviors.cpp`) is an
+  expression-indexed motor table (modes like `STATIC`, `OSCILLATE`, `WAGGLE`,
+  `THINKING`). It issues `Motion::play*` calls on entry and schedules periodic
+  retriggers. It also exposes `periodMsFor(Expression)` so the face can sync
+  body-bob to arm rhythm.
 
-## Stage 8 — MotionBehaviors and FrameController react each tick
+- **`Face::FrameController`** (`robot_v3/src/face/FrameController.cpp`) picks a
+  target `FaceParams` row for the current expression, tweens between rows, and
+  layers procedural modulators (blink, gaze, breath, body-bob, thinking
+  tilt-flip). It dispatches to `Scene` (face mode) or `TextScene` (text mode),
+  then pushes via `Display::pushFrame()`.
 
-Two consumers poll `Personality::current()` every loop iteration:
-
-**`MotionBehaviors`** (`robot_v2/MotionBehaviors.cpp`) is a per-state
-table of motor recipes — one of `NONE`, `STATIC`, `RANDOM_DRIFT`,
-`OSCILLATE`, `WAGGLE`, `THINKING`. On state entry it issues the
-appropriate `Motion::play*` call; on subsequent ticks it re-triggers
-periodic motions (waggle every period, oscillate leg swap at half
-period, drift to a new random target every period+jitter). All servo
-output is clamped to a hard safe range (±45°). One table, one tuning
-surface — see `docs/firmware/MOTION_BEHAVIORS.md`.
-
-**`FrameController`** (`robot_v2/FrameController.cpp`) picks a target
-`FaceParams` row for the current state from `kBaseTargets`, tweens
-between rows over 250 ms on state change, and layers procedural
-modulators on top each frame (~30 fps, ~60 fps when text streams are
-active):
-
-- **breath** — universal ±1.5 px sine on `eye_dy` / `mouth_dy`, 4 s period
-- **body-bob** — vertical face offset synced to the motor period for
-  states with rhythmic motion
-- **thinking tilt-flip** — periodically inverts `face_rot` + `pupil_dx`
-- **idle glance** — slow random pupil targets
-- **gaze wander** — small per-state pupil oscillation
-- **blink scheduler** — per-state cadence
-- **mood-ring colour easing** — `Settings::colorRgb(NamedColor)` for the
-  current state, eased with a 200 ms time constant
-
-The composed `FaceParams` is rendered via `Scene` /
-`FaceRenderer` (face mode) or `TextScene` (text mode, toggled via
-`config_change`), drawn into the `Display` sprite, then DMA-pushed to
-the panel. Settings (palette, render mode) come from `Settings.cpp`
-backed by NVS; `settingsVersion()` ticks on changes so FrameController
-can re-seed mood colour without waiting for a state transition.
-
-`Motion::tick()` also runs every loop — it's responsible for actually
-slewing the servo PWM towards whatever angle MotionBehaviors last
-requested.
+`Motion::tick()` still runs every loop to slew the servo PWM toward the latest
+requested target.
 
 ---
 
@@ -304,6 +249,5 @@ blocking.
 | HTTP / WS surface             | `README.md` ("HTTP API" / "WebSocket API")   |
 | Per-agent setup               | `docs/getting-started/`                      |
 | Firmware module map           | `docs/firmware/OVERVIEW.md`                  |
-| Personality state machine     | `docs/firmware/PERSONALITY.md`               |
-| Per-state motor table         | `docs/firmware/MOTION_BEHAVIORS.md`          |
+| Behaviour model (verbs + emotion) | `docs/firmware/BEHAVIOUR.md`            |
 | Face renderer + mood ring + display hardware | `docs/firmware/DISPLAY_AND_FACE.md` |

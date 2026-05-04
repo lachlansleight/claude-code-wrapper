@@ -1,9 +1,9 @@
-# Display & Face Renderer
+# Display & Face (`robot_v3`)
 
-The display layer of the firmware — how a `Personality::State` becomes
-pixels on the GC9A01. Covers the hardware, the sprite framebuffer, the
-`FaceParams` model, the modulators layered on top, the mood ring,
-text mode, and effects overlays.
+The display layer of the firmware — how the current **effective
+`Face::Expression`** becomes pixels on the GC9A01. Covers the hardware,
+the sprite framebuffer, the `FaceParams` model, modulators layered on
+top, mood ring, text mode, and effects overlays.
 
 ## Hardware: GC9A01 round TFT
 
@@ -30,7 +30,7 @@ via a full-screen 16 bpp `TFT_eSprite` framebuffer (240 × 240 × 2 =
 writes on S3; the framebuffer must stay in SRAM.
 
 TFT_eSPI bakes pin selection in at compile time via
-`robot_v2/User_Setup.h` — runtime `config.h` cannot override display
+`robot_v3/User_Setup.h` — runtime `config.h` cannot override display
 pins. If you change wiring, change both files.
 
 Required defines in `User_Setup.h`:
@@ -44,7 +44,7 @@ Avoid strapping pins (GPIO 0/45/46) for `TFT_DC`.
 
 ## `Display` module
 
-Public surface (`robot_v2/Display.h`):
+Public surface (`robot_v3/src/hal/Display.h`):
 
 - `Display::begin()` — TFT init, sprite alloc, `Display::ready()` true on success.
 - `Display::sprite()` — `TFT_eSprite&` everyone draws into.
@@ -60,13 +60,13 @@ ring, text, etc. — composes onto the sprite via `Scene` / `FaceRenderer`
 ## Render path each frame
 
 ```
-FrameController::tick()
-  ├─ pick FaceParams target for current Personality state
+Face::FrameController::tick(ctx)
+  ├─ pick FaceParams target for current effective Expression
   ├─ tween from previous target (250 ms, smoothstep)
   ├─ apply modulators on top of the tweened params:
   │     breath, body-bob, thinking tilt-flip, idle-glance,
   │     gaze wander, blink, mood-ring colour ease
-  ├─ if faceModeEnabled:  Scene::renderScene(sprite, params, ...)
+  ├─ if ctx.face_mode:     Scene::renderScene(sprite, params, ...)
   │     else:             TextScene::renderTextScene(sprite, ...)
   └─ Display::pushFrame()
 ```
@@ -101,8 +101,9 @@ animation. Defined in `SceneTypes.h`:
 | `face_y`       | px              | whole-face vertical offset (target + body-bob)              |
 | `ring_r/g/b`   | 0–255           | mood ring colour (eased separately)                         |
 
-Per-state base targets live in `kBaseTargets[]` at the top of
-`FrameController.cpp` — one row per `Personality::State`, in enum order.
+Per-expression base targets live in `kBaseTargets[]` at the top of
+`robot_v3/src/face/FrameController.cpp` — one row per `Face::Expression`,
+in enum order.
 
 ## Modulators
 

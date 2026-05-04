@@ -13,6 +13,55 @@ export BRIDGE_URL="http://127.0.0.1:8787"
 curl "$BRIDGE_URL/api/health"
 ```
 
+## Raw behaviour controls (broadcast to WS clients)
+
+These endpoints are designed to exercise `robot_v3` behaviour without any agent
+events. They broadcast JSON frames to all connected WebSocket clients.
+
+Discover the full catalog:
+
+```bash
+curl -H "Authorization: Bearer $BRIDGE_TOKEN" \
+  "$BRIDGE_URL/api/raw/capabilities"
+```
+
+Set valence (V) and arousal (A):
+
+```bash
+curl -X POST "$BRIDGE_URL/api/raw/emotion/set-valence" \
+  -H "Authorization: Bearer $BRIDGE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"v": 0.35}'
+
+curl -X POST "$BRIDGE_URL/api/raw/emotion/set-arousal" \
+  -H "Authorization: Bearer $BRIDGE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"a": 0.25}'
+```
+
+Start a verb and fire an overlay:
+
+```bash
+curl -X POST "$BRIDGE_URL/api/raw/verb/start" \
+  -H "Authorization: Bearer $BRIDGE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"verb":"reading"}'
+
+curl -X POST "$BRIDGE_URL/api/raw/verb/overlay" \
+  -H "Authorization: Bearer $BRIDGE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"verb":"attracting_attention","duration_ms":1200}'
+```
+
+Send an arbitrary WS frame verbatim:
+
+```bash
+curl -X POST "$BRIDGE_URL/api/raw/broadcast" \
+  -H "Authorization: Bearer $BRIDGE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"emotion.command","action":"modifyValence","params":{"delta_v":0.1}}'
+```
+
 ## Inject a message into the running Claude Code session
 
 ```bash
