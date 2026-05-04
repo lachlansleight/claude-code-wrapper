@@ -74,7 +74,7 @@ and an `activity.finished` (or `.failed`) arrives, a `kToolLingerMs`
 - if a matching `activity.started` arrives first → re-enter same tool
   state, deadline reset (so bursts of same-type calls keep the state stable)
 - if a different-type `activity.started` arrives → pre-empt to that
-  state immediately (Claude has moved on)
+  state immediately (the agent has moved on)
 - if the deadline passes with neither → fall back to `THINKING`
 
 This is what makes "READING for ten Reads in a row" feel stable rather
@@ -93,7 +93,7 @@ than flapping `READING ↔ THINKING` between each tool call.
 
 The `pending_permission` field is cleared on `turn.started` as a
 recovery path, since the bridge can't reliably relay
-`permission.resolved` for Claude Code (see
+`permission.resolved` for every agent (see
 [../AGENT_TO_ROBOT_PIPELINE.md](../AGENT_TO_ROBOT_PIPELINE.md)
 "Permission verdicts: the asterisk").
 

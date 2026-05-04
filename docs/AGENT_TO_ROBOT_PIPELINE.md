@@ -198,7 +198,7 @@ on the WS frame `type` (`agent_event`, `setColor`, `config_change`,
 - `permission.requested` → populates `pending_permission`, `pending_tool`,
   `pending_detail`.
 
-A **session latch** ensures only one Claude session drives the robot at
+A **session latch** ensures only one agent session drives the robot at
 a time — if you have two terminals open, the first one through the door
 wins, others are filtered out until the latch releases (session ended,
 or vanished from the active-sessions poll).
@@ -284,12 +284,12 @@ requested.
 
 The bridge exposes `POST /api/permissions/:id` and a WS
 `permission_verdict` message. **Neither of these can actually approve
-or deny a tool call inside Claude Code**, because the bridge has no MCP
+or deny a tool call inside the agent CLI**, because the bridge has no
 back-channel to the agent — it only consumes hooks, it can't reply to
 them. `applied: true` in the HTTP response means "we cleared our local
-pending entry"; the user still has to answer the prompt in Claude
-Code's terminal. Codex and OpenCode have hook-based permission flows
-that *could* be wired up but aren't today.
+pending entry"; the user still has to answer the prompt in the agent's
+own terminal. Codex and OpenCode have hook-based permission flows that
+*could* be wired up to deliver verdicts but aren't today.
 
 The firmware's recovery path: `turn.started` clears any pending
 permission state, since a new turn implies the old prompt is no longer
