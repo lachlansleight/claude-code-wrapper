@@ -11,11 +11,17 @@ static constexpr float kTauMsA = 6000.0f;
 static constexpr float kTauMsV = 90000.0f;
 static constexpr float kSnapHysteresisDist = 0.05f;
 static constexpr uint32_t kSnapHysteresisHoldMs = 100;
-static constexpr size_t kMaxDrivers = 8;
-
 struct Coord {
   float v;
   float a;
+};
+
+// Axis-aligned region in (valence, activation); corners normalized to min/max per axis.
+struct Box {
+  float minV;
+  float maxV;
+  float minA;
+  float maxA;
 };
 
 struct Driver {
@@ -25,19 +31,39 @@ struct Driver {
 };
 
 Emotion sRaw = {0.0f, 0.0f};
-Driver sDrivers[kMaxDrivers];
+Driver sDrivers[kMaxHeldDrivers];
 uint32_t sLastTickMs = 0;
 NamedEmotion sCurrentSnap = NamedEmotion::Neutral;
 NamedEmotion sPendingSnap = NamedEmotion::Neutral;
 uint32_t sPendingSnapSinceMs = 0;
 
-constexpr Coord kCoords[(size_t)NamedEmotion::Count] = {
-    {0.0f, 0.0f},   // Neutral
-    {0.5f, 0.2f},   // Happy
-    {0.6f, 0.6f},   // Excited
-    {0.9f, 0.9f},   // Joyful
-    {-0.6f, 0.1f},  // Sad
+// Bounding boxes from corner pairs {{v,a},{v,a}}; overlap ties break by kPickOrder.
+constexpr Box kBoxes[(size_t)NamedEmotion::Count] = {
+    {-0.25f, 0.25f, -1.0f, 1.0f},    // Neutral
+    {0.25f, 1.0f, -1.0f, 0.25f},     // Happy
+    {0.25f, 1.0f, 0.25f, 0.75f},     // Excited
+    {0.25f, 1.0f, 0.75f, 1.0f},     // Joyful
+    {-1.0f, -0.25f, -1.0f, 1.0f},    // Sad
 };
+
+static constexpr NamedEmotion kPickOrder[] = {
+    NamedEmotion::Neutral,
+    NamedEmotion::Happy,
+    NamedEmotion::Excited,
+    NamedEmotion::Joyful,
+    NamedEmotion::Sad,
+};
+
+Coord boxCenter(const Box& b) {
+  return Coord{
+      (b.minV + b.maxV) * 0.5f,
+      (b.minA + b.maxA) * 0.5f,
+  };
+}
+
+bool inBox(float v, float a, const Box& b) {
+  return v >= b.minV && v <= b.maxV && a >= b.minA && a <= b.maxA;
+}
 
 float clampf(float value, float lo, float hi) {
   if (value < lo) return lo;
@@ -48,7 +74,7 @@ float clampf(float value, float lo, float hi) {
 float activeTargetV() {
   float best = 0.0f;
   float bestMag = 0.0f;
-  for (size_t i = 0; i < kMaxDrivers; ++i) {
+  for (size_t i = 0; i < kMaxHeldDrivers; ++i) {
     if (!sDrivers[i].active) continue;
     const float mag = fabsf(sDrivers[i].targetV);
     if (mag > bestMag) {
@@ -65,18 +91,35 @@ float distSq(float v, float a, const Coord& c) {
   return dv * dv + da * da;
 }
 
-NamedEmotion nearestEmotion(float v, float a, float* outBestDist = nullptr) {
+NamedEmotion nearestEmotionByCenter(float v, float a, float* outDistSq = nullptr) {
   NamedEmotion best = NamedEmotion::Neutral;
-  float bestDist = distSq(v, a, kCoords[0]);
+  float bestD = distSq(v, a, boxCenter(kBoxes[0]));
   for (size_t i = 1; i < (size_t)NamedEmotion::Count; ++i) {
-    const float d = distSq(v, a, kCoords[i]);
-    if (d < bestDist) {
-      bestDist = d;
+    const float d = distSq(v, a, boxCenter(kBoxes[i]));
+    if (d < bestD) {
+      bestD = d;
       best = (NamedEmotion)i;
     }
   }
-  if (outBestDist) *outBestDist = sqrtf(bestDist);
+  if (outDistSq) *outDistSq = bestD;
   return best;
+}
+
+// Pick the first region (in kPickOrder) that contains (v,a); if none, fall back to nearest box center.
+NamedEmotion emotionForPoint(float v, float a, float* outBestDist = nullptr) {
+  for (NamedEmotion e : kPickOrder) {
+    if (inBox(v, a, kBoxes[(size_t)e])) {
+      if (outBestDist) {
+        const Coord c = boxCenter(kBoxes[(size_t)e]);
+        *outBestDist = sqrtf(distSq(v, a, c));
+      }
+      return e;
+    }
+  }
+  float bestD = 0.0f;
+  const NamedEmotion byCenter = nearestEmotionByCenter(v, a, &bestD);
+  if (outBestDist) *outBestDist = sqrtf(bestD);
+  return byCenter;
 }
 
 }  // namespace
@@ -104,14 +147,17 @@ void tick() {
   sRaw.valence = clampf(sRaw.valence + (targetV - sRaw.valence) * alphaV, -1.0f, 1.0f);
 
   float bestDist = 0.0f;
-  const NamedEmotion nearest = nearestEmotion(sRaw.valence, sRaw.activation, &bestDist);
+  const NamedEmotion nearest =
+      emotionForPoint(sRaw.valence, sRaw.activation, &bestDist);
   if (nearest == sCurrentSnap) {
     sPendingSnap = nearest;
     sPendingSnapSinceMs = 0;
     return;
   }
 
-  const float currentDist = sqrtf(distSq(sRaw.valence, sRaw.activation, kCoords[(size_t)sCurrentSnap]));
+  const Coord currentCenter = boxCenter(kBoxes[(size_t)sCurrentSnap]);
+  const float currentDist =
+      sqrtf(distSq(sRaw.valence, sRaw.activation, currentCenter));
   if (currentDist - bestDist <= kSnapHysteresisDist) return;
 
   if (sPendingSnap != nearest) {
@@ -137,13 +183,13 @@ void modifyValence(float delta) { setValence(sRaw.valence + delta); }
 void modifyArousal(float delta) { setArousal(sRaw.activation + delta); }
 
 void setHeldTarget(uint8_t driverId, float targetValence) {
-  for (size_t i = 0; i < kMaxDrivers; ++i) {
+  for (size_t i = 0; i < kMaxHeldDrivers; ++i) {
     if (sDrivers[i].active && sDrivers[i].id == driverId) {
       sDrivers[i].targetV = clampf(targetValence, -1.0f, 1.0f);
       return;
     }
   }
-  for (size_t i = 0; i < kMaxDrivers; ++i) {
+  for (size_t i = 0; i < kMaxHeldDrivers; ++i) {
     if (!sDrivers[i].active) {
       sDrivers[i].active = true;
       sDrivers[i].id = driverId;
@@ -154,7 +200,7 @@ void setHeldTarget(uint8_t driverId, float targetValence) {
 }
 
 void releaseHeldTarget(uint8_t driverId) {
-  for (size_t i = 0; i < kMaxDrivers; ++i) {
+  for (size_t i = 0; i < kMaxHeldDrivers; ++i) {
     if (sDrivers[i].active && sDrivers[i].id == driverId) {
       sDrivers[i].active = false;
       return;
@@ -170,6 +216,22 @@ SnappedEmotion snapped() {
       sRaw.valence,
       sRaw.activation,
   };
+}
+
+DebugState debugState() {
+  DebugState out = {};
+  out.snappedCurrent = sCurrentSnap;
+  out.snappedPending = sPendingSnap;
+  out.pendingSnapActive = (sPendingSnapSinceMs != 0);
+  out.pendingSnapSinceMs = sPendingSnapSinceMs;
+  for (size_t i = 0; i < kMaxHeldDrivers; ++i) {
+    if (!sDrivers[i].active) continue;
+    if (out.heldDriverCount >= kMaxHeldDrivers) break;
+    out.heldDrivers[out.heldDriverCount].id = sDrivers[i].id;
+    out.heldDrivers[out.heldDriverCount].targetValence = sDrivers[i].targetV;
+    out.heldDriverCount++;
+  }
+  return out;
 }
 
 const char* emotionName(NamedEmotion e) {

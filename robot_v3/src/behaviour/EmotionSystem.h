@@ -24,6 +24,22 @@ struct SnappedEmotion {
   float activation;
 };
 
+static constexpr uint8_t kMaxHeldDrivers = 8;
+
+struct HeldValenceDriver {
+  uint8_t id;
+  float targetValence;
+};
+
+struct DebugState {
+  NamedEmotion snappedCurrent;
+  NamedEmotion snappedPending;
+  bool pendingSnapActive;
+  uint32_t pendingSnapSinceMs;
+  uint8_t heldDriverCount;
+  HeldValenceDriver heldDrivers[kMaxHeldDrivers];
+};
+
 namespace Drivers {
 static constexpr uint8_t PendingPermission = 1;
 static constexpr uint8_t Straining = 2;
@@ -43,6 +59,7 @@ void releaseHeldTarget(uint8_t driverId);
 
 Emotion raw();
 SnappedEmotion snapped();
+DebugState debugState();
 const char* emotionName(NamedEmotion e);
 
 }  // namespace EmotionSystem

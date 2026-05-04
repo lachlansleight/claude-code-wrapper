@@ -381,6 +381,7 @@
   <div class="row">
     <button id="faceBtn" class="btn-face" disabled>Face Mode</button>
     <button id="textBtn" class="btn-text" disabled>Text Mode</button>
+    <button id="debugBtn" class="btn-text" disabled>Debug Mode</button>
   </div>
   <h3>Colours</h3>
   <div id="colorControls" class="color-grid"></div>
@@ -1009,6 +1010,7 @@
       const buttonIds = [
         "faceBtn",
         "textBtn",
+        "debugBtn",
         "readToggleBtn",
         "writeToggleBtn",
         "executeToggleBtn",
@@ -1143,6 +1145,7 @@
 
     document.getElementById("faceBtn").addEventListener("click", () => sendMode("face"));
     document.getElementById("textBtn").addEventListener("click", () => sendMode("text"));
+    document.getElementById("debugBtn").addEventListener("click", () => sendMode("debug"));
     const initColorControls = () => {
       const root = document.getElementById("colorControls");
       root.innerHTML = `

@@ -21,6 +21,8 @@ Verb sPreOverlayVerb = Verb::None;
 bool sOverlayQueued = false;
 Verb sQueuedOverlayVerb = Verb::None;
 uint32_t sQueuedOverlayDurationMs = 0;
+bool sQueuedExplicitPostVerb = false;
+Verb sQueuedPostOverlayVerb = Verb::None;
 
 bool ieq(const char* a, const char* b) {
   if (!a || !b) return false;
@@ -47,6 +49,8 @@ void begin() {
   sOverlayUntilMs = 0;
   sPreOverlayVerb = Verb::None;
   sOverlayQueued = false;
+  sQueuedExplicitPostVerb = false;
+  sQueuedPostOverlayVerb = Verb::None;
 }
 
 void tick() {
@@ -60,8 +64,15 @@ void tick() {
     if (sOverlayQueued) {
       const Verb queued = sQueuedOverlayVerb;
       const uint32_t duration = sQueuedOverlayDurationMs;
+      const bool explicitPost = sQueuedExplicitPostVerb;
+      const Verb post = sQueuedPostOverlayVerb;
       sOverlayQueued = false;
-      fireOverlay(queued, duration);
+      sQueuedExplicitPostVerb = false;
+      if (explicitPost) {
+        fireOverlay(queued, duration, post);
+      } else {
+        fireOverlay(queued, duration);
+      }
       return;
     }
   }
@@ -108,19 +119,30 @@ void armLinger(uint32_t ms) {
   sLingerUntilMs = millis() + ms;
 }
 
-void fireOverlay(Verb overlayVerb, uint32_t durationMs) {
+static void fireOverlayImpl(Verb overlayVerb, uint32_t durationMs, bool explicitPostOverlay,
+                            Verb postOverlayVerb) {
   if (!isOverlayVerb(overlayVerb)) return;
   if (durationMs == 0) durationMs = 1;
   if (sOverlayActive) {
     sOverlayQueued = true;
     sQueuedOverlayVerb = overlayVerb;
     sQueuedOverlayDurationMs = durationMs;
+    sQueuedExplicitPostVerb = explicitPostOverlay;
+    if (explicitPostOverlay) sQueuedPostOverlayVerb = postOverlayVerb;
     return;
   }
-  sPreOverlayVerb = sCurrent;
+  sPreOverlayVerb = explicitPostOverlay ? postOverlayVerb : sCurrent;
   sOverlayActive = true;
   sOverlayVerb = overlayVerb;
   sOverlayUntilMs = millis() + durationMs;
+}
+
+void fireOverlay(Verb overlayVerb, uint32_t durationMs) {
+  fireOverlayImpl(overlayVerb, durationMs, false, Verb::None);
+}
+
+void fireOverlay(Verb overlayVerb, uint32_t durationMs, Verb postOverlayVerb) {
+  fireOverlayImpl(overlayVerb, durationMs, true, postOverlayVerb);
 }
 
 Verb current() { return sCurrent; }
@@ -128,6 +150,22 @@ Verb effective() { return sOverlayActive ? sOverlayVerb : sCurrent; }
 bool overlayActive() { return sOverlayActive; }
 uint32_t enteredAtMs() { return sEnteredAtMs; }
 uint32_t timeInCurrentMs() { return millis() - sEnteredAtMs; }
+
+DebugState debugState() {
+  return DebugState{
+      sCurrent,
+      sOverlayActive ? sOverlayVerb : sCurrent,
+      sOverlayVerb,
+      sPreOverlayVerb,
+      sQueuedOverlayVerb,
+      sOverlayActive,
+      sOverlayQueued,
+      sEnteredAtMs,
+      sLingerUntilMs,
+      sOverlayUntilMs,
+      sQueuedOverlayDurationMs,
+  };
+}
 
 const char* verbName(Verb v) {
   switch (v) {

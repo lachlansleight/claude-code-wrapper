@@ -59,6 +59,7 @@ void loop() {
   MotionBehaviors::tick(ctx.effective_expression);
   Face::tick(ctx);
 
+  #if DEBUG_SERIAL_VERBOSE
   const uint32_t now = millis();
   if (now - sLastSceneContextLogMs >= kSceneContextLogMs) {
     sLastSceneContextLogMs = now;
@@ -69,6 +70,7 @@ void loop() {
         ctx.pending_permission[0] ? ctx.pending_permission : "-", (unsigned)ctx.read_tools_this_turn,
         (unsigned)ctx.write_tools_this_turn, ctx.ws_connected ? 1 : 0, ctx.status_line);
   }
+  #endif
 
   delay(10);
 }

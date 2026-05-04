@@ -8,4 +8,5 @@
 #define BRIDGE_TOKEN "e0112a5b1f05"
 
 #define DEBUG_WS_VERBOSE true
+#define DEBUG_SERIAL_VERBOSE false
 #define SERVO_PIN 8

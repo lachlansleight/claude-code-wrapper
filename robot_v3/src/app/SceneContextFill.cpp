@@ -114,6 +114,7 @@ void fill(Face::SceneContext& out) {
   out.read_tools_this_turn = st.read_tools_this_turn;
   out.write_tools_this_turn = st.write_tools_this_turn;
   out.ws_connected = st.ws_connected;
+  out.render_mode = (uint8_t)AgentEvents::renderMode();
   out.face_mode = (AgentEvents::renderMode() == AgentEvents::RENDER_FACE);
   out.settings_version = Settings::settingsVersion();
 
@@ -129,6 +130,31 @@ void fill(Face::SceneContext& out) {
   const EmotionSystem::Emotion raw = EmotionSystem::raw();
   out.mood_v = raw.valence;
   out.mood_a = raw.activation;
+
+  const EmotionSystem::DebugState emotionDebug = EmotionSystem::debugState();
+  copyField(out.snapped_emotion, sizeof(out.snapped_emotion),
+            EmotionSystem::emotionName(emotionDebug.snappedCurrent));
+  copyField(out.pending_snapped_emotion, sizeof(out.pending_snapped_emotion),
+            EmotionSystem::emotionName(emotionDebug.snappedPending));
+  out.pending_snap_active = emotionDebug.pendingSnapActive;
+  out.pending_snap_since_ms = emotionDebug.pendingSnapSinceMs;
+  out.held_driver_count = emotionDebug.heldDriverCount;
+  for (uint8_t i = 0; i < emotionDebug.heldDriverCount && i < 8; ++i) {
+    out.held_driver_ids[i] = emotionDebug.heldDrivers[i].id;
+    out.held_driver_targets[i] = emotionDebug.heldDrivers[i].targetValence;
+  }
+
+  const VerbSystem::DebugState verbDebug = VerbSystem::debugState();
+  copyField(out.verb_current, sizeof(out.verb_current), VerbSystem::verbName(verbDebug.current));
+  copyField(out.verb_effective, sizeof(out.verb_effective), VerbSystem::verbName(verbDebug.effective));
+  out.verb_overlay_active = verbDebug.overlayActive;
+  out.verb_overlay_queued = verbDebug.overlayQueued;
+  out.verb_time_in_current_ms = VerbSystem::timeInCurrentMs();
+  const uint32_t now = millis();
+  out.verb_linger_remaining_ms =
+      (verbDebug.lingerUntilMs > now) ? (verbDebug.lingerUntilMs - now) : 0;
+  out.verb_overlay_remaining_ms =
+      (verbDebug.overlayUntilMs > now) ? (verbDebug.overlayUntilMs - now) : 0;
 
   const VerbSystem::Verb eff = VerbSystem::effective();
   if (VerbSystem::overlayActive()) {

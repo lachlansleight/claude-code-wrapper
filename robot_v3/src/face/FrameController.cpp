@@ -504,7 +504,7 @@ void tick(const SceneContext& ctx) {
                                   bg565,
                                   divider565};
 
-  if (ctx.face_mode) {
+  if (ctx.render_mode == (uint8_t)RenderMode::Face) {
     renderScene(spr, p, blinkAmt, gdx, gdy, renderState, ctx, now);
   } else {
     renderTextScene(spr, renderState, ctx, now);

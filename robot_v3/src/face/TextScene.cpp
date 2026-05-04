@@ -164,8 +164,141 @@ static void buildSubtitleLine(char* out, size_t cap, const SceneContext& ctx, ui
   }
 }
 
+static const char* driverName(uint8_t id) {
+  switch (id) {
+    case 1:
+      return "pending_permission";
+    case 2:
+      return "straining";
+    default:
+      return "custom";
+  }
+}
+
+static int16_t drawDebugWrappedLine(TFT_eSprite& s, int16_t y, uint16_t color, const char* text) {
+  static constexpr int16_t kScreenW = 240;
+  static constexpr int16_t kMaxTextW = (int16_t)(kScreenW * 0.8f);
+  static constexpr int16_t kTextX = (int16_t)((kScreenW - kMaxTextW) / 2);
+  static constexpr int16_t kLineAdvance = 10;
+
+  if (!text || !*text) return (int16_t)(y + kLineAdvance);
+
+  s.setTextColor(color, TFT_BLACK);
+  const char* p = text;
+  while (*p && y <= 232) {
+    while (*p == ' ') ++p;
+    if (!*p) break;
+
+    char out[128];
+    int16_t outLen = 0;
+    int16_t lastSpace = -1;
+    const char* start = p;
+    while (*p && outLen < (int16_t)sizeof(out) - 1) {
+      if (*p == '\n' || *p == '\r') break;
+      out[outLen] = *p;
+      out[outLen + 1] = '\0';
+      if (s.textWidth(out) > kMaxTextW) break;
+      if (*p == ' ') lastSpace = outLen;
+      ++outLen;
+      ++p;
+    }
+
+    if (outLen == 0) {
+      out[0] = *p ? *p : '?';
+      out[1] = '\0';
+      if (*p) ++p;
+    } else if (*p && *p != '\n' && *p != '\r' && lastSpace > 0 && s.textWidth(out) > kMaxTextW) {
+      p = start + lastSpace + 1;
+      outLen = lastSpace;
+      out[outLen] = '\0';
+    } else {
+      out[outLen] = '\0';
+      if (*p == '\r') {
+        ++p;
+        if (*p == '\n') ++p;
+      } else if (*p == '\n') {
+        ++p;
+      }
+    }
+
+    trimTrailing(out);
+    if (out[0]) {
+      s.drawString(out, kTextX, y);
+      y = (int16_t)(y + kLineAdvance);
+    }
+  }
+
+  return y;
+}
+
+static void renderDebugScene(TFT_eSprite& s, const SceneRenderState& renderState, const SceneContext& ctx,
+                             uint32_t now) {
+  (void)renderState;
+  s.fillSprite(TFT_BLACK);
+  s.setTextSize(1);
+  s.setTextFont(1);
+  s.setTextDatum(TL_DATUM);
+
+  const uint16_t fg = rgb888To565(ctx.fg_r, ctx.fg_g, ctx.fg_b);
+  const uint16_t accent = rgb888To565(ctx.accent_r, ctx.accent_g, ctx.accent_b);
+  const uint16_t muted = rgb888To565(160, 160, 160);
+  const uint16_t warn = rgb888To565(255, 180, 80);
+
+  static constexpr int16_t kDebugLineAdvance = 10;
+  int16_t y = (int16_t)(6 + 4 * kDebugLineAdvance);
+  char line[128];
+
+  y = drawDebugWrappedLine(s, y, accent, "DEBUG MODE");
+  snprintf(line, sizeof(line), "expr=%s", expressionName(ctx.effective_expression));
+  y = drawDebugWrappedLine(s, y, fg, line);
+  snprintf(line, sizeof(line), "mood v=%.2f a=%.2f", (double)ctx.mood_v, (double)ctx.mood_a);
+  y = drawDebugWrappedLine(s, y, fg, line);
+
+  if (ctx.pending_snap_active) {
+    const uint32_t pendingMs = (ctx.pending_snap_since_ms > 0 && now > ctx.pending_snap_since_ms)
+                                   ? (now - ctx.pending_snap_since_ms)
+                                   : 0;
+    snprintf(line, sizeof(line), "snap=%s pending=%s(%lums)", ctx.snapped_emotion,
+             ctx.pending_snapped_emotion, (unsigned long)pendingMs);
+  } else {
+    snprintf(line, sizeof(line), "snap=%s", ctx.snapped_emotion);
+  }
+  y = drawDebugWrappedLine(s, y, fg, line);
+
+  snprintf(line, sizeof(line), "verb cur=%s eff=%s", ctx.verb_current, ctx.verb_effective);
+  y = drawDebugWrappedLine(s, y, fg, line);
+  snprintf(line, sizeof(line), "verb t=%lums linger=%lums", (unsigned long)ctx.verb_time_in_current_ms,
+           (unsigned long)ctx.verb_linger_remaining_ms);
+  y = drawDebugWrappedLine(s, y, fg, line);
+  snprintf(line, sizeof(line), "overlay=%s queued=%s rem=%lums", ctx.verb_overlay_active ? "on" : "off",
+           ctx.verb_overlay_queued ? "yes" : "no", (unsigned long)ctx.verb_overlay_remaining_ms);
+  y = drawDebugWrappedLine(s, y, fg, line);
+
+  y = drawDebugWrappedLine(s, y, muted, "held valence drivers:");
+  if (ctx.held_driver_count == 0) {
+    y = drawDebugWrappedLine(s, y, muted, "(none)");
+  } else {
+    for (uint8_t i = 0; i < ctx.held_driver_count && i < 8; ++i) {
+      snprintf(line, sizeof(line), "  %u:%s=%.2f", ctx.held_driver_ids[i], driverName(ctx.held_driver_ids[i]),
+               (double)ctx.held_driver_targets[i]);
+      y = drawDebugWrappedLine(s, y, fg, line);
+      if (y > 210) break;
+    }
+  }
+
+  if (ctx.pending_permission[0]) {
+    snprintf(line, sizeof(line), "pending permission=%s", ctx.pending_permission);
+    y = drawDebugWrappedLine(s, y, warn, line);
+  }
+}
+
 void renderTextScene(TFT_eSprite& s, const SceneRenderState& renderState, const SceneContext& ctx,
                      uint32_t now) {
+  if (ctx.render_mode == (uint8_t)RenderMode::Debug) {
+    renderDebugScene(s, renderState, ctx, now);
+    return;
+  }
+
   s.fillSprite(renderState.bg565);
   s.setTextSize(1);
   s.setTextDatum(TL_DATUM);

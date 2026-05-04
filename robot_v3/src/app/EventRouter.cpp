@@ -53,8 +53,9 @@ void setVerbFromActivity(const AgentEvents::Event& e) {
 
 void onAgentEvent(const AgentEvents::Event& e) {
   if (strcmp(e.kind, "session.started") == 0) {
-    VerbSystem::fireOverlay(VerbSystem::Verb::Waking, kOverlayMs);
-    EmotionSystem::impulse(+0.6f, +0.6f);
+    VerbSystem::fireOverlay(VerbSystem::Verb::Waking, kOverlayMs, VerbSystem::Verb::None);
+    EmotionSystem::setValence(+0.6f);
+    EmotionSystem::setArousal(+0.6f);
     return;
   }
   if (strcmp(e.kind, "session.ended") == 0) {
@@ -62,7 +63,11 @@ void onAgentEvent(const AgentEvents::Event& e) {
     return;
   }
   if (strcmp(e.kind, "turn.started") == 0) {
-    VerbSystem::setVerb(VerbSystem::Verb::Thinking);
+    if(VerbSystem::sCurrent == VerbSystem::Verb::Sleepping) {
+      VerbSystem::fireOverlay(VerbSystem::Verb::Waking, kOverlayMs, VerbSystem::Verb::Thinking);
+    } else {
+      VerbSystem::setVerb(VerbSystem::Verb::Thinking);
+    }
     return;
   }
   if (strcmp(e.kind, "activity.started") == 0) {
@@ -94,7 +99,18 @@ void onPaletteChange(Settings::NamedColor color, uint8_t r, uint8_t g, uint8_t b
 void onDisplayMode(BridgeControl::DisplayMode mode) {
   const bool face = (mode == BridgeControl::DisplayMode::Face);
   Settings::setFaceModeEnabled(face);
-  AgentEvents::setRenderMode(face ? AgentEvents::RENDER_FACE : AgentEvents::RENDER_TEXT);
+  switch (mode) {
+    case BridgeControl::DisplayMode::Face:
+      AgentEvents::setRenderMode(AgentEvents::RENDER_FACE);
+      break;
+    case BridgeControl::DisplayMode::Debug:
+      AgentEvents::setRenderMode(AgentEvents::RENDER_DEBUG);
+      break;
+    case BridgeControl::DisplayMode::Text:
+    default:
+      AgentEvents::setRenderMode(AgentEvents::RENDER_TEXT);
+      break;
+  }
 }
 
 void onServoOverride(int8_t angle, uint32_t durationMs) { Motion::holdPosition(angle, durationMs); }
@@ -122,7 +138,14 @@ void dispatchRawCommand(JsonDocument& doc) {
   if (strcmp(action, "setOverlay") == 0) {
     VerbSystem::Verb verb;
     const uint32_t durationMs = (uint32_t)(params["duration_ms"] | kOverlayMs);
-    if (parseVerbFromVariant(params["verb"], &verb)) VerbSystem::fireOverlay(verb, durationMs);
+    if (!parseVerbFromVariant(params["verb"], &verb)) return;
+    VerbSystem::Verb after;
+    if (parseVerbFromVariant(params["after_verb"], &after) ||
+        parseVerbFromVariant(params["post_verb"], &after)) {
+      VerbSystem::fireOverlay(verb, durationMs, after);
+    } else {
+      VerbSystem::fireOverlay(verb, durationMs);
+    }
     return;
   }
   if (strcmp(action, "modifyValence") == 0) {

@@ -41,6 +41,10 @@ void dispatch(JsonDocument& doc) {
         sModeHandler(DisplayMode::Text);
         return;
       }
+      if (mode && !strcmp(mode, "debug")) {
+        sModeHandler(DisplayMode::Debug);
+        return;
+      }
       if (mode && !strcmp(mode, "face")) {
         sModeHandler(DisplayMode::Face);
         return;

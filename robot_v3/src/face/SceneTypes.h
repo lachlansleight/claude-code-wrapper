@@ -8,6 +8,12 @@
 
 namespace Face {
 
+enum class RenderMode : uint8_t {
+  Face = 0,
+  Text,
+  Debug,
+};
+
 enum class Expression : uint8_t {
   Neutral = 0,
   Happy,
@@ -86,6 +92,7 @@ struct SceneContext {
 
   bool ws_connected;
   bool face_mode;
+  uint8_t render_mode;
   uint32_t settings_version;
 
   uint8_t accent_r;
@@ -97,6 +104,23 @@ struct SceneContext {
   uint8_t bg_r;
   uint8_t bg_g;
   uint8_t bg_b;
+
+  char snapped_emotion[16];
+  char pending_snapped_emotion[16];
+  bool pending_snap_active;
+  uint32_t pending_snap_since_ms;
+
+  char verb_current[24];
+  char verb_effective[24];
+  bool verb_overlay_active;
+  bool verb_overlay_queued;
+  uint32_t verb_time_in_current_ms;
+  uint32_t verb_linger_remaining_ms;
+  uint32_t verb_overlay_remaining_ms;
+
+  uint8_t held_driver_count;
+  uint8_t held_driver_ids[8];
+  float held_driver_targets[8];
 };
 
 static constexpr int16_t kCx = 120;

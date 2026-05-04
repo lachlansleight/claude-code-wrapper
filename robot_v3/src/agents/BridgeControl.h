@@ -7,7 +7,7 @@
 
 namespace BridgeControl {
 
-enum class DisplayMode : uint8_t { Face = 0, Text };
+enum class DisplayMode : uint8_t { Face = 0, Text, Debug };
 
 using PaletteChangeHandler = void (*)(Settings::NamedColor color, uint8_t r, uint8_t g, uint8_t b);
 using DisplayModeHandler = void (*)(DisplayMode mode);

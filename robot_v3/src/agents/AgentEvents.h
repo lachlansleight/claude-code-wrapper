@@ -16,6 +16,7 @@ enum ActivityAccess : uint8_t {
 enum RenderMode : uint8_t {
   RENDER_FACE = 0,
   RENDER_TEXT,
+  RENDER_DEBUG,
 };
 
 struct PermissionRequestEvent {

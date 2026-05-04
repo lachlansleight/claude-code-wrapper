@@ -133,7 +133,7 @@ export function attachWebSocketServer(config: BridgeConfig): (httpServer: HttpSe
     }
 
     if (m.type === 'config_change') {
-      if (typeof m.display_mode !== 'string' || (m.display_mode !== 'face' && m.display_mode !== 'text')) {
+      if (typeof m.display_mode !== 'string' || (m.display_mode !== 'face' && m.display_mode !== 'text' && m.display_mode !== 'debug')) {
         ws.send(JSON.stringify({ type: 'error', message: 'invalid_config_change' }))
         return
       }
