@@ -35,6 +35,7 @@ export function attachWebSocketServer(config: BridgeConfig): (httpServer: HttpSe
   bus.on('session_event', (p) => broadcast({ type: 'session_event', ...p }))
   bus.on('agent_event', (p) => broadcast(p))
   bus.on('sessions_changed', (p) => broadcast({ type: 'active_sessions', ...p }))
+  bus.on('raw_client_broadcast', (p) => broadcast(p))
 
   wss.on('connection', (ws, req: IncomingMessage) => {
     const client_id = `ws_${randomUUID()}`

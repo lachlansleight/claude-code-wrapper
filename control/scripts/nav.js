@@ -4,6 +4,7 @@
   const TOOLS = [
     { key: "control", label: "Control", href: "index.html" },
     { key: "simulator", label: "Face Simulator", href: "simulator.html" },
+    { key: "rawEmotion", label: "Raw HTTP lab", href: "raw-emotion.html" },
     { key: "expressions", label: "Expressions", href: "expressions.html" },
   ];
 

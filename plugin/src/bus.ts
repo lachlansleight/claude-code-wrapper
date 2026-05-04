@@ -16,6 +16,8 @@ export interface BusEvents {
   session_event: (payload: { event: 'connected' | 'disconnected' }) => void
   agent_event: (payload: AgentEventEnvelope) => void
   sessions_changed: (payload: { session_ids: string[] }) => void
+  /** Broadcast arbitrary JSON to all WebSocket clients (robot / testers). */
+  raw_client_broadcast: (payload: Record<string, unknown>) => void
 }
 
 class TypedBus extends EventEmitter {

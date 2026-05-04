@@ -2,9 +2,11 @@
 #include "src/app/EventRouter.h"
 #include "src/app/SceneContextFill.h"
 #include "src/bridge/BridgeClient.h"
+#include "src/face/FrameController.h"
 #include "src/face/SceneTypes.h"
 #include "src/hal/Display.h"
 #include "src/hal/Motion.h"
+#include "src/hal/MotionBehaviors.h"
 #include "src/hal/Provisioning.h"
 #include "src/hal/ProvisioningUI.h"
 #include "src/hal/Settings.h"
@@ -23,6 +25,8 @@ void setup() {
   Settings::begin();
   Display::begin();
   Motion::begin();
+  MotionBehaviors::begin();
+  Face::begin();
   ProvisioningUI::begin();
 
   const bool hasProvisioned = Provisioning::load(gCfg);
@@ -50,11 +54,14 @@ void loop() {
   EventRouter::tick();
   Motion::tick();
 
+  Face::SceneContext ctx;
+  SceneContextFill::fill(ctx);
+  MotionBehaviors::tick(ctx.effective_expression);
+  Face::tick(ctx);
+
   const uint32_t now = millis();
   if (now - sLastSceneContextLogMs >= kSceneContextLogMs) {
     sLastSceneContextLogMs = now;
-    Face::SceneContext ctx;
-    SceneContextFill::fill(ctx);
     LOG_INFO(
         "[ctx] expr=%s V=%d A=%d latch=%s pend=%s rw=%u/%u ws=%d st=%.40s",
         Face::expressionName(ctx.effective_expression),

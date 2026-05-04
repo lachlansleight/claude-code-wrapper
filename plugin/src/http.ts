@@ -95,9 +95,20 @@ function recordTurnHook(agent: string, hook_type: string, payload: unknown, pars
 
 const VERSION = '0.3.0'
 
+/** Local dev: allow control panels on other origins (e.g. npx http-server) to call the API. */
+function corsHeaders(): Record<string, string> {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, Accept, X-Requested-With',
+    'Access-Control-Max-Age': '86400',
+  }
+}
+
 function json(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body)
   res.writeHead(status, {
+    ...corsHeaders(),
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(payload),
   })
@@ -132,6 +143,57 @@ function sanitizeMetaKeys(meta: Record<string, string>): Record<string, string> 
     if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) out[k] = v
   }
   return out
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function emitRawToClients(payload: Record<string, unknown>): void {
+  const t = typeof payload.type === 'string' ? payload.type : ''
+  logger.info(`raw_ws_broadcast type=${t || '(none)'}`)
+  bus.emit('raw_client_broadcast', payload)
+}
+
+/** Static catalog for GET /api/raw/capabilities and the raw-emotion control panel. */
+function rawCapabilitiesCatalog(): Record<string, unknown> {
+  return {
+    description:
+      'HTTP endpoints below broadcast JSON to every WebSocket client (e.g. ESP32). Shapes match robot_v3 EventRouter::dispatchRawCommand + BridgeControl::dispatch.',
+    broadcast: {
+      method: 'POST',
+      path: '/api/raw/broadcast',
+      body: 'Any JSON object (not an array). Sent verbatim to WS clients.',
+    },
+    endpoints: [
+      {
+        path: '/api/raw/verb/start',
+        body: { verb: 'thinking' },
+        note: 'verb: none | thinking | reading | writing | executing | straining | sleeping | waking | attracting_attention',
+      },
+      { path: '/api/raw/verb/clear', body: {} },
+      { path: '/api/raw/verb/overlay', body: { verb: 'waking', duration_ms: 1000 } },
+      {
+        path: '/api/raw/emotion.command',
+        body: { action: 'modifyValence', params: { delta_v: 0.15 } },
+        note: 'action is dispatched like WS emotion.command; params object optional.',
+      },
+      { path: '/api/raw/emotion/modify-valence', body: { delta_v: 0.1 } },
+      { path: '/api/raw/emotion/modify-arousal', body: { delta_a: 0.1 } },
+      { path: '/api/raw/emotion/set-valence', body: { v: 0.0 } },
+      { path: '/api/raw/emotion/set-arousal', body: { a: 0.0 } },
+      { path: '/api/raw/emotion/held-target', body: { driver_id: 1, target_v: -0.6 } },
+      { path: '/api/raw/emotion/release-held', body: { driver_id: 1 } },
+      { path: '/api/raw/config/display-mode', body: { display_mode: 'face' } },
+      { path: '/api/raw/config/set-color', body: { color: 0, r: 0, g: 0, b: 0 }, note: 'color = NamedColor index on device' },
+      { path: '/api/raw/servo/hold', body: { angle: 0, duration_ms: 3000 } },
+    ],
+    examples_verbatim: [
+      { title: 'emotion.command setValence', payload: { type: 'emotion.command', action: 'setValence', params: { v: 0.4 } } },
+      { title: 'startVerb (flat)', payload: { type: 'startVerb', verb: 'reading' } },
+      { title: 'config_change', payload: { type: 'config_change', display_mode: 'text' } },
+    ],
+  }
 }
 
 // Common path for both /hooks/:agent and the legacy /api/hook-event alias.
@@ -219,6 +281,11 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
   const path = url.pathname
   const method = req.method ?? 'GET'
 
+  if (method === 'OPTIONS') {
+    res.writeHead(204, corsHeaders()).end()
+    return
+  }
+
   if (method === 'GET' && path === '/api/health') {
     json(res, 200, {
       ok: true,
@@ -253,7 +320,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
     if (result.listChanged) {
       bus.emit('sessions_changed', { session_ids: state.listActiveSessions() })
     }
-    res.writeHead(204).end()
+    res.writeHead(204, corsHeaders()).end()
     return
   }
 
@@ -310,7 +377,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
     if (listChanged) {
       bus.emit('sessions_changed', { session_ids: state.listActiveSessions() })
     }
-    res.writeHead(204).end()
+    res.writeHead(204, corsHeaders()).end()
     return
   }
 
@@ -378,6 +445,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
       }
       const payload = JSON.stringify(trimData)
       res.writeHead(upstream.status, {
+        ...corsHeaders(),
         'Content-Type': 'application/json; charset=utf-8',
         'Content-Length': Buffer.byteLength(payload),
       })
@@ -412,6 +480,235 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
     }
     bus.emit('permission_verdict', { request_id, behavior: body.behavior, client_id: 'http' })
     json(res, 200, { request_id, behavior: body.behavior, applied: wasPending, note: 'verdict broadcast only; agent CLI still owns the prompt' })
+    return
+  }
+
+  // --- Raw WS broadcast (robot_v3 behaviour / BridgeControl testing) ---
+  if (method === 'GET' && path === '/api/raw/capabilities') {
+    json(res, 200, rawCapabilitiesCatalog())
+    return
+  }
+
+  if (method === 'POST' && path === '/api/raw/broadcast') {
+    const body = await readJsonBody(req)
+    if (!isPlainObject(body)) {
+      json(res, 400, { error: 'body_must_be_a_json_object' })
+      return
+    }
+    emitRawToClients(body)
+    json(res, 200, { ok: true })
+    return
+  }
+
+  if (method === 'POST' && path === '/api/raw/verb/start') {
+    const body = (await readJsonBody(req)) as { verb?: unknown }
+    if (typeof body.verb !== 'string' || !body.verb.trim()) {
+      json(res, 400, { error: 'verb_required_string' })
+      return
+    }
+    emitRawToClients({ type: 'startVerb', verb: body.verb.trim() })
+    json(res, 200, { ok: true })
+    return
+  }
+
+  if (method === 'POST' && path === '/api/raw/verb/clear') {
+    await readJsonBody(req)
+    emitRawToClients({ type: 'clearVerb' })
+    json(res, 200, { ok: true })
+    return
+  }
+
+  if (method === 'POST' && path === '/api/raw/verb/overlay') {
+    const body = (await readJsonBody(req)) as { verb?: unknown; duration_ms?: unknown }
+    if (typeof body.verb !== 'string' || !body.verb.trim()) {
+      json(res, 400, { error: 'verb_required_string' })
+      return
+    }
+    const duration_ms =
+      typeof body.duration_ms === 'number' && Number.isFinite(body.duration_ms) && body.duration_ms > 0
+        ? Math.min(120_000, Math.floor(body.duration_ms))
+        : undefined
+    const payload: Record<string, unknown> = { type: 'setOverlay', verb: body.verb.trim() }
+    if (duration_ms !== undefined) payload.duration_ms = duration_ms
+    emitRawToClients(payload)
+    json(res, 200, { ok: true })
+    return
+  }
+
+  if (method === 'POST' && path === '/api/raw/emotion.command') {
+    const body = (await readJsonBody(req)) as { action?: unknown; params?: unknown }
+    if (typeof body.action !== 'string' || !body.action.trim()) {
+      json(res, 400, { error: 'action_required_string' })
+      return
+    }
+    const out: Record<string, unknown> = {
+      type: 'emotion.command',
+      action: body.action.trim(),
+    }
+    if (body.params !== undefined) {
+      if (!isPlainObject(body.params)) {
+        json(res, 400, { error: 'params_must_be_object' })
+        return
+      }
+      out.params = body.params
+    }
+    emitRawToClients(out)
+    json(res, 200, { ok: true })
+    return
+  }
+
+  if (method === 'POST' && path === '/api/raw/emotion/modify-valence') {
+    const body = (await readJsonBody(req)) as { delta_v?: unknown; delta?: unknown }
+    const delta =
+      typeof body.delta_v === 'number' && Number.isFinite(body.delta_v)
+        ? body.delta_v
+        : typeof body.delta === 'number' && Number.isFinite(body.delta)
+          ? body.delta
+          : Number.NaN
+    if (!Number.isFinite(delta)) {
+      json(res, 400, { error: 'delta_v_or_delta_required_number' })
+      return
+    }
+    emitRawToClients({ type: 'emotion.command', action: 'modifyValence', params: { delta_v: delta } })
+    json(res, 200, { ok: true })
+    return
+  }
+
+  if (method === 'POST' && path === '/api/raw/emotion/modify-arousal') {
+    const body = (await readJsonBody(req)) as { delta_a?: unknown; delta?: unknown }
+    const delta =
+      typeof body.delta_a === 'number' && Number.isFinite(body.delta_a)
+        ? body.delta_a
+        : typeof body.delta === 'number' && Number.isFinite(body.delta)
+          ? body.delta
+          : Number.NaN
+    if (!Number.isFinite(delta)) {
+      json(res, 400, { error: 'delta_a_or_delta_required_number' })
+      return
+    }
+    emitRawToClients({ type: 'emotion.command', action: 'modifyArousal', params: { delta_a: delta } })
+    json(res, 200, { ok: true })
+    return
+  }
+
+  if (method === 'POST' && path === '/api/raw/emotion/set-valence') {
+    const body = (await readJsonBody(req)) as { v?: unknown; value?: unknown }
+    const v =
+      typeof body.v === 'number' && Number.isFinite(body.v)
+        ? body.v
+        : typeof body.value === 'number' && Number.isFinite(body.value)
+          ? body.value
+          : Number.NaN
+    if (!Number.isFinite(v)) {
+      json(res, 400, { error: 'v_or_value_required_number' })
+      return
+    }
+    emitRawToClients({ type: 'emotion.command', action: 'setValence', params: { v } })
+    json(res, 200, { ok: true })
+    return
+  }
+
+  if (method === 'POST' && path === '/api/raw/emotion/set-arousal') {
+    const body = (await readJsonBody(req)) as { a?: unknown; value?: unknown }
+    const a =
+      typeof body.a === 'number' && Number.isFinite(body.a)
+        ? body.a
+        : typeof body.value === 'number' && Number.isFinite(body.value)
+          ? body.value
+          : Number.NaN
+    if (!Number.isFinite(a)) {
+      json(res, 400, { error: 'a_or_value_required_number' })
+      return
+    }
+    emitRawToClients({ type: 'emotion.command', action: 'setArousal', params: { a } })
+    json(res, 200, { ok: true })
+    return
+  }
+
+  if (method === 'POST' && path === '/api/raw/emotion/held-target') {
+    const body = (await readJsonBody(req)) as { driver_id?: unknown; target_v?: unknown }
+    const driver_id =
+      typeof body.driver_id === 'number' && Number.isFinite(body.driver_id)
+        ? Math.max(0, Math.min(255, Math.floor(body.driver_id)))
+        : Number.NaN
+    const target_v = typeof body.target_v === 'number' && Number.isFinite(body.target_v) ? body.target_v : Number.NaN
+    if (!Number.isFinite(driver_id) || !Number.isFinite(target_v)) {
+      json(res, 400, { error: 'driver_id_and_target_v_required_numbers' })
+      return
+    }
+    emitRawToClients({
+      type: 'emotion.command',
+      action: 'setHeldValenceTarget',
+      params: { driver_id, target_v },
+    })
+    json(res, 200, { ok: true })
+    return
+  }
+
+  if (method === 'POST' && path === '/api/raw/emotion/release-held') {
+    const body = (await readJsonBody(req)) as { driver_id?: unknown }
+    const driver_id =
+      typeof body.driver_id === 'number' && Number.isFinite(body.driver_id)
+        ? Math.max(0, Math.min(255, Math.floor(body.driver_id)))
+        : Number.NaN
+    if (!Number.isFinite(driver_id)) {
+      json(res, 400, { error: 'driver_id_required_number' })
+      return
+    }
+    emitRawToClients({
+      type: 'emotion.command',
+      action: 'releaseHeldValenceTarget',
+      params: { driver_id },
+    })
+    json(res, 200, { ok: true })
+    return
+  }
+
+  if (method === 'POST' && path === '/api/raw/config/display-mode') {
+    const body = (await readJsonBody(req)) as { display_mode?: unknown }
+    if (body.display_mode !== 'face' && body.display_mode !== 'text') {
+      json(res, 400, { error: 'display_mode_must_be_face_or_text' })
+      return
+    }
+    emitRawToClients({ type: 'config_change', display_mode: body.display_mode })
+    json(res, 200, { ok: true })
+    return
+  }
+
+  if (method === 'POST' && path === '/api/raw/config/set-color') {
+    const body = (await readJsonBody(req)) as { color?: unknown; r?: unknown; g?: unknown; b?: unknown }
+    const color =
+      typeof body.color === 'number' && Number.isFinite(body.color) ? Math.floor(body.color) : Number.NaN
+    const clampByte = (x: unknown): number => {
+      const n = typeof x === 'number' ? x : Number.NaN
+      if (!Number.isFinite(n)) return Number.NaN
+      return Math.max(0, Math.min(255, Math.round(n)))
+    }
+    const r = clampByte(body.r)
+    const g = clampByte(body.g)
+    const b = clampByte(body.b)
+    if (!Number.isFinite(color) || color < 0 || !Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) {
+      json(res, 400, { error: 'color_r_g_b_required' })
+      return
+    }
+    emitRawToClients({ type: 'setColor', color, r, g, b })
+    json(res, 200, { ok: true })
+    return
+  }
+
+  if (method === 'POST' && path === '/api/raw/servo/hold') {
+    const body = (await readJsonBody(req)) as { angle?: unknown; duration_ms?: unknown }
+    const angle = typeof body.angle === 'number' && Number.isFinite(body.angle) ? body.angle : Number.NaN
+    const duration_ms =
+      typeof body.duration_ms === 'number' && Number.isFinite(body.duration_ms) && body.duration_ms > 0
+        ? Math.min(60_000, Math.floor(body.duration_ms))
+        : 1000
+    if (!Number.isFinite(angle) || angle < -90 || angle > 90) {
+      json(res, 400, { error: 'angle_required_number_-90_to_90' })
+      return
+    }
+    emitRawToClients({ type: 'set_servo_position', angle: Math.round(angle), duration_ms })
+    json(res, 200, { ok: true })
     return
   }
 
