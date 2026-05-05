@@ -4,122 +4,150 @@
 
 namespace Face {
 
-static void drawParabola(TFT_eSprite& s, int16_t cx, int16_t cy, int16_t w, int16_t bend,
-                         int16_t thick, float cosA, float sinA, uint16_t fg565) {
-  if (w < 2) return;
-  if (thick < 1) thick = 1;
-  const int16_t halfw = w / 2;
+// Semicircular interp between apex (n=0) and corner (|n|=1):
+//   y(n) = corner + (apex - corner) * sqrt(1 - n^2)
+// Top and bottom edges with mirrored apexes about y=0 trace a perfect
+// ellipse, so `eye_top_apex = -ry, eye_bot_apex = +ry` gives a circular
+// eye when rx == ry.
+static inline float curveAt(int16_t apex, int16_t corner, float n) {
+  const float r = sqrtf(fmaxf(0.0f, 1.0f - n * n));
+  return (float)corner + ((float)apex - (float)corner) * r;
+}
+
+static inline float wavePhaseRad(int16_t speed_deg_per_sec, uint32_t nowMs) {
+  // (speed * t_sec) deg → rad. Keep in float; phase wraps naturally inside sinf.
+  return (float)speed_deg_per_sec * (float)nowMs * (float)(M_PI / 180000.0);
+}
+
+// Paint a vertical span [ly0..ly1] in shape-local coords as a single rotated
+// line in screen coords. Caller guarantees ly1 >= ly0.
+static inline void paintLocalSpan(TFT_eSprite& s, int16_t cx, int16_t cy, float fx, float ly0,
+                                  float ly1, float cosA, float sinA, uint16_t color) {
+  const float ax = fx * cosA;
+  const float ay = fx * sinA;
+  const int16_t x0 = cx + (int16_t)lroundf(ax - ly0 * sinA);
+  const int16_t y0 = cy + (int16_t)lroundf(ay + ly0 * cosA);
+  const int16_t x1 = cx + (int16_t)lroundf(ax - ly1 * sinA);
+  const int16_t y1 = cy + (int16_t)lroundf(ay + ly1 * cosA);
+  s.drawLine(x0, y0, x1, y1, color);
+}
+
+static void drawMouth(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy, uint32_t nowMs,
+                      float cosA, float sinA, uint16_t fg565) {
+  const int16_t halfw = p.mouth_rx;
+  if (halfw < 1) return;
+
+  const float wavePhase = wavePhaseRad(p.mouth_wave_speed, nowMs);
+  // Scale by 1/50 so a wave_freq slider value of 50 ≈ 1 cycle across the shape.
+  const float waveFreq = (float)p.mouth_wave_freq * 0.02f;
+  const float waveAmp = (float)p.mouth_wave_amp;
+  const float minThick = (float)p.mouth_thick;
+
   for (int16_t lx = -halfw; lx <= halfw; ++lx) {
-    const float norm = (float)lx / (float)halfw;
-    const float ly = -bend * (1.0f - norm * norm);
-    const float rx = (float)lx * cosA - ly * sinA;
-    const float ry = (float)lx * sinA + ly * cosA;
-    const int16_t px = cx + (int16_t)rx;
-    const int16_t py = cy + (int16_t)ry;
-    s.fillRect(px, py - thick / 2, 1, thick, fg565);
+    const float n = (float)lx / (float)halfw;
+    float yt = curveAt(p.mouth_top_apex, p.mouth_top_corner, n);
+    float yb = curveAt(p.mouth_bot_apex, p.mouth_bot_corner, n);
+    if (waveAmp != 0.0f) {
+      const float w = waveAmp * sinf(2.0f * (float)M_PI * waveFreq * n + wavePhase);
+      yt += w;
+      yb += w;
+    }
+    if (yb < yt) {
+      const float tmp = yt;
+      yt = yb;
+      yb = tmp;
+    }
+    if ((yb - yt) < minThick) {
+      const float mid = 0.5f * (yt + yb);
+      yt = mid - 0.5f * minThick;
+      yb = mid + 0.5f * minThick;
+    }
+    paintLocalSpan(s, cx, cy, (float)lx, yt, yb, cosA, sinA, fg565);
   }
 }
 
 static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy, float blinkAmt,
-                    int16_t gdx, int16_t gdy, float cosA, float sinA, uint16_t fg565,
-                    uint16_t bg565) {
-  int16_t ry = p.eye_ry;
-  if (blinkAmt > 0.01f) {
-    const float k = clamp01(blinkAmt);
-    ry = (int16_t)(ry * (1.0f - k) + 2 * k);
-    if (ry < 2) ry = 2;
-  }
-  const int16_t rx = p.eye_rx;
+                    int16_t gdx, int16_t gdy, uint32_t nowMs, float cosA, float sinA,
+                    uint16_t fg565, uint16_t bg565) {
+  const int16_t halfw = p.eye_rx;
+  if (halfw < 1) return;
 
-  if (p.eye_curve != 0 || ry < 5) {
-    drawParabola(s, cx, cy, rx * 2, p.eye_curve, p.eye_stroke * 2, cosA, sinA, fg565);
-    return;
-  }
+  // Blink squeezes the envelope vertically toward y=0. blinkAmt=1 collapses to zero gap.
+  const float blink = clamp01(blinkAmt);
+  const float blinkScale = 1.0f - blink;
 
-  s.fillEllipse(cx, cy, rx, ry, fg565);
-  const int16_t irx = rx - p.eye_stroke;
-  const int16_t iry = ry - p.eye_stroke;
-  if (irx > 0 && iry > 0) {
-    s.fillEllipse(cx, cy, irx, iry, bg565);
-  }
-  if (p.pupil_r > 0 && blinkAmt < 0.6f) {
-    const float ldx = (float)(p.pupil_dx + gdx);
-    const float ldy = (float)(p.pupil_dy + gdy);
-    const float rdx = ldx * cosA - ldy * sinA;
-    const float rdy = ldx * sinA + ldy * cosA;
+  const float wavePhase = wavePhaseRad(p.eye_wave_speed, nowMs);
+  const float waveFreq = (float)p.eye_wave_freq * 0.02f;
+  const float waveAmp = (float)p.eye_wave_amp;
+  const float thickF = (float)(p.eye_thick > 0 ? p.eye_thick : 1);
 
-    const float slackX = (float)irx - fabsf(rdx);
-    const float slackY = (float)iry - fabsf(rdy);
-    int16_t maxR = (int16_t)fminf(slackX, slackY);
-    if (maxR < 1) return;
-    int16_t effR = p.pupil_r;
-    if (effR > maxR) effR = maxR;
+  // Pupil position in eye-local coords.
+  const float pupilLx = (float)(p.pupil_dx + gdx);
+  const float pupilLy = (float)(p.pupil_dy + gdy);
+  const float pupilR = (float)p.pupil_r;
+  const float pupilR2 = pupilR * pupilR;
+  const bool drawPupil = (p.pupil_r > 0) && (blink < 0.6f);
 
-    s.fillSmoothCircle(cx + (int16_t)rdx, cy + (int16_t)rdy, effR, fg565, bg565);
-  }
-}
-
-static void drawHalfEllipse(TFT_eSprite& s, int16_t cx, int16_t cy, int16_t rx, int16_t ry,
-                            float cosA, float sinA, uint16_t fg565) {
-  if (rx < 1 || ry < 1) return;
-  for (int16_t lx = -rx; lx <= rx; ++lx) {
-    const float norm = (float)lx / (float)rx;
-    const float h = (float)ry * sqrtf(fmaxf(0.0f, 1.0f - norm * norm));
-    if (h < 0.5f) continue;
-    const float top_rx = (float)lx * cosA;
-    const float top_ry = (float)lx * sinA;
-    const float bot_rx = (float)lx * cosA - h * sinA;
-    const float bot_ry = (float)lx * sinA + h * cosA;
-    s.drawLine(cx + (int16_t)top_rx, cy + (int16_t)top_ry, cx + (int16_t)bot_rx, cy + (int16_t)bot_ry,
-               fg565);
-  }
-}
-
-static void drawZigZagMouth(TFT_eSprite& s, int16_t cx, int16_t cy, int16_t width, int16_t amp,
-                            int16_t thick, float cosA, float sinA, uint16_t fg565) {
-  if (width < 8) return;
-  if (thick < 1) thick = 1;
-  const int16_t half = width / 2;
-  const int16_t segments = 6;
-  const float step = (float)width / (float)segments;
-  float lx0 = (float)-half;
-  float ly0 = 0.0f;
-  for (int16_t i = 1; i <= segments; ++i) {
-    const float lx1 = -half + step * i;
-    const float ly1 = (i % 2 == 0) ? (float)-amp : (float)amp;
-    const float rx0 = lx0 * cosA - ly0 * sinA;
-    const float ry0 = lx0 * sinA + ly0 * cosA;
-    const float rx1 = lx1 * cosA - ly1 * sinA;
-    const float ry1 = lx1 * sinA + ly1 * cosA;
-    for (int16_t o = -(thick / 2); o <= (thick / 2); ++o) {
-      s.drawLine(cx + (int16_t)rx0, cy + (int16_t)ry0 + o, cx + (int16_t)rx1, cy + (int16_t)ry1 + o,
-                 fg565);
+  for (int16_t lx = -halfw; lx <= halfw; ++lx) {
+    const float n = (float)lx / (float)halfw;
+    float yt = curveAt(p.eye_top_apex, p.eye_top_corner, n) * blinkScale;
+    float yb = curveAt(p.eye_bot_apex, p.eye_bot_corner, n) * blinkScale;
+    if (waveAmp != 0.0f) {
+      const float w = waveAmp * sinf(2.0f * (float)M_PI * waveFreq * n + wavePhase);
+      yt += w;
+      yb += w;
     }
-    lx0 = lx1;
-    ly0 = ly1;
-  }
-}
+    if (yb < yt) {
+      const float tmp = yt;
+      yt = yb;
+      yb = tmp;
+    }
 
-static void drawMouth(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy, Expression expr,
-                      float cosA, float sinA, uint16_t fg565, uint16_t bg565) {
-  if (expr == Expression::VerbStraining) {
-    drawZigZagMouth(s, cx, cy, p.mouth_w * 2, 4, p.mouth_thick, cosA, sinA, fg565);
-    return;
-  }
-  if (p.mouth_open_h > 0) {
-    if (p.mouth_curve < 0) {
-      drawHalfEllipse(s, cx, cy, p.mouth_w / 2, p.mouth_open_h, cosA, sinA, fg565);
+    // Strokes extend OUTWARD from the envelope so the two bands never
+    // overlap each other — when curves coincide they meet edge-to-edge
+    // for a clean 2*thick band.
+    paintLocalSpan(s, cx, cy, (float)lx, yt - thickF, yt, cosA, sinA, fg565);
+    paintLocalSpan(s, cx, cy, (float)lx, yb, yb + thickF, cosA, sinA, fg565);
+
+    if (yb <= yt) continue;  // collapsed envelope: no interior to fill.
+
+    // Hollow interior: pupil where it intersects, bg elsewhere.
+    const float interiorTop = yt;
+    const float interiorBot = yb;
+    if (drawPupil) {
+      const float dx = (float)lx - pupilLx;
+      if (dx * dx <= pupilR2) {
+        const float dyMag = sqrtf(pupilR2 - dx * dx);
+        const float pupilTop = pupilLy - dyMag;
+        const float pupilBot = pupilLy + dyMag;
+        const float clipTop = pupilTop > interiorTop ? pupilTop : interiorTop;
+        const float clipBot = pupilBot < interiorBot ? pupilBot : interiorBot;
+        if (clipBot >= clipTop) {
+          // bg above pupil
+          if (clipTop > interiorTop) {
+            paintLocalSpan(s, cx, cy, (float)lx, interiorTop, clipTop, cosA, sinA, bg565);
+          }
+          // pupil
+          paintLocalSpan(s, cx, cy, (float)lx, clipTop, clipBot, cosA, sinA, fg565);
+          // bg below pupil
+          if (clipBot < interiorBot) {
+            paintLocalSpan(s, cx, cy, (float)lx, clipBot, interiorBot, cosA, sinA, bg565);
+          }
+        } else {
+          paintLocalSpan(s, cx, cy, (float)lx, interiorTop, interiorBot, cosA, sinA, bg565);
+        }
+      } else {
+        paintLocalSpan(s, cx, cy, (float)lx, interiorTop, interiorBot, cosA, sinA, bg565);
+      }
     } else {
-      s.fillEllipse(cx, cy, p.mouth_w / 2, p.mouth_open_h, fg565);
+      paintLocalSpan(s, cx, cy, (float)lx, interiorTop, interiorBot, cosA, sinA, bg565);
     }
-    return;
   }
-  drawParabola(s, cx, cy, p.mouth_w, p.mouth_curve, p.mouth_thick, cosA, sinA, fg565);
 }
 
 void drawFace(TFT_eSprite& s, const FaceParams& p, float blinkAmt, int16_t gdx, int16_t gdy,
-              Expression expr, uint16_t fg565, uint16_t bg565) {
-  const float angleRad = (float)p.face_rot * (float)PI / 180.0f;
+              Expression /*expr*/, uint32_t nowMs, uint16_t fg565, uint16_t bg565) {
+  const float angleRad = (float)p.face_rot * (float)M_PI / 180.0f;
   const float cosA = cosf(angleRad);
   const float sinA = sinf(angleRad);
 
@@ -149,9 +177,9 @@ void drawFace(TFT_eSprite& s, const FaceParams& p, float blinkAmt, int16_t gdx, 
   rotated(kEyeRX, compress(kEyeY + p.eye_dy), rex, rey);
   rotated(kCx, compress(kMouthY + p.mouth_dy), mx, my);
 
-  drawEye(s, p, lex, ley, blinkAmt, gdx, gdy, cosA, sinA, fg565, bg565);
-  drawEye(s, p, rex, rey, blinkAmt, gdx, gdy, cosA, sinA, fg565, bg565);
-  drawMouth(s, p, mx, my, expr, cosA, sinA, fg565, bg565);
+  drawEye(s, p, lex, ley, blinkAmt, gdx, gdy, nowMs, cosA, sinA, fg565, bg565);
+  drawEye(s, p, rex, rey, blinkAmt, gdx, gdy, nowMs, cosA, sinA, fg565, bg565);
+  drawMouth(s, p, mx, my, nowMs, cosA, sinA, fg565);
 }
 
 }  // namespace Face

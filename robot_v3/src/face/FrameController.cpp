@@ -62,20 +62,56 @@ static FaceParams targetForExpression(Expression s, const FaceParams* baseTarget
 }
 
 // Row order matches Face::Expression (see SceneTypes.h).
+// Field order matches FaceParams declaration:
+//   eye_dy, eye_rx,
+//   eye_top_apex, eye_top_corner, eye_bot_apex, eye_bot_corner, eye_thick,
+//   eye_wave_amp, eye_wave_freq, eye_wave_speed,
+//   pupil_dx, pupil_dy, pupil_r,
+//   mouth_dy, mouth_rx,
+//   mouth_top_apex, mouth_top_corner, mouth_bot_apex, mouth_bot_corner, mouth_thick,
+//   mouth_wave_amp, mouth_wave_freq, mouth_wave_speed,
+//   face_rot, face_y,
+//   ring_r, ring_g, ring_b
 static const FaceParams kBaseTargets[(uint8_t)Expression::Count] = {
-    /* Neutral */ {2, 30, 26, 3, 0, 0, 3, 15, 0, 30, -2, 0, 3, 0, 0, 0, 0, 0},
-    /* Happy */ {0, 30, 30, 3, 0, 0, 0, 15, 0, 26, -3, 0, 3, 0, 0, 0, 0, 0},
-    /* Excited */ {0, 30, 30, 3, 0, 0, 0, 15, 0, 30, -8, 0, 3, 0, 0, 0, 0, 0},
-    /* Joyful */ {-4, 24, 4, 4, 7, 0, 0, 0, 0, 36, -1, 14, 4, 0, 0, 0, 0, 0},
-    /* Sad */ {2, 30, 22, 3, -6, 0, 3, 15, 4, 26, 8, 0, 3, 0, 0, 0, 0, 0},
-    /* VerbThinking */ {0, 30, 30, 3, 0, 7, -9, 15, 0, 22, -3, 0, 3, -10, 0, 0, 0, 0},
-    /* VerbReading */ {0, 28, 26, 3, 0, 0, 8, 12, 0, 18, -3, 0, 3, 0, 12, 0, 0, 0},
-    /* VerbWriting */ {0, 30, 26, 3, 0, 0, -8, 15, 0, 30, -1, 14, 3, 0, 0, 0, 0, 0},
-    /* VerbExecuting */ {0, 30, 16, 3, 0, 0, -4, 10, 0, 18, -2, 0, 3, 0, 0, 0, 0, 0},
-    /* VerbStraining */ {0, 30, 22, 3, 0, 0, -3, 10, 0, 18, 0, 0, 3, 0, 0, 0, 0, 0},
-    /* VerbSleeping */ {8, 26, 2, 3, 0, 0, 0, 0, 0, 18, 0, 0, 3, 0, 0, 0, 0, 0},
-    /* OverlayWaking */ {-2, 34, 34, 3, 0, 0, 0, 18, 0, 14, 0, 9, 3, 0, 0, 0, 0, 0},
-    /* OverlayAttention */ {-2, 34, 34, 3, 0, 0, 0, 18, 0, 14, 0, 9, 3, 0, 0, 0, 0, 0},
+    /* Neutral */          {  2, 30,  -26, 0, +26, 0, 3,  0, 0, 0,   0,  3, 15,
+                              0, 15,   +2, 0,  +2, 0, 3,  0, 0, 0,
+                              0, 0,    0, 0, 0 },
+    /* Happy */            {  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   0,  0, 15,
+                              0, 13,   +3, 0,  +3, 0, 3,  0, 0, 0,
+                              0, 0,    0, 0, 0 },
+    /* Excited */          {  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   0,  0, 15,
+                              0, 15,   +8, 0,  +8, 0, 3,  0, 0, 0,
+                              0, 0,    0, 0, 0 },
+    /* Joyful */           { -4, 24,   -7, 0,  -7, 0, 4,  0, 0, 0,   0,  0,  0,
+                              0, 18,    0, 0, +14, 0, 4,  0, 0, 0,
+                              0, 0,    0, 0, 0 },
+    /* Sad */              {  2, 30,   +6, 0,  +6, 0, 3,  0, 0, 0,   0,  3, 15,
+                              4, 13,   -8, 0,  -8, 0, 3,  0, 0, 0,
+                              0, 0,    0, 0, 0 },
+    /* VerbThinking */     {  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   7, -9, 15,
+                              0, 11,   +3, 0,  +3, 0, 3,  0, 0, 0,
+                            -10, 0,    0, 0, 0 },
+    /* VerbReading */      {  0, 28,  -26, 0, +26, 0, 3,  0, 0, 0,   0,  8, 12,
+                              0,  9,   +3, 0,  +3, 0, 3,  0, 0, 0,
+                              0, 12,   0, 0, 0 },
+    /* VerbWriting */      {  0, 30,  -26, 0, +26, 0, 3,  0, 0, 0,   0, -8, 15,
+                              0, 15,    0, 0, +14, 0, 3,  0, 0, 0,
+                              0, 0,    0, 0, 0 },
+    /* VerbExecuting */    {  0, 30,  -16, 0, +16, 0, 3,  0, 0, 0,   0, -4, 10,
+                              0,  9,   +2, 0,  +2, 0, 3,  0, 0, 0,
+                              0, 0,    0, 0, 0 },
+    /* VerbStraining */    {  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
+                              0, 18,    0, 0,   0, 0, 3,  4, 100, 360,
+                              0, 0,    0, 0, 0 },
+    /* VerbSleeping */     {  8, 26,   -2, 0,  +2, 0, 3,  0, 0, 0,   0,  0,  0,
+                              0,  9,    0, 0,   0, 0, 3,  0, 0, 0,
+                              0, 0,    0, 0, 0 },
+    /* OverlayWaking */    { -2, 34,  -34, 0, +34, 0, 3,  0, 0, 0,   0,  0, 18,
+                              0,  7,   -9, 0,  +9, 0, 3,  0, 0, 0,
+                              0, 0,    0, 0, 0 },
+    /* OverlayAttention */ { -2, 34,  -34, 0, +34, 0, 3,  0, 0, 0,   0,  0, 18,
+                              0,  7,   -9, 0,  +9, 0, 3,  0, 0, 0,
+                              0, 0,    0, 0, 0 },
 };
 
 static constexpr uint32_t kTweenMs = 250;
@@ -130,17 +166,27 @@ static FaceParams lerpParams(const FaceParams& a, const FaceParams& b, float t) 
   FaceParams r;
   r.eye_dy = lerpi(a.eye_dy, b.eye_dy, t);
   r.eye_rx = lerpi(a.eye_rx, b.eye_rx, t);
-  r.eye_ry = lerpi(a.eye_ry, b.eye_ry, t);
-  r.eye_stroke = lerpi(a.eye_stroke, b.eye_stroke, t);
-  r.eye_curve = lerpi(a.eye_curve, b.eye_curve, t);
+  r.eye_top_apex = lerpi(a.eye_top_apex, b.eye_top_apex, t);
+  r.eye_top_corner = lerpi(a.eye_top_corner, b.eye_top_corner, t);
+  r.eye_bot_apex = lerpi(a.eye_bot_apex, b.eye_bot_apex, t);
+  r.eye_bot_corner = lerpi(a.eye_bot_corner, b.eye_bot_corner, t);
+  r.eye_thick = lerpi(a.eye_thick, b.eye_thick, t);
+  r.eye_wave_amp = lerpi(a.eye_wave_amp, b.eye_wave_amp, t);
+  r.eye_wave_freq = lerpi(a.eye_wave_freq, b.eye_wave_freq, t);
+  r.eye_wave_speed = lerpi(a.eye_wave_speed, b.eye_wave_speed, t);
   r.pupil_dx = lerpi(a.pupil_dx, b.pupil_dx, t);
   r.pupil_dy = lerpi(a.pupil_dy, b.pupil_dy, t);
   r.pupil_r = lerpi(a.pupil_r, b.pupil_r, t);
   r.mouth_dy = lerpi(a.mouth_dy, b.mouth_dy, t);
-  r.mouth_w = lerpi(a.mouth_w, b.mouth_w, t);
-  r.mouth_curve = lerpi(a.mouth_curve, b.mouth_curve, t);
-  r.mouth_open_h = lerpi(a.mouth_open_h, b.mouth_open_h, t);
+  r.mouth_rx = lerpi(a.mouth_rx, b.mouth_rx, t);
+  r.mouth_top_apex = lerpi(a.mouth_top_apex, b.mouth_top_apex, t);
+  r.mouth_top_corner = lerpi(a.mouth_top_corner, b.mouth_top_corner, t);
+  r.mouth_bot_apex = lerpi(a.mouth_bot_apex, b.mouth_bot_apex, t);
+  r.mouth_bot_corner = lerpi(a.mouth_bot_corner, b.mouth_bot_corner, t);
   r.mouth_thick = lerpi(a.mouth_thick, b.mouth_thick, t);
+  r.mouth_wave_amp = lerpi(a.mouth_wave_amp, b.mouth_wave_amp, t);
+  r.mouth_wave_freq = lerpi(a.mouth_wave_freq, b.mouth_wave_freq, t);
+  r.mouth_wave_speed = lerpi(a.mouth_wave_speed, b.mouth_wave_speed, t);
   r.face_rot = lerpi(a.face_rot, b.face_rot, t);
   r.face_y = lerpi(a.face_y, b.face_y, t);
   r.ring_r = lerpi(a.ring_r, b.ring_r, t);

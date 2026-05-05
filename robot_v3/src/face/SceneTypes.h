@@ -63,27 +63,62 @@ enum class Expression : uint8_t {
 
 /**
  * Per-expression face geometry target. FrameController tweens between
- * these. All fields except `face_rot` are integer pixel offsets
+ * these. All fields except rotation/speed are integer pixel offsets
  * (positive = down/right, expression-relative). `ring_*` is the
  * mood-ring RGB888 baked from the expression's palette colour.
+ *
+ * Both eye and mouth are described as a top edge curve and a bottom
+ * edge curve, each as a semicircular interpolation between an apex
+ * (y at lx=0) and a corner (y at lx=±half-width). When top and bottom
+ * curves are mirror images about y=0 the pair traces a perfect
+ * ellipse. The whole shape can be modulated by a per-shape sinusoidal
+ * wave that shifts both edges together — set `*_wave_amp` to 0 to
+ * disable. All curve fields interpolate continuously, so
+ * cross-expression tweens never pop.
+ *
+ * Eye render model: top stroke (band of `eye_thick` extending
+ * **outward** above the top edge), bot stroke (same below the bottom
+ * edge), hollow interior with the pupil drawn behind. Strokes never
+ * overlap into each other — the corners stay sharp. Out-of-envelope
+ * columns are not painted, so the pupil is naturally clipped to the
+ * eye shape and does not shrink with eye height.
+ *
+ * Mouth render model: solid fill between top and bottom curves, with
+ * a minimum band thickness of `mouth_thick` when the curves collapse
+ * onto each other (closed-mouth case).
  */
 struct FaceParams {
-  int16_t eye_dy;         ///< Vertical offset of both eyes from baseline.
-  int16_t eye_rx;         ///< Eye horizontal radius.
-  int16_t eye_ry;         ///< Eye vertical radius.
-  int16_t eye_stroke;     ///< Outline thickness for the iris cutout.
-  int16_t eye_curve;      ///< Bend of the eye parabola (>0 disables ellipse).
-  int16_t pupil_dx;       ///< Pupil horizontal offset within the eye.
+  int16_t eye_dy;            ///< Vertical offset of both eyes from baseline.
+  int16_t eye_rx;            ///< Eye half-width.
+  int16_t eye_top_apex;      ///< Top edge y at lx=0 (eye-local; +y = down).
+  int16_t eye_top_corner;    ///< Top edge y at lx=±eye_rx.
+  int16_t eye_bot_apex;      ///< Bot edge y at lx=0.
+  int16_t eye_bot_corner;    ///< Bot edge y at lx=±eye_rx.
+  int16_t eye_thick;         ///< Per-edge stroke thickness, drawn outward.
+  int16_t eye_wave_amp;      ///< Sinusoidal vertical shift applied to both edges.
+  int16_t eye_wave_freq;     ///< Cycles across the eye width.
+  int16_t eye_wave_speed;    ///< Phase advance, degrees/sec (0 = static).
+
+  int16_t pupil_dx;          ///< Pupil horizontal offset within the eye.
   int16_t pupil_dy;
-  int16_t pupil_r;        ///< Pupil radius (0 = no pupil).
+  int16_t pupil_r;           ///< Pupil radius (0 = no pupil).
+
   int16_t mouth_dy;
-  int16_t mouth_w;
-  int16_t mouth_curve;    ///< +ve = smile, -ve = frown.
-  int16_t mouth_open_h;   ///< 0 = closed mouth (parabola); >0 = open ellipse.
-  int16_t mouth_thick;    ///< Stroke thickness of the mouth.
-  int16_t face_rot;       ///< Whole-face rotation in degrees.
-  int16_t face_y;         ///< Whole-face vertical bob offset.
-  int16_t ring_r;         ///< Mood-ring R (RGB888).
+  int16_t mouth_rx;          ///< Mouth half-width.
+  int16_t mouth_top_apex;    ///< Top edge y at lx=0 (mouth-local; +y = down).
+  int16_t mouth_top_corner;  ///< Top edge y at lx=±mouth_rx.
+  int16_t mouth_bot_apex;
+  int16_t mouth_bot_corner;
+  int16_t mouth_thick;       ///< Min collapsed band thickness; below this the band
+                             ///< widens around the midpoint so closed mouths still show.
+  int16_t mouth_wave_amp;    ///< Sinusoidal shift applied to both edges (zigzag).
+  int16_t mouth_wave_freq;   ///< Cycles across the mouth width.
+  int16_t mouth_wave_speed;  ///< Phase advance, degrees/sec.
+
+  int16_t face_rot;          ///< Whole-face rotation in degrees.
+  int16_t face_y;            ///< Whole-face vertical bob offset.
+
+  int16_t ring_r;            ///< Mood-ring R (RGB888).
   int16_t ring_g;
   int16_t ring_b;
 };

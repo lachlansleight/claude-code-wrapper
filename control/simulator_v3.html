@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Face Simulator (v3)</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #161a22;
+      --panel-2: #1d222c;
+      --border: #2a3140;
+      --text: #e6e8ee;
+      --muted: #8b93a7;
+      --accent: #6ea8ff;
+      --good: #58d68d;
+      --bad: #ff7b7b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1200px;
+      margin: 1em auto;
+      padding: 0 1em;
+      background: var(--bg);
+      color: var(--text);
+    }
+    h1 { font-size: 1.2em; margin: 0.5em 0; }
+    h3 {
+      margin: 1em 0 0.4em;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.85em;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 1.5em;
+      align-items: start;
+    }
+    @media (max-width: 880px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+    .stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5em;
+    }
+    .stage canvas {
+      width: 480px;
+      max-width: 100%;
+      aspect-ratio: 1 / 1;
+      background: #000;
+      border-radius: 50%;
+      border: 4px solid #2a3140;
+      image-rendering: pixelated;
+    }
+    .stage-meta {
+      color: var(--muted);
+      font-size: 0.85em;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    input, button, select, textarea {
+      font: inherit;
+      padding: 0.4em 0.65em;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+    button { cursor: pointer; }
+    button:hover:not(:disabled) { background: var(--panel-2); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .row {
+      display: flex;
+      gap: 0.5em;
+      margin: 0.5em 0;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .expr-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(8em, 1fr));
+      gap: 0.4em;
+    }
+    .expr-grid button {
+      padding: 0.55em 0.4em;
+      font-size: 0.85em;
+    }
+    .expr-grid button.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--panel-2);
+    }
+    .params-box {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.75em;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.5em 0.7em;
+      max-height: 380px;
+      overflow-y: auto;
+      color: var(--muted);
+    }
+    .static-panel {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.6em 0.8em;
+      background: var(--panel);
+      margin: 0.4em 0;
+    }
+    .static-panel.disabled { opacity: 0.5; pointer-events: none; }
+    .slider-row {
+      display: grid;
+      grid-template-columns: 9em 1fr 4em;
+      gap: 0.5em;
+      align-items: center;
+      margin: 0.2em 0;
+      font-size: 0.78em;
+    }
+    .slider-row label {
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .slider-row input[type="range"] {
+      width: 100%;
+      padding: 0;
+      background: transparent;
+      border: none;
+    }
+    .slider-row input[type="number"] {
+      width: 100%;
+      padding: 0.2em 0.35em;
+      text-align: right;
+      font-size: 0.85em;
+    }
+    .slider-section {
+      margin-top: 0.6em;
+      border-top: 1px solid var(--border);
+      padding-top: 0.4em;
+    }
+    .slider-section:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+    .slider-section h4 {
+      margin: 0 0 0.3em;
+      color: var(--muted);
+      font-size: 0.72em;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .copy-output {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.72em;
+      background: #0b0d12;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.5em 0.7em;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 160px;
+      overflow-y: auto;
+      color: var(--text);
+    }
+  </style>
+  <script src="scripts/nav.js" defer></script>
+</head>
+<body data-control-page="simulator_v3">
+  <h1>Face Simulator — v3</h1>
+  <p style="color: var(--muted); font-size: 0.9em; margin: 0 0 1em;">
+    Browser preview of robot_v3/src/face/FaceRenderer + FrameController.
+    Pick an expression to drive the tween, or flip on Static mode and
+    tune <code>FaceParams</code> with sliders. The C++ row at the bottom
+    is paste-ready for <code>kBaseTargets[]</code>.
+  </p>
+
+  <div class="layout">
+    <div>
+      <div class="stage">
+        <canvas id="faceCanvas" width="480" height="480"></canvas>
+        <div class="stage-meta">
+          expression: <span id="currentExpr">Neutral</span>
+          &nbsp;·&nbsp; <span id="fpsLabel">— fps</span>
+        </div>
+      </div>
+
+      <h3>Force expression</h3>
+      <div id="exprGrid" class="expr-grid"></div>
+
+      <h3>Live params</h3>
+      <pre id="paramsBox" class="params-box"></pre>
+    </div>
+
+    <div>
+      <h3>
+        <label style="text-transform:none;letter-spacing:0;font-weight:600;">
+          <input type="checkbox" id="staticToggle" /> Static mode (bypass animation)
+        </label>
+      </h3>
+      <div id="staticPanel" class="static-panel disabled">
+        <div class="row" style="margin: 0 0 0.6em;">
+          <label style="color:var(--muted);font-size:0.85em;">Load preset
+            <select id="staticPreset" style="margin-left:0.4em;"></select>
+          </label>
+          <button id="staticCaptureBtn" type="button">Capture live frame</button>
+          <button id="staticCopyBtn" type="button">Copy as kBaseTargets row</button>
+        </div>
+        <div id="paramSliders"></div>
+        <div class="slider-section">
+          <h4>Modulators</h4>
+          <div id="modSliders"></div>
+        </div>
+        <h3 style="margin-top: 0.6em;">C++ kBaseTargets row</h3>
+        <pre id="copyOutput" class="copy-output">/* tune sliders to populate */</pre>
+      </div>
+    </div>
+  </div>
+
+  <script src="scripts/settings.js"></script>
+  <script src="scripts/tft.js"></script>
+  <script src="scripts/face-v3.js"></script>
+  <script src="scripts/frame-controller-v3.js"></script>
+  <script>
+    const FC = window.FrameControllerV3;
+
+    FC.start(document.getElementById("faceCanvas"));
+
+    // FPS counter
+    let frames = 0, lastFpsT = performance.now();
+    (function fpsLoop() {
+      frames++;
+      const t = performance.now();
+      if (t - lastFpsT >= 1000) {
+        document.getElementById("fpsLabel").textContent = `${frames} fps`;
+        frames = 0;
+        lastFpsT = t;
+      }
+      requestAnimationFrame(fpsLoop);
+    })();
+
+    // ---- Expression buttons ----
+    const exprGrid = document.getElementById("exprGrid");
+    FC.expressions().forEach((e) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = e;
+      b.dataset.expr = e;
+      b.addEventListener("click", () => FC.requestExpression(e));
+      exprGrid.appendChild(b);
+    });
+    function paintActiveExpr(name) {
+      document.getElementById("currentExpr").textContent = name;
+      exprGrid.querySelectorAll("button").forEach((b) => {
+        b.classList.toggle("active", b.dataset.expr === name);
+      });
+    }
+    FC.onExpressionChange(paintActiveExpr);
+    paintActiveExpr(FC.currentExpression());
+
+    // ---- Live params box ----
+    setInterval(() => {
+      const p = FC.params();
+      if (!p) return;
+      document.getElementById("paramsBox").textContent = FC.paramFields()
+        .map((k) => `${k.padEnd(18, " ")} ${String(p[k]).padStart(5, " ")}`)
+        .join("\n");
+    }, 200);
+
+    // ---- Static mode ----
+    const PARAM_RANGES = {
+      // Eye placement
+      eye_dy:           [-15, 15, 1, "Eye"],
+      eye_rx:           [0, 60, 1, "Eye"],
+      // Eye envelope
+      eye_top_apex:     [-50, 50, 1, "Eye envelope"],
+      eye_top_corner:   [-50, 50, 1, "Eye envelope"],
+      eye_bot_apex:     [-50, 50, 1, "Eye envelope"],
+      eye_bot_corner:   [-50, 50, 1, "Eye envelope"],
+      eye_thick:        [0, 12, 1, "Eye envelope"],
+      // Eye wave
+      eye_wave_amp:     [-15, 15, 1, "Eye wave"],
+      eye_wave_freq:    [0, 100, 1, "Eye wave"],
+      eye_wave_speed:   [-720, 720, 10, "Eye wave"],
+      // Pupil
+      pupil_dx:         [-20, 20, 1, "Pupil"],
+      pupil_dy:         [-20, 20, 1, "Pupil"],
+      pupil_r:          [0, 30, 1, "Pupil"],
+      // Mouth placement
+      mouth_dy:         [-20, 20, 1, "Mouth"],
+      mouth_rx:         [0, 40, 1, "Mouth"],
+      // Mouth envelope
+      mouth_top_apex:   [-30, 30, 1, "Mouth envelope"],
+      mouth_top_corner: [-30, 30, 1, "Mouth envelope"],
+      mouth_bot_apex:   [-30, 30, 1, "Mouth envelope"],
+      mouth_bot_corner: [-30, 30, 1, "Mouth envelope"],
+      mouth_thick:      [1, 10, 1, "Mouth envelope"],
+      // Mouth wave
+      mouth_wave_amp:   [-15, 15, 1, "Mouth wave"],
+      mouth_wave_freq:  [0, 100, 1, "Mouth wave"],
+      mouth_wave_speed: [-720, 720, 10, "Mouth wave"],
+      // Face
+      face_rot:         [-45, 45, 1, "Face"],
+      face_y:           [-30, 30, 1, "Face"],
+      // Mood ring (cosmetic — drawFace itself doesn't read these)
+      ring_r:           [0, 255, 1, "Ring"],
+      ring_g:           [0, 255, 1, "Ring"],
+      ring_b:           [0, 255, 1, "Ring"],
+    };
+    const MOD_RANGES = {
+      blinkAmt: [0, 1, 0.01],
+      gdx:      [-20, 20, 1],
+      gdy:      [-20, 20, 1],
+    };
+
+    const staticToggle = document.getElementById("staticToggle");
+    const staticPanel = document.getElementById("staticPanel");
+    const paramSliders = document.getElementById("paramSliders");
+    const modSliders = document.getElementById("modSliders");
+    const staticPreset = document.getElementById("staticPreset");
+    const copyOutput = document.getElementById("copyOutput");
+
+    FC.expressions().forEach((e) => {
+      const o = document.createElement("option");
+      o.value = e; o.textContent = e;
+      staticPreset.appendChild(o);
+    });
+    staticPreset.value = "Neutral";
+
+    const sliderValues = {
+      params: FC.baseTargetForExpression("Neutral"),
+      blinkAmt: 0,
+      gdx: 0,
+      gdy: 0,
+    };
+
+    function buildParamSliders(target, valueGetter, onChange) {
+      target.innerHTML = "";
+      const fields = FC.paramFields();
+      // Bucket fields by section while preserving declared order.
+      const sections = [];
+      const sectionMap = new Map();
+      for (const f of fields) {
+        const meta = PARAM_RANGES[f];
+        if (!meta) continue;
+        const [, , , section] = meta;
+        if (!sectionMap.has(section)) {
+          const wrap = document.createElement("div");
+          wrap.className = "slider-section";
+          const h = document.createElement("h4");
+          h.textContent = section;
+          wrap.appendChild(h);
+          sectionMap.set(section, wrap);
+          sections.push(wrap);
+        }
+        const wrap = sectionMap.get(section);
+        const [min, max, step] = meta;
+        const initial = valueGetter(f);
+        const row = document.createElement("div");
+        row.className = "slider-row";
+        row.innerHTML = `
+          <label>${f}</label>
+          <input type="range" min="${min}" max="${max}" step="${step}" value="${initial}" data-slider="${f}" />
+          <input type="number" min="${min}" max="${max}" step="${step}" value="${initial}" data-num="${f}" />
+        `;
+        wrap.appendChild(row);
+        const range = row.querySelector(`[data-slider="${f}"]`);
+        const num = row.querySelector(`[data-num="${f}"]`);
+        const sync = (src) => {
+          const v = step < 1 ? parseFloat(src.value) : parseInt(src.value, 10);
+          range.value = String(v);
+          num.value = String(v);
+          onChange(f, v);
+        };
+        range.addEventListener("input", () => sync(range));
+        num.addEventListener("input", () => sync(num));
+      }
+      sections.forEach((s) => target.appendChild(s));
+    }
+
+    function buildModSliders(target, valueGetter, onChange) {
+      target.innerHTML = "";
+      Object.entries(MOD_RANGES).forEach(([f, [min, max, step]]) => {
+        const initial = valueGetter(f);
+        const row = document.createElement("div");
+        row.className = "slider-row";
+        row.innerHTML = `
+          <label>${f}</label>
+          <input type="range" min="${min}" max="${max}" step="${step}" value="${initial}" data-slider="${f}" />
+          <input type="number" min="${min}" max="${max}" step="${step}" value="${initial}" data-num="${f}" />
+        `;
+        target.appendChild(row);
+        const range = row.querySelector(`[data-slider="${f}"]`);
+        const num = row.querySelector(`[data-num="${f}"]`);
+        const sync = (src) => {
+          const v = step < 1 ? parseFloat(src.value) : parseInt(src.value, 10);
+          range.value = String(v);
+          num.value = String(v);
+          onChange(f, v);
+        };
+        range.addEventListener("input", () => sync(range));
+        num.addEventListener("input", () => sync(num));
+      });
+    }
+
+    function refreshCopyOutput() {
+      const order = FC.paramFields();
+      const o = FC.staticOverride();
+      const arr = order.map((k) => o.params[k]);
+      copyOutput.textContent = "{ " + arr.join(", ") + " }";
+    }
+
+    function seedFromParams(params) {
+      Object.assign(sliderValues.params, params);
+      buildParamSliders(
+        paramSliders,
+        (f) => sliderValues.params[f],
+        (f, v) => {
+          sliderValues.params[f] = v;
+          FC.setStaticOverride({ params: { [f]: v } });
+          refreshCopyOutput();
+        },
+      );
+      buildModSliders(
+        modSliders,
+        (f) => sliderValues[f],
+        (f, v) => {
+          sliderValues[f] = v;
+          FC.setStaticOverride({ [f]: v });
+        },
+      );
+      refreshCopyOutput();
+    }
+
+    seedFromParams(FC.baseTargetForExpression("Neutral"));
+
+    staticToggle.addEventListener("change", () => {
+      const on = staticToggle.checked;
+      FC.setStaticMode(on);
+      staticPanel.classList.toggle("disabled", !on);
+      if (on) {
+        const o = FC.staticOverride();
+        sliderValues.blinkAmt = o.blinkAmt;
+        sliderValues.gdx = o.gdx;
+        sliderValues.gdy = o.gdy;
+        seedFromParams(o.params);
+      }
+    });
+
+    staticPreset.addEventListener("change", () => {
+      const p = FC.baseTargetForExpression(staticPreset.value);
+      seedFromParams(p);
+      FC.setStaticOverride({ params: p, expression: staticPreset.value });
+    });
+
+    document.getElementById("staticCaptureBtn").addEventListener("click", () => {
+      const live = FC.params();
+      if (!live) return;
+      seedFromParams(live);
+      FC.setStaticOverride({ params: live });
+    });
+
+    document.getElementById("staticCopyBtn").addEventListener("click", async () => {
+      const text = copyOutput.textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        document.getElementById("staticCopyBtn").textContent = "Copied!";
+        setTimeout(() => {
+          document.getElementById("staticCopyBtn").textContent = "Copy as kBaseTargets row";
+        }, 1200);
+      } catch (e) {
+        console.warn("Clipboard write blocked", e);
+      }
+    });
+  </script>
+</body>
+</html>
