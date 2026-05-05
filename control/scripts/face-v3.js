@@ -48,6 +48,36 @@
     s.drawLine(x0, y0, x1, y1, color);
   }
 
+  // Trace an elliptical arc as a polyline, then expand outward by 1px and
+  // re-trace, repeating `thick` times so the resulting band has uniform
+  // thickness perpendicular to the arc — including at corners where the
+  // tangent goes vertical (column-major strokes can't do that because
+  // their pixels run parallel to the tangent there).
+  function drawEdgeStroke(s, cx, cy, halfw, apex, corner, blinkScale, thick,
+                          outwardSign, waveAmp, waveFreq, wavePhase, cosA, sinA, color) {
+    if (halfw < 1 || thick < 1) return;
+    for (let k = 0; k < thick; k++) {
+      const rxk = halfw + k;
+      const apexK = apex + outwardSign * k;
+      let prevPx = 0, prevPy = 0;
+      let havePrev = false;
+      for (let lx = -rxk; lx <= rxk; lx++) {
+        const n = lx / rxk;
+        const r = Math.sqrt(Math.max(0, 1 - n * n));
+        let ly = (corner + (apexK - corner) * r) * blinkScale;
+        if (waveAmp !== 0) {
+          ly += waveAmp * Math.sin(2 * Math.PI * waveFreq * n + wavePhase);
+        }
+        const px = cx + Math.round(lx * cosA - ly * sinA);
+        const py = cy + Math.round(lx * sinA + ly * cosA);
+        if (havePrev) s.drawLine(prevPx, prevPy, px, py, color);
+        prevPx = px;
+        prevPy = py;
+        havePrev = true;
+      }
+    }
+  }
+
   function drawMouth(s, p, cx, cy, nowMs, cosA, sinA, fg) {
     const halfw = p.mouth_rx | 0;
     if (halfw < 1) return;
@@ -85,7 +115,6 @@
     const wavePhase = wavePhaseRad(p.eye_wave_speed, nowMs);
     const waveFreq = p.eye_wave_freq * 0.02;
     const waveAmp = p.eye_wave_amp;
-    const thickF = p.eye_thick > 0 ? p.eye_thick : 1;
 
     const pupilLx = p.pupil_dx + gdx;
     const pupilLy = p.pupil_dy + gdy;
@@ -93,6 +122,7 @@
     const pupilR2 = pupilR * pupilR;
     const drawPupil = pupilR > 0 && blink < 0.6;
 
+    // --- Interior fill (column-major over the inner envelope) ---
     for (let lx = -halfw; lx <= halfw; lx++) {
       const n = lx / halfw;
       let yt = curveAt(p.eye_top_apex, p.eye_top_corner, n) * blinkScale;
@@ -102,12 +132,7 @@
         yt += w; yb += w;
       }
       if (yb < yt) { const tmp = yt; yt = yb; yb = tmp; }
-
-      // Outward strokes — never overlap.
-      paintLocalSpan(s, cx, cy, lx, yt - thickF, yt, cosA, sinA, fg);
-      paintLocalSpan(s, cx, cy, lx, yb, yb + thickF, cosA, sinA, fg);
-
-      if (yb <= yt) continue;  // collapsed envelope: no interior to fill.
+      if (yb <= yt) continue;  // collapsed envelope: no interior.
 
       const interiorTop = yt;
       const interiorBot = yb;
@@ -133,6 +158,15 @@
         paintLocalSpan(s, cx, cy, lx, interiorTop, interiorBot, cosA, sinA, bg);
       }
     }
+
+    // --- Outward strokes: concentric arc layers ---
+    const thick = p.eye_thick > 0 ? p.eye_thick : 1;
+    drawEdgeStroke(s, cx, cy, halfw, p.eye_top_apex, p.eye_top_corner,
+                   blinkScale, thick, -1,
+                   waveAmp, waveFreq, wavePhase, cosA, sinA, fg);
+    drawEdgeStroke(s, cx, cy, halfw, p.eye_bot_apex, p.eye_bot_corner,
+                   blinkScale, thick, +1,
+                   waveAmp, waveFreq, wavePhase, cosA, sinA, fg);
   }
 
   function drawFace(s, p, blinkAmt, gdx, gdy, nowMs) {

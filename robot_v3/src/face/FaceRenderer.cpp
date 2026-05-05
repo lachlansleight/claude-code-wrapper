@@ -32,6 +32,48 @@ static inline void paintLocalSpan(TFT_eSprite& s, int16_t cx, int16_t cy, float 
   s.drawLine(x0, y0, x1, y1, color);
 }
 
+// Trace an elliptical arc as a polyline, then expand outward by 1px and
+// re-trace, repeating `thick` times so the resulting band has uniform
+// thickness perpendicular to the arc — including at the corners where
+// the curve's tangent goes vertical (which a column-major stroke can't
+// do because its pixels travel parallel to the tangent there).
+//
+// The k=0 layer matches the user-visible envelope (halfw, apex, corner).
+// Layer k expands rx by k and pushes apex away from corner by k in the
+// `outwardSign` direction; corner stays put. The wave shifts every layer
+// by the same amount at corresponding fractional position, so all layers
+// move together.
+static void drawEdgeStroke(TFT_eSprite& s, int16_t cx, int16_t cy,
+                           int16_t halfw, int16_t apex, int16_t corner,
+                           float blinkScale, int16_t thick, int outwardSign,
+                           float waveAmp, float waveFreq, float wavePhase,
+                           float cosA, float sinA, uint16_t color) {
+  if (halfw < 1 || thick < 1) return;
+  for (int16_t k = 0; k < thick; ++k) {
+    const int16_t rxk = halfw + k;
+    const float apexK = (float)apex + (float)(outwardSign * k);
+    int16_t prevPx = 0, prevPy = 0;
+    bool havePrev = false;
+    for (int16_t lx = -rxk; lx <= rxk; ++lx) {
+      const float n = (float)lx / (float)rxk;
+      const float r = sqrtf(fmaxf(0.0f, 1.0f - n * n));
+      float ly = ((float)corner + (apexK - (float)corner) * r) * blinkScale;
+      if (waveAmp != 0.0f) {
+        // Wave argument uses the layer's own n so phase stays smooth across layers.
+        ly += waveAmp * sinf(2.0f * (float)M_PI * waveFreq * n + wavePhase);
+      }
+      const int16_t px = cx + (int16_t)lroundf((float)lx * cosA - ly * sinA);
+      const int16_t py = cy + (int16_t)lroundf((float)lx * sinA + ly * cosA);
+      if (havePrev) {
+        s.drawLine(prevPx, prevPy, px, py, color);
+      }
+      prevPx = px;
+      prevPy = py;
+      havePrev = true;
+    }
+  }
+}
+
 static void drawMouth(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy, uint32_t nowMs,
                       float cosA, float sinA, uint16_t fg565) {
   const int16_t halfw = p.mouth_rx;
@@ -79,7 +121,6 @@ static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy,
   const float wavePhase = wavePhaseRad(p.eye_wave_speed, nowMs);
   const float waveFreq = (float)p.eye_wave_freq * 0.02f;
   const float waveAmp = (float)p.eye_wave_amp;
-  const float thickF = (float)(p.eye_thick > 0 ? p.eye_thick : 1);
 
   // Pupil position in eye-local coords.
   const float pupilLx = (float)(p.pupil_dx + gdx);
@@ -88,6 +129,7 @@ static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy,
   const float pupilR2 = pupilR * pupilR;
   const bool drawPupil = (p.pupil_r > 0) && (blink < 0.6f);
 
+  // --- Interior fill (column-major, hollow inside the inner envelope) ---
   for (int16_t lx = -halfw; lx <= halfw; ++lx) {
     const float n = (float)lx / (float)halfw;
     float yt = curveAt(p.eye_top_apex, p.eye_top_corner, n) * blinkScale;
@@ -102,14 +144,7 @@ static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy,
       yt = yb;
       yb = tmp;
     }
-
-    // Strokes extend OUTWARD from the envelope so the two bands never
-    // overlap each other — when curves coincide they meet edge-to-edge
-    // for a clean 2*thick band.
-    paintLocalSpan(s, cx, cy, (float)lx, yt - thickF, yt, cosA, sinA, fg565);
-    paintLocalSpan(s, cx, cy, (float)lx, yb, yb + thickF, cosA, sinA, fg565);
-
-    if (yb <= yt) continue;  // collapsed envelope: no interior to fill.
+    if (yb <= yt) continue;  // collapsed envelope: no interior.
 
     // Hollow interior: pupil where it intersects, bg elsewhere.
     const float interiorTop = yt;
@@ -143,6 +178,15 @@ static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy,
       paintLocalSpan(s, cx, cy, (float)lx, interiorTop, interiorBot, cosA, sinA, bg565);
     }
   }
+
+  // --- Outward strokes: concentric arc layers, top edge then bot edge ---
+  const int16_t thick = p.eye_thick > 0 ? p.eye_thick : 1;
+  drawEdgeStroke(s, cx, cy, halfw, p.eye_top_apex, p.eye_top_corner,
+                 blinkScale, thick, /*outwardSign=*/-1,
+                 waveAmp, waveFreq, wavePhase, cosA, sinA, fg565);
+  drawEdgeStroke(s, cx, cy, halfw, p.eye_bot_apex, p.eye_bot_corner,
+                 blinkScale, thick, /*outwardSign=*/+1,
+                 waveAmp, waveFreq, wavePhase, cosA, sinA, fg565);
 }
 
 void drawFace(TFT_eSprite& s, const FaceParams& p, float blinkAmt, int16_t gdx, int16_t gdy,
