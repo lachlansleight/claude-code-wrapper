@@ -38,6 +38,8 @@ void setup() {
   Display::drawConnecting(gCfg.wifi_ssid.c_str());
   if (!WifiMgr::tryConnect(gCfg.wifi_ssid.c_str(), gCfg.wifi_password.c_str(), 15000)) {
     Display::drawFailedToConnect();
+    LOG_WARN("wifi connect failed, entering provisioning portal");
+    Provisioning::runPortal(gCfg);
   }
 
   EventRouter::begin();
