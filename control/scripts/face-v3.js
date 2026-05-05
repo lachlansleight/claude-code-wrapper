@@ -48,10 +48,6 @@
     s.drawLine(x0, y0, x1, y1, color);
   }
 
-  function localToScreenPoint(cx, cy, lx, ly, cosA, sinA) {
-    return [cx + lx * cosA - ly * sinA, cy + lx * sinA + ly * cosA];
-  }
-
   function drawMouth(s, p, cx, cy, nowMs, cosA, sinA, fg) {
     const halfw = p.mouth_rx | 0;
     if (halfw < 1) return;
@@ -59,9 +55,7 @@
     // Slider value / 50 → ~1 full cycle across the shape at value=50.
     const waveFreq = p.mouth_wave_freq * 0.02;
     const waveAmp = p.mouth_wave_amp;
-    const mouthW = 2 * p.mouth_thick;
-    let hasPrevTop = false, hasPrevBot = false;
-    let prevTopX = 0, prevTopY = 0, prevBotX = 0, prevBotY = 0;
+    const minThick = p.mouth_thick;
 
     for (let lx = -halfw; lx <= halfw; lx++) {
       const n = lx / halfw;
@@ -72,21 +66,12 @@
         yt += w; yb += w;
       }
       if (yb < yt) { const tmp = yt; yt = yb; yb = tmp; }
-      const [topX, topY] = localToScreenPoint(cx, cy, lx, yt, cosA, sinA);
-      const [botX, botY] = localToScreenPoint(cx, cy, lx, yb, cosA, sinA);
-      if (hasPrevTop) {
-        s.drawWedgeLine(prevTopX, prevTopY, topX, topY, mouthW, mouthW, fg, fg);
+      if ((yb - yt) < minThick) {
+        const mid = 0.5 * (yt + yb);
+        yt = mid - 0.5 * minThick;
+        yb = mid + 0.5 * minThick;
       }
-      if (hasPrevBot) {
-        s.drawWedgeLine(prevBotX, prevBotY, botX, botY, mouthW, mouthW, fg, fg);
-      }
-      if (yb >= yt) paintLocalSpan(s, cx, cy, lx, yt, yb, cosA, sinA, fg);
-      prevTopX = topX;
-      prevTopY = topY;
-      prevBotX = botX;
-      prevBotY = botY;
-      hasPrevTop = true;
-      hasPrevBot = true;
+      paintLocalSpan(s, cx, cy, lx, yt, yb, cosA, sinA, fg);
     }
   }
 
@@ -107,9 +92,6 @@
     const pupilR = p.pupil_r;
     const pupilR2 = pupilR * pupilR;
     const drawPupil = pupilR > 0 && blink < 0.6;
-    const strokeW = 2 * thickF; // centered wedge => outward half-width == thickF.
-    let hasPrev = false;
-    let prevTopX = 0, prevTopY = 0, prevBotX = 0, prevBotY = 0;
 
     for (let lx = -halfw; lx <= halfw; lx++) {
       const n = lx / halfw;
@@ -121,17 +103,9 @@
       }
       if (yb < yt) { const tmp = yt; yt = yb; yb = tmp; }
 
-      const [topX, topY] = localToScreenPoint(cx, cy, lx, yt, cosA, sinA);
-      const [botX, botY] = localToScreenPoint(cx, cy, lx, yb, cosA, sinA);
-      if (hasPrev) {
-        s.drawWedgeLine(prevTopX, prevTopY, topX, topY, strokeW, strokeW, fg, bg);
-        s.drawWedgeLine(prevBotX, prevBotY, botX, botY, strokeW, strokeW, fg, bg);
-      }
-      prevTopX = topX;
-      prevTopY = topY;
-      prevBotX = botX;
-      prevBotY = botY;
-      hasPrev = true;
+      // Outward strokes — never overlap.
+      paintLocalSpan(s, cx, cy, lx, yt - thickF, yt, cosA, sinA, fg);
+      paintLocalSpan(s, cx, cy, lx, yb, yb + thickF, cosA, sinA, fg);
 
       if (yb <= yt) continue;  // collapsed envelope: no interior to fill.
 

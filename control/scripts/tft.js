@@ -71,58 +71,6 @@
       this.ctx.restore();
     }
 
-    drawWideLine(ax, ay, bx, by, wd, color, bgColor) {
-      this.drawWedgeLine(ax, ay, bx, by, wd, wd, color, bgColor);
-    }
-
-    drawWedgeLine(ax, ay, bx, by, aw, bw, color, _bgColor) {
-      const dx = bx - ax;
-      const dy = by - ay;
-      const len = Math.hypot(dx, dy);
-      const ra = Math.max(0, aw * 0.5);
-      const rb = Math.max(0, bw * 0.5);
-
-      this.ctx.save();
-      this.ctx.fillStyle = rgb565ToCss(color);
-
-      if (len < 1e-6) {
-        const r = Math.max(ra, rb);
-        if (r > 0) {
-          this.ctx.beginPath();
-          this.ctx.arc(ax, ay, r, 0, Math.PI * 2);
-          this.ctx.fill();
-        }
-        this.ctx.restore();
-        return;
-      }
-
-      const nx = -dy / len;
-      const ny = dx / len;
-
-      // Fill the wedge body as a convex quad.
-      this.ctx.beginPath();
-      this.ctx.moveTo(ax + nx * ra, ay + ny * ra);
-      this.ctx.lineTo(bx + nx * rb, by + ny * rb);
-      this.ctx.lineTo(bx - nx * rb, by - ny * rb);
-      this.ctx.lineTo(ax - nx * ra, ay - ny * ra);
-      this.ctx.closePath();
-      this.ctx.fill();
-
-      // Rounded caps like TFT_eSPI.
-      if (ra > 0) {
-        this.ctx.beginPath();
-        this.ctx.arc(ax, ay, ra, 0, Math.PI * 2);
-        this.ctx.fill();
-      }
-      if (rb > 0) {
-        this.ctx.beginPath();
-        this.ctx.arc(bx, by, rb, 0, Math.PI * 2);
-        this.ctx.fill();
-      }
-
-      this.ctx.restore();
-    }
-
     fillEllipse(cx, cy, rx, ry, color) {
       if (rx < 1 || ry < 1) return;
       this.ctx.fillStyle = rgb565ToCss(color);
