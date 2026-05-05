@@ -55,6 +55,7 @@ uint16_t thinkPeriodMs = 2000;
 bool holdActive = false;
 uint32_t holdUntilMs = 0;
 bool holdExpiredEdge = false;
+bool motionEnabled = true;
 
 uint8_t commandedAngle = kCentre;
 
@@ -128,6 +129,10 @@ void setSafeRange(int8_t minOffsetDeg, int8_t maxOffsetDeg) {
 
 void tick() {
   if (!attached) return;
+  if (!motionEnabled) {
+    if (commandedAngle != kCentre) writeAngle(kCentre);
+    return;
+  }
 
   if (holdActive) {
     if ((int32_t)(millis() - holdUntilMs) >= 0) {
@@ -178,6 +183,7 @@ void tick() {
 
 void playWaggle(int8_t center, uint8_t amplitude, uint16_t periodMs) {
   if (!attached) return;
+  if (!motionEnabled) return;
   if (playing || jogActive) return;
   if (periodMs < 50) periodMs = 50;
   const uint16_t dwell = (uint16_t)(periodMs / 10);
@@ -200,6 +206,7 @@ void cancelAll() {
 
 void playJog(int8_t offsetDeg, uint16_t durationMs) {
   if (!attached) return;
+  if (!motionEnabled) return;
   jogStartAngle = commandedAngle;
   jogTargetAngle = offsetToAngle(offsetDeg);
   jogStartMs = millis();
@@ -210,6 +217,10 @@ void playJog(int8_t offsetDeg, uint16_t durationMs) {
 }
 
 void setThinkingMode(bool on, int8_t centerOffset, uint8_t amplitude, uint16_t periodMs) {
+  if (!motionEnabled) {
+    thinkingMode = false;
+    return;
+  }
   if (!on) {
     thinkingMode = false;
     return;
@@ -225,6 +236,7 @@ void setThinkingMode(bool on, int8_t centerOffset, uint8_t amplitude, uint16_t p
 
 void holdPosition(int8_t offsetDeg, uint32_t durationMs) {
   if (!attached) return;
+  if (!motionEnabled) return;
   if (durationMs == 0) durationMs = 1;
 
   jogStartAngle = commandedAngle;
@@ -247,5 +259,17 @@ bool consumeHoldExpired() {
 }
 
 bool isBusy() { return playing != nullptr || jogActive || holdActive; }
+
+void setEnabled(bool enabled) {
+  motionEnabled = enabled;
+  if (!motionEnabled) {
+    cancelAll();
+    holdActive = false;
+    holdExpiredEdge = false;
+    if (attached) writeAngle(kCentre);
+  }
+}
+
+bool enabled() { return motionEnabled; }
 
 }  // namespace Motion

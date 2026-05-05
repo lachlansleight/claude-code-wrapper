@@ -12,6 +12,7 @@
  *    foreground/background plus one per verb and emotion);
  *  - a single `face_mode` boolean (true = procedural face, false =
  *    minimal text mode);
+ *  - a `motors_disabled` boolean (true = servo held centred);
  *  - a schema version key — on mismatch the entire namespace is reset
  *    to the compiled-in defaults.
  *
@@ -67,6 +68,15 @@ bool faceModeEnabled();
  * invalidate.
  */
 void setFaceModeEnabled(bool enabled);
+
+/// True if servo motion is disabled.
+bool motorsDisabled();
+
+/**
+ * Toggle servo movement disable state. No-op if unchanged; otherwise persists
+ * to NVS and bumps settingsVersion().
+ */
+void setMotorsDisabled(bool disabled);
 
 /**
  * Monotonic counter that increments on every successful palette change

@@ -103,4 +103,13 @@ bool consumeHoldExpired();
  */
 bool isBusy();
 
+/**
+ * Globally enable/disable motor movement. When disabled, motion commands
+ * are ignored and the servo is forced to centre (offset 0).
+ */
+void setEnabled(bool enabled);
+
+/// True when motion commands are allowed.
+bool enabled();
+
 }  // namespace Motion

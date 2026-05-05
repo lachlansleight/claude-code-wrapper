@@ -133,11 +133,28 @@ export function attachWebSocketServer(config: BridgeConfig): (httpServer: HttpSe
     }
 
     if (m.type === 'config_change') {
-      if (typeof m.display_mode !== 'string' || (m.display_mode !== 'face' && m.display_mode !== 'text' && m.display_mode !== 'debug')) {
+      const hasDisplayMode = typeof m.display_mode === 'string'
+      const hasMotorsDisabled = typeof m.motors_disabled === 'boolean'
+      if (!hasDisplayMode && !hasMotorsDisabled) {
         ws.send(JSON.stringify({ type: 'error', message: 'invalid_config_change' }))
         return
       }
-      broadcast({ type: 'config_change', display_mode: m.display_mode, by: client_id, ts: Date.now() })
+      if (
+        hasDisplayMode &&
+        m.display_mode !== 'face' &&
+        m.display_mode !== 'text' &&
+        m.display_mode !== 'debug'
+      ) {
+        ws.send(JSON.stringify({ type: 'error', message: 'invalid_config_change' }))
+        return
+      }
+      broadcast({
+        type: 'config_change',
+        ...(hasDisplayMode ? { display_mode: m.display_mode } : {}),
+        ...(hasMotorsDisabled ? { motors_disabled: m.motors_disabled } : {}),
+        by: client_id,
+        ts: Date.now(),
+      })
       return
     }
 

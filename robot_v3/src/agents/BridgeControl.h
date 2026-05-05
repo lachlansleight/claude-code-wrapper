@@ -40,6 +40,7 @@ using PaletteChangeHandler = void (*)(Settings::NamedColor color, uint8_t r, uin
  * present.
  */
 using DisplayModeHandler = void (*)(DisplayMode mode);
+using MotorsDisabledHandler = void (*)(bool motorsDisabled);
 
 /**
  * Fired on `set_servo_position` frames. `angle` is the offset from
@@ -52,6 +53,8 @@ using ServoOverrideHandler = void (*)(int8_t angle, uint32_t durationMs);
 void onPaletteChange(PaletteChangeHandler handler);
 /// Register a display-mode handler. Single slot.
 void onDisplayModeChange(DisplayModeHandler handler);
+/// Register a motors-disabled handler. Single slot.
+void onMotorsDisabledChange(MotorsDisabledHandler handler);
 /// Register a servo-override handler. Single slot.
 void onServoOverride(ServoOverrideHandler handler);
 

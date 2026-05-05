@@ -382,6 +382,7 @@
     <button id="faceBtn" class="btn-face" disabled>Face Mode</button>
     <button id="textBtn" class="btn-text" disabled>Text Mode</button>
     <button id="debugBtn" class="btn-text" disabled>Debug Mode</button>
+    <button id="motorsToggleBtn" class="btn-text" disabled>Disable Motors</button>
   </div>
   <h3>Colours</h3>
   <div id="colorControls" class="color-grid"></div>
@@ -436,6 +437,7 @@
       "file.write": null,
       "shell.exec": null,
     };
+    let motorsDisabled = false;
     let sessionActive = false;
     let turnActive = false;
     const ts = () => new Date().toLocaleTimeString();
@@ -899,8 +901,13 @@
           break;
         }
         case "config_change": {
+          if (typeof msg.motors_disabled === "boolean") {
+            motorsDisabled = msg.motors_disabled;
+            document.getElementById("motorsToggleBtn").textContent = motorsDisabled ? "Enable Motors" : "Disable Motors";
+          }
           const kvs = [];
           kvPush(kvs, "display_mode", msg.display_mode);
+          kvPush(kvs, "motors_disabled", typeof msg.motors_disabled === "boolean" ? String(msg.motors_disabled) : "");
           kvPush(kvs, "by", msg.by);
           kvPush(kvs, "ts", msg.ts);
           appendBridgeCard({
@@ -908,7 +915,10 @@
             lane: "config_change",
             receivedAt: Date.now(),
             bridgeTs: msg.ts,
-            headline: `Display mode → ${esc(msg.display_mode || "")}`,
+            headline:
+              typeof msg.display_mode === "string"
+                ? `Display mode → ${esc(msg.display_mode || "")}`
+                : `Config changed`,
             robotHint: "",
             bodyHtml: "",
             kvs,
@@ -1011,6 +1021,7 @@
         "faceBtn",
         "textBtn",
         "debugBtn",
+        "motorsToggleBtn",
         "readToggleBtn",
         "writeToggleBtn",
         "executeToggleBtn",
@@ -1031,7 +1042,9 @@
         activeActivities["shell.exec"] = null;
         sessionActive = false;
         turnActive = false;
+        motorsDisabled = false;
       }
+      document.getElementById("motorsToggleBtn").textContent = motorsDisabled ? "Enable Motors" : "Disable Motors";
       refreshToggleLabels();
       document.getElementById("connectBtn").textContent = connected ? "Disconnect" : "Connect";
       document.getElementById("status").classList.toggle("connected", connected);
@@ -1043,6 +1056,15 @@
         return;
       }
       const payload = { type: "config_change", display_mode: mode };
+      ws.send(JSON.stringify(payload));
+      log(">> " + JSON.stringify(payload));
+    };
+    const sendMotorsDisabled = (disabled) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        log("WebSocket is not connected.");
+        return;
+      }
+      const payload = { type: "config_change", motors_disabled: !!disabled };
       ws.send(JSON.stringify(payload));
       log(">> " + JSON.stringify(payload));
     };
@@ -1146,6 +1168,9 @@
     document.getElementById("faceBtn").addEventListener("click", () => sendMode("face"));
     document.getElementById("textBtn").addEventListener("click", () => sendMode("text"));
     document.getElementById("debugBtn").addEventListener("click", () => sendMode("debug"));
+    document.getElementById("motorsToggleBtn").addEventListener("click", () => {
+      sendMotorsDisabled(!motorsDisabled);
+    });
     const initColorControls = () => {
       const root = document.getElementById("colorControls");
       root.innerHTML = `

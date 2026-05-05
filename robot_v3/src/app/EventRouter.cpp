@@ -113,6 +113,11 @@ void onDisplayMode(BridgeControl::DisplayMode mode) {
   }
 }
 
+void onMotorsDisabled(bool motorsDisabled) {
+  Settings::setMotorsDisabled(motorsDisabled);
+  Motion::setEnabled(!motorsDisabled);
+}
+
 void onServoOverride(int8_t angle, uint32_t durationMs) { Motion::holdPosition(angle, durationMs); }
 
 bool parseVerbFromVariant(JsonVariantConst v, VerbSystem::Verb* outVerb) {
@@ -186,12 +191,14 @@ void begin() {
   AgentEvents::onEvent(&onAgentEvent);
   BridgeControl::onPaletteChange(&onPaletteChange);
   BridgeControl::onDisplayModeChange(&onDisplayMode);
+  BridgeControl::onMotorsDisabledChange(&onMotorsDisabled);
   BridgeControl::onServoOverride(&onServoOverride);
   sPendingPermissionHeld = false;
   sStrainHeld = false;
   sLastSessionPollMs = 0;
   AgentEvents::setRenderMode(Settings::faceModeEnabled() ? AgentEvents::RENDER_FACE
                                                         : AgentEvents::RENDER_TEXT);
+  Motion::setEnabled(!Settings::motorsDisabled());
 }
 
 void tick() {

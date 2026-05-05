@@ -7,11 +7,13 @@ namespace BridgeControl {
 namespace {
 PaletteChangeHandler sPaletteHandler = nullptr;
 DisplayModeHandler sModeHandler = nullptr;
+MotorsDisabledHandler sMotorsDisabledHandler = nullptr;
 ServoOverrideHandler sServoHandler = nullptr;
 }
 
 void onPaletteChange(PaletteChangeHandler handler) { sPaletteHandler = handler; }
 void onDisplayModeChange(DisplayModeHandler handler) { sModeHandler = handler; }
+void onMotorsDisabledChange(MotorsDisabledHandler handler) { sMotorsDisabledHandler = handler; }
 void onServoOverride(ServoOverrideHandler handler) { sServoHandler = handler; }
 
 void dispatch(JsonDocument& doc) {
@@ -32,6 +34,13 @@ void dispatch(JsonDocument& doc) {
   }
 
   if (strcmp(type, "config_change") == 0) {
+    if (sMotorsDisabledHandler) {
+      JsonVariantConst motorsVar = doc["motors_disabled"];
+      if (motorsVar.isNull()) motorsVar = doc["config"]["motors_disabled"];
+      if (!motorsVar.isNull() && motorsVar.is<bool>()) {
+        sMotorsDisabledHandler(motorsVar.as<bool>());
+      }
+    }
     if (!sModeHandler) return;
     JsonVariantConst modeVar = doc["display_mode"];
     if (modeVar.isNull()) modeVar = doc["config"]["display_mode"];
@@ -50,8 +59,12 @@ void dispatch(JsonDocument& doc) {
         return;
       }
     }
-    const bool faceEnabled = doc["face_mode_enabled"] | true;
-    sModeHandler(faceEnabled ? DisplayMode::Face : DisplayMode::Text);
+    JsonVariantConst faceModeVar = doc["face_mode_enabled"];
+    if (faceModeVar.isNull()) faceModeVar = doc["config"]["face_mode_enabled"];
+    if (!faceModeVar.isNull()) {
+      const bool faceEnabled = faceModeVar.as<bool>();
+      sModeHandler(faceEnabled ? DisplayMode::Face : DisplayMode::Text);
+    }
     return;
   }
 

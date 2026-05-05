@@ -11,10 +11,12 @@ namespace {
 static constexpr const char* kNamespace = "settings_v3";
 static constexpr const char* kKeySchema = "schema";
 static constexpr const char* kKeyFaceMode = "face_mode";
+static constexpr const char* kKeyMotorsDisabled = "motors_dis";
 static constexpr const char* kColorKeyPrefix = "c";
 static constexpr uint16_t kSettingsSchemaVersion = 1;
 
 bool g_faceModeEnabled = true;
+bool g_motorsDisabled = false;
 uint32_t g_settingsVersion = 1;
 
 Rgb888 g_defaultColors[(size_t)NamedColor::Count] = {
@@ -69,6 +71,7 @@ void resetToDefaults(Preferences& p) {
   p.clear();
   p.putUShort(kKeySchema, kSettingsSchemaVersion);
   p.putBool(kKeyFaceMode, true);
+  p.putBool(kKeyMotorsDisabled, false);
   for (size_t i = 0; i < (size_t)NamedColor::Count; ++i) {
     p.putULong(colorKey(i).c_str(), packRgb(g_defaultColors[i]));
   }
@@ -87,6 +90,7 @@ void begin() {
   }
 
   g_faceModeEnabled = p.getBool(kKeyFaceMode, true);
+  g_motorsDisabled = p.getBool(kKeyMotorsDisabled, false);
   for (size_t i = 0; i < (size_t)NamedColor::Count; ++i) {
     const uint32_t packed = p.getULong(colorKey(i).c_str(), packRgb(g_defaultColors[i]));
     g_colors[i] = unpackRgb(packed);
@@ -104,6 +108,19 @@ void setFaceModeEnabled(bool enabled) {
   Preferences p;
   p.begin(kNamespace, false);
   p.putBool(kKeyFaceMode, enabled);
+  p.end();
+}
+
+bool motorsDisabled() { return g_motorsDisabled; }
+
+void setMotorsDisabled(bool disabled) {
+  if (g_motorsDisabled == disabled) return;
+  g_motorsDisabled = disabled;
+  ++g_settingsVersion;
+
+  Preferences p;
+  p.begin(kNamespace, false);
+  p.putBool(kKeyMotorsDisabled, disabled);
   p.end();
 }
 
