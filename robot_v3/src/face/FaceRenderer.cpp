@@ -32,6 +32,12 @@ static inline void paintLocalSpan(TFT_eSprite& s, int16_t cx, int16_t cy, float 
   s.drawLine(x0, y0, x1, y1, color);
 }
 
+static inline void localToScreenPoint(int16_t cx, int16_t cy, float lx, float ly, float cosA,
+                                      float sinA, float& outX, float& outY) {
+  outX = (float)cx + lx * cosA - ly * sinA;
+  outY = (float)cy + lx * sinA + ly * cosA;
+}
+
 static void drawMouth(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy, uint32_t nowMs,
                       float cosA, float sinA, uint16_t fg565) {
   const int16_t halfw = p.mouth_rx;
@@ -41,7 +47,9 @@ static void drawMouth(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t c
   // Scale by 1/50 so a wave_freq slider value of 50 ≈ 1 cycle across the shape.
   const float waveFreq = (float)p.mouth_wave_freq * 0.02f;
   const float waveAmp = (float)p.mouth_wave_amp;
-  const float minThick = (float)p.mouth_thick;
+  const float mouthW = 2.0f * (float)p.mouth_thick;
+  bool hasPrevTop = false, hasPrevBot = false;
+  float prevTopX = 0.0f, prevTopY = 0.0f, prevBotX = 0.0f, prevBotY = 0.0f;
 
   for (int16_t lx = -halfw; lx <= halfw; ++lx) {
     const float n = (float)lx / (float)halfw;
@@ -57,12 +65,25 @@ static void drawMouth(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t c
       yt = yb;
       yb = tmp;
     }
-    if ((yb - yt) < minThick) {
-      const float mid = 0.5f * (yt + yb);
-      yt = mid - 0.5f * minThick;
-      yb = mid + 0.5f * minThick;
+
+    float topX = 0.0f, topY = 0.0f, botX = 0.0f, botY = 0.0f;
+    localToScreenPoint(cx, cy, (float)lx, yt, cosA, sinA, topX, topY);
+    localToScreenPoint(cx, cy, (float)lx, yb, cosA, sinA, botX, botY);
+    if (hasPrevTop) {
+      s.drawWedgeLine(prevTopX, prevTopY, topX, topY, mouthW, mouthW, fg565, fg565);
     }
-    paintLocalSpan(s, cx, cy, (float)lx, yt, yb, cosA, sinA, fg565);
+    if (hasPrevBot) {
+      s.drawWedgeLine(prevBotX, prevBotY, botX, botY, mouthW, mouthW, fg565, fg565);
+    }
+    if (yb >= yt) {
+      paintLocalSpan(s, cx, cy, (float)lx, yt, yb, cosA, sinA, fg565);
+    }
+    prevTopX = topX;
+    prevTopY = topY;
+    prevBotX = botX;
+    prevBotY = botY;
+    hasPrevTop = true;
+    hasPrevBot = true;
   }
 }
 
@@ -87,6 +108,9 @@ static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy,
   const float pupilR = (float)p.pupil_r;
   const float pupilR2 = pupilR * pupilR;
   const bool drawPupil = (p.pupil_r > 0) && (blink < 0.6f);
+  const float strokeW = 2.0f * thickF;  // centered wedge => outward half-width == thickF.
+  bool hasPrev = false;
+  float prevTopX = 0.0f, prevTopY = 0.0f, prevBotX = 0.0f, prevBotY = 0.0f;
 
   for (int16_t lx = -halfw; lx <= halfw; ++lx) {
     const float n = (float)lx / (float)halfw;
@@ -103,11 +127,18 @@ static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy,
       yb = tmp;
     }
 
-    // Strokes extend OUTWARD from the envelope so the two bands never
-    // overlap each other — when curves coincide they meet edge-to-edge
-    // for a clean 2*thick band.
-    paintLocalSpan(s, cx, cy, (float)lx, yt - thickF, yt, cosA, sinA, fg565);
-    paintLocalSpan(s, cx, cy, (float)lx, yb, yb + thickF, cosA, sinA, fg565);
+    float topX = 0.0f, topY = 0.0f, botX = 0.0f, botY = 0.0f;
+    localToScreenPoint(cx, cy, (float)lx, yt, cosA, sinA, topX, topY);
+    localToScreenPoint(cx, cy, (float)lx, yb, cosA, sinA, botX, botY);
+    if (hasPrev) {
+      s.drawWedgeLine(prevTopX, prevTopY, topX, topY, strokeW, strokeW, fg565, bg565);
+      s.drawWedgeLine(prevBotX, prevBotY, botX, botY, strokeW, strokeW, fg565, bg565);
+    }
+    prevTopX = topX;
+    prevTopY = topY;
+    prevBotX = botX;
+    prevBotY = botY;
+    hasPrev = true;
 
     if (yb <= yt) continue;  // collapsed envelope: no interior to fill.
 
