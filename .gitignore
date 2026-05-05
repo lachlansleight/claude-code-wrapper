@@ -5,3 +5,4 @@ dist/
 .env.local
 .DS_Store
 TFT_eSPI/
+robot_v3/docs/api/html/

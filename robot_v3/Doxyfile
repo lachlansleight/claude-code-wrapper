@@ -1,0 +1,64 @@
+# Doxyfile for robot_v3 firmware. See https://www.doxygen.nl/manual/config.html
+# Run from the robot_v3/ directory:    doxygen Doxyfile
+
+PROJECT_NAME           = "robot_v3 firmware"
+PROJECT_BRIEF          = "Agent-driven procedural face + arm motion (ESP32-S3)"
+OUTPUT_DIRECTORY       = docs/api
+
+# --- Inputs --------------------------------------------------------------
+INPUT                  = src
+RECURSIVE              = YES
+FILE_PATTERNS          = *.h *.hpp
+EXTENSION_MAPPING      = h=C++
+EXCLUDE_PATTERNS       = */config.h */config.example.h
+
+# Use the @file blurb at the top of each header as the module description.
+JAVADOC_AUTOBRIEF      = YES
+QT_AUTOBRIEF           = YES
+MULTILINE_CPP_IS_BRIEF = NO
+MARKDOWN_SUPPORT       = YES
+
+# --- What to extract -----------------------------------------------------
+# Headers contain the public API; we don't want privates from .cpp files.
+EXTRACT_ALL            = YES
+EXTRACT_STATIC         = NO
+EXTRACT_PRIVATE        = NO
+EXTRACT_LOCAL_CLASSES  = YES
+HIDE_UNDOC_MEMBERS     = NO
+HIDE_UNDOC_CLASSES     = NO
+INLINE_SIMPLE_STRUCTS  = NO
+
+# Group enum values with their parent enum, document namespace contents.
+SHOW_NAMESPACES        = YES
+SORT_MEMBER_DOCS       = NO
+SORT_BRIEF_DOCS        = NO
+
+# --- Output --------------------------------------------------------------
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+GENERATE_LATEX         = NO
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
+FULL_SIDEBAR           = NO
+HTML_COLORSTYLE        = LIGHT
+
+# Drop in doxygen-awesome-css for a less-1990s look. See docs/api/README.md.
+# Uncomment after placing the .css files alongside this Doxyfile (e.g. in docs/theme/):
+# HTML_EXTRA_STYLESHEET  = docs/theme/doxygen-awesome.css \
+#                          docs/theme/doxygen-awesome-sidebar-only.css
+# HTML_COLORSTYLE        = AUTO_LIGHT
+
+# --- Diagrams ------------------------------------------------------------
+HAVE_DOT               = NO
+CLASS_DIAGRAMS         = YES
+COLLABORATION_GRAPH    = NO
+INCLUDE_GRAPH          = NO
+INCLUDED_BY_GRAPH      = NO
+
+# --- Suppress arduino-specific noise -------------------------------------
+PREDEFINED             = ARDUINO=10800 \
+                         ESP32=1 \
+                         __cplusplus
+WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_DOC_ERROR      = YES
+QUIET                  = YES
