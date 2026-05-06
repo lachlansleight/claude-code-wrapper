@@ -9,6 +9,63 @@ PaletteChangeHandler sPaletteHandler = nullptr;
 DisplayModeHandler sModeHandler = nullptr;
 MotorsDisabledHandler sMotorsDisabledHandler = nullptr;
 ServoOverrideHandler sServoHandler = nullptr;
+
+bool tryParseNamedColor(const char* key, Settings::NamedColor* out) {
+  if (!key || !out) return false;
+  if (strcmp(key, "background") == 0) {
+    *out = Settings::NamedColor::Background;
+    return true;
+  }
+  if (strcmp(key, "foreground") == 0) {
+    *out = Settings::NamedColor::Foreground;
+    return true;
+  }
+  if (strcmp(key, "thinking") == 0) {
+    *out = Settings::NamedColor::Thinking;
+    return true;
+  }
+  if (strcmp(key, "reading") == 0) {
+    *out = Settings::NamedColor::Reading;
+    return true;
+  }
+  if (strcmp(key, "writing") == 0) {
+    *out = Settings::NamedColor::Writing;
+    return true;
+  }
+  if (strcmp(key, "executing") == 0) {
+    *out = Settings::NamedColor::Executing;
+    return true;
+  }
+  if (strcmp(key, "executing_long") == 0 || strcmp(key, "straining") == 0) {
+    *out = Settings::NamedColor::Straining;
+    return true;
+  }
+  if (strcmp(key, "blocked") == 0 || strcmp(key, "sad") == 0) {
+    *out = Settings::NamedColor::Sad;
+    return true;
+  }
+  if (strcmp(key, "finished") == 0 || strcmp(key, "joyful") == 0) {
+    *out = Settings::NamedColor::Joyful;
+    return true;
+  }
+  if (strcmp(key, "excited") == 0) {
+    *out = Settings::NamedColor::Excited;
+    return true;
+  }
+  if (strcmp(key, "happy") == 0) {
+    *out = Settings::NamedColor::Happy;
+    return true;
+  }
+  if (strcmp(key, "sleeping") == 0) {
+    *out = Settings::NamedColor::Sleeping;
+    return true;
+  }
+  if (strcmp(key, "wants_at") == 0 || strcmp(key, "attention") == 0) {
+    *out = Settings::NamedColor::Attention;
+    return true;
+  }
+  return false;
+}
 }
 
 void onPaletteChange(PaletteChangeHandler handler) { sPaletteHandler = handler; }
@@ -21,15 +78,23 @@ void dispatch(JsonDocument& doc) {
 
   if (strcmp(type, "setColor") == 0) {
     if (!sPaletteHandler) return;
-    const int color = doc["color"] | 0;
     const uint8_t r = (uint8_t)(doc["r"] | 0);
     const uint8_t g = (uint8_t)(doc["g"] | 0);
     const uint8_t b = (uint8_t)(doc["b"] | 0);
-    if (color < 0 || color >= (int)Settings::NamedColor::Count) {
-      LOG_WARN("setColor ignored invalid color index=%d", color);
-      return;
+    Settings::NamedColor color = Settings::NamedColor::Background;
+
+    // Current control UI sends string keys ("thinking", "blocked", ...).
+    // Keep numeric index support for older senders.
+    const char* key = doc["key"] | doc["name"] | "";
+    if (!tryParseNamedColor(key, &color)) {
+      const int colorIndex = doc["color"] | -1;
+      if (colorIndex < 0 || colorIndex >= (int)Settings::NamedColor::Count) {
+        LOG_WARN("setColor ignored invalid key='%s' index=%d", key ? key : "", colorIndex);
+        return;
+      }
+      color = (Settings::NamedColor)colorIndex;
     }
-    sPaletteHandler((Settings::NamedColor)color, r, g, b);
+    sPaletteHandler(color, r, g, b);
     return;
   }
 
