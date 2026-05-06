@@ -80,30 +80,68 @@ tracks `millis()` smoothly.
 
 The semantic state of the face. Every parameter is interpolable, which
 is what makes `lerpParams` between any two states produce a smooth
-animation. Defined in `SceneTypes.h`:
+animation. Defined in `SceneTypes.h`.
 
-| Field          | Range / units   | What it does                                                |
-|----------------|-----------------|-------------------------------------------------------------|
-| `eye_dy`       | px              | vertical offset of both eye centres                         |
-| `eye_rx`       | px              | eye horizontal radius                                       |
-| `eye_ry`       | px              | eye vertical radius (drops to 0 during blink)               |
-| `eye_stroke`   | px              | eye outline thickness                                       |
-| `eye_curve`    | bend (∩ if > 0) | parabola bend for ^_^ / sad / round                         |
-| `pupil_dx`     | px              | pupil horizontal offset (multiplied by thinking tilt sign)  |
-| `pupil_dy`     | px              | pupil vertical offset                                       |
-| `pupil_r`      | px              | pupil radius                                                |
-| `mouth_dy`     | px              | vertical offset of mouth centre                             |
-| `mouth_w`      | px              | mouth width                                                 |
-| `mouth_curve`  | bend (∩ frown / ∪ smile) | parabola bend for the mouth                       |
-| `mouth_open_h` | px              | open-mouth oval height (0 = closed line)                    |
-| `mouth_thick`  | px              | mouth stroke thickness                                      |
-| `face_rot`     | degrees         | whole-face rotation (× thinking tilt sign in THINKING)      |
-| `face_y`       | px              | whole-face vertical offset (target + body-bob)              |
-| `ring_r/g/b`   | 0–255           | mood ring colour (eased separately)                         |
+**Eye and mouth geometry** are each two edge curves (top and bottom). At
+each horizontal sample `lx` from `−half_width` to `+half_width`, each edge
+interpolates between its **apex** (y at `lx = 0`) and **corner** (y at
+`lx = ±half_width`) with a semicircle in normalized coordinate `n = lx /
+half_width`: the edge height is `corner + (apex − corner) × √(1 − n²)`.
+Mirrored apex/corner pairs about `y = 0` produce a true ellipse when
+`eye_rx` matches the intended vertical radius relationship.
+
+Optional **waves** add the same sinusoidal vertical offset to both edges
+(`eye_wave_*`, `mouth_wave_*`). Amplitude and frequency are per-shape;
+frequency is scaled in the renderer so a value around `50` is roughly one
+full cycle across the width. `*_wave_speed` is phase advance in
+**degrees per second** (`0` = frozen phase). Set amplitudes to `0` to
+disable.
+
+**Eyes** (`FaceRenderer`): blink squeezes the envelope vertically toward
+closed (`blinkAmt` 0→1); the pupil is drawn only while `blinkAmt < 0.6`.
+Strokes are bands of `eye_thick` drawn **outward** from the top and
+bottom edges; the interior is hollow (background) with the pupil filled
+in foreground where it intersects the envelope—columns outside the
+shape are not painted, so the pupil is clipped by the eye without
+artificial shrinking.
+
+**Mouth**: solid fill between the two edge curves. If the curves would
+collapse, `mouth_thick` enforces a minimum band thickness around the
+midline so a closed mouth stays visible.
+
+| Field | Range / units | What it does |
+|-------|----------------|--------------|
+| `eye_dy` | px | vertical offset of both eye centres |
+| `eye_rx` | px | eye half-width (`lx ∈ [−eye_rx, +eye_rx]`) |
+| `eye_top_apex` | px | top edge y at centre (eye-local; +y = down) |
+| `eye_top_corner` | px | top edge y at `lx = ±eye_rx` |
+| `eye_bot_apex` | px | bottom edge y at centre |
+| `eye_bot_corner` | px | bottom edge y at `lx = ±eye_rx` |
+| `eye_thick` | px | per-edge stroke thickness, outward from each curve |
+| `eye_wave_amp` | px | sinusoid amplitude on both edges (`0` = off) |
+| `eye_wave_freq` | — | cycles across width (≈`50` ≈ one cycle in the renderer) |
+| `eye_wave_speed` | deg/s | wave phase speed (`0` = static) |
+| `pupil_dx` | px | pupil horizontal offset (thinking tilt still multiplies sign in `FrameController`) |
+| `pupil_dy` | px | pupil vertical offset |
+| `pupil_r` | px | pupil radius (`0` = no pupil) |
+| `mouth_dy` | px | vertical offset of mouth centre |
+| `mouth_rx` | px | mouth half-width |
+| `mouth_top_apex` | px | top edge y at centre (mouth-local) |
+| `mouth_top_corner` | px | top edge y at `lx = ±mouth_rx` |
+| `mouth_bot_apex` | px | bottom edge y at centre |
+| `mouth_bot_corner` | px | bottom edge y at `lx = ±mouth_rx` |
+| `mouth_thick` | px | minimum band height when curves coincide (closed mouth) |
+| `mouth_wave_amp` | px | sinusoid on both edges (e.g. strain / vibrate; `0` = off) |
+| `mouth_wave_freq` | — | same scaling as `eye_wave_freq` |
+| `mouth_wave_speed` | deg/s | same semantics as `eye_wave_speed` |
+| `face_rot` | degrees | whole-face rotation (× thinking tilt sign in THINKING) |
+| `face_y` | px | whole-face vertical offset (target + body-bob) |
+| `ring_r` / `ring_g` / `ring_b` | 0–255 | mood ring RGB888 (eased separately) |
 
 Per-expression base targets live in `kBaseTargets[]` at the top of
 `robot_v3/src/face/FrameController.cpp` — one row per `Face::Expression`,
-in enum order.
+in enum order. `VerbStraining` uses `mouth_wave_*` for a zig-zag mouth;
+there is no separate expression branch for that shape in the renderer.
 
 ## Modulators
 
