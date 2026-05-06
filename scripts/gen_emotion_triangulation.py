@@ -2,24 +2,24 @@
 """Generate EmotionTriangulation.h from the emotion box table.
 
 Reads constexpr Box kBoxes[(size_t)NamedEmotion::Count] from
-robot_v3/src/behaviour/EmotionSystem.cpp. Each row is two opposite corners
-(v0,a0), (v1,a1) per the file comment; they are normalized to axis-aligned
-min/max before use. For each box, emits its 4 corners
-as anchor points tagged with the emotion. Computes a Delaunay triangulation
-of the deduplicated anchor set via Bowyer-Watson (no scipy dep). Emits a C++
-header with two constexpr arrays: kAnchors[] and kTriangles[].
+robot_v3/src/behaviour/EmotionSystem.cpp. Each row is either two opposite
+corners (v0,a0), (v1,a1) — four floats, normalized to axis-aligned min/max —
+or a single (v, a) point — two floats (degenerate box). Emits one anchor per
+row at the box center ((minV+maxV)/2, (minA+maxA)/2), tagged with the emotion.
+Computes a Delaunay triangulation of the deduplicated anchor set via
+Bowyer-Watson (no scipy dep). Emits a C++ header with two constexpr arrays:
+kAnchors[] and kTriangles[].
 
 Run by hand whenever kBoxes changes:
     python scripts/gen_emotion_triangulation.py
 
 Asserts each corner of the (v,a) domain [-1, +1] x [0, 1] lies inside
-at least one kBoxes axis-aligned region (not necessarily as a box vertex).
-If not, refuses to emit.
+at least one kBoxes axis-aligned region (anchors are centers only; this check
+still uses the full rectangles). If not, refuses to emit.
 """
 
 from __future__ import annotations
 
-import math
 import re
 import sys
 from dataclasses import dataclass
@@ -27,8 +27,7 @@ from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # kBoxes source (parsed at runtime from EmotionSystem.cpp).
-# Each entry: (NamedEmotion name, minV, maxV, minA, maxA) after normalizing
-# from corner pair (v0,a0), (v1,a1).
+# Each entry: (NamedEmotion name, minV, maxV, minA, maxA); anchor at center.
 # ---------------------------------------------------------------------------
 
 DOMAIN_V = (-1.0, 1.0)
@@ -52,9 +51,10 @@ EPS = 1e-9
 def parse_k_boxes_from_emotion_system_cpp(path: Path) -> list[tuple[str, float, float, float, float]]:
     """Parse kBoxes initializer: lines from '= {' until '};'.
 
-    Each row is `{ v0, a0, v1, a1 }, // Name` — two opposite corners of an
-    axis-aligned box (see EmotionSystem.cpp comment on kBoxes). Values are
-    normalized to (minV, maxV, minA, maxA) for geometry.
+    Each row is `{ ... }, // Name` with either four floats (v0, a0, v1, a1 —
+    two opposite corners of an axis-aligned box) or two floats (v, a) — a
+    degenerate box. Both normalize to (minV, maxV, minA, maxA); triangulation
+    uses the center of each row's box.
     """
     if not path.is_file():
         raise SystemExit(
@@ -105,10 +105,10 @@ def parse_k_boxes_from_emotion_system_cpp(path: Path) -> list[tuple[str, float, 
                 "needs a // EmotionName comment:\n"
                 f"{lines[j]!r}"
             )
-        parts = [p.strip() for p in inner.split(",")]
-        if len(parts) != 4:
+        parts = [p.strip() for p in inner.split(",") if p.strip()]
+        if len(parts) not in (2, 4):
             raise SystemExit(
-                f"[gen_emotion_triangulation] expected 4 floats in kBoxes "
+                f"[gen_emotion_triangulation] expected 2 or 4 floats in kBoxes "
                 f"line {j + 1} in {path}, got {len(parts)}:\n{lines[j]!r}"
             )
         try:
@@ -118,9 +118,14 @@ def parse_k_boxes_from_emotion_system_cpp(path: Path) -> list[tuple[str, float, 
                 f"[gen_emotion_triangulation] bad float literal in kBoxes "
                 f"line {j + 1} in {path}:\n{lines[j]!r}\n{e}"
             ) from e
-        v0, a0, v1, a1 = nums
-        min_v, max_v = min(v0, v1), max(v0, v1)
-        min_a, max_a = min(a0, a1), max(a0, a1)
+        if len(nums) == 4:
+            v0, a0, v1, a1 = nums
+            min_v, max_v = min(v0, v1), max(v0, v1)
+            min_a, max_a = min(a0, a1), max(a0, a1)
+        else:
+            v, a = nums
+            min_v = max_v = v
+            min_a = max_a = a
         boxes.append((name, min_v, max_v, min_a, max_a))
         j += 1
     else:
@@ -148,11 +153,11 @@ def collect_anchors(
 ) -> list[Anchor]:
     seen: dict[tuple[float, float], Anchor] = {}
     for emotion, minV, maxV, minA, maxA in boxes:
-        for v in (minV, maxV):
-            for a in (minA, maxA):
-                key = (round(v, 9), round(a, 9))
-                if key not in seen:
-                    seen[key] = Anchor(v, a, emotion)
+        v = 0.5 * (minV + maxV)
+        a = 0.5 * (minA + maxA)
+        key = (round(v, 9), round(a, 9))
+        if key not in seen:
+            seen[key] = Anchor(v, a, emotion)
     return list(seen.values())
 
 
@@ -175,8 +180,8 @@ def assert_domain_corners_pinned_by_boxes(
 ) -> None:
     """Each domain rectangle corner must lie inside some kBoxes region.
 
-    A corner may sit on a box edge or in the interior — it need not be one
-    of the four vertex anchors we emit for that box.
+    Uses the axis-aligned rectangles from kBoxes, independent of anchor
+    placement (centers only).
     """
     corners = (
         (DOMAIN_V[0], DOMAIN_A[0]),

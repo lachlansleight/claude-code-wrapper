@@ -39,17 +39,17 @@ uint32_t sPendingSnapSinceMs = 0;
 
 // Bounding boxes from corner pairs {{v,a},{v,a}}; overlap ties break by kPickOrder.
 constexpr Box kBoxes[(size_t)NamedEmotion::Count] = {
-    {-0.05f, 0.45, 0.05f, 0.55f},   // Neutral
-    {0.9f, 0.3f, 1f, 0.4f},      // Happy
-    {0.9f, 0.6f, 1f, 0.7f},      // Excited
-    {0.9f, 0.9f, 1f, 1f},      // Joyful
-    {-1.0f, 0.3f, -0.9f, 0.4f},    // Sad
-    {-0.05f, 0f, 0.05f, 0.1f},    // Sleepy
-    {-1f, 0.9f, -0.9f, 1f},    // Distressed
-    {0.9f, 0f, 1f, 0.1f},    // Blissed
-    {-1f, 0f, -0.9f, 0.1f},    // Depressed
-    {-0.05f, 0.9f, 0.05f, 1f},    // Shocked
-    {-1f, 0.6f, -0.9f, 0.7f},  // Disappointed
+    {-0.05f, +0.45f, +0.05f, +0.55f},   // Neutral
+    {+0.9f , +0.3f , +1.0f , +0.4f },   // Happy
+    {+0.9f , +0.6f , +1.0f , +0.7f },   // Excited
+    {+0.9f , +0.9f , +1.0f , +1.0f },   // Joyful
+    {-1.0f , +0.3f , -0.9f , +0.4f },   // Sad
+    {-0.05f, +0.0f , +0.05f, +0.1f },   // Sleepy
+    {-1.0f , +0.9f , -0.9f , +1.0f },   // Distressed
+    {+0.9f , +0.0f , +1.0f , +0.1f },   // Blissed
+    {-1.0f , +0.0f , -0.9f , +0.1f },   // Depressed
+    {-0.05f, +0.9f , +0.05f, +1.0f },   // Shocked
+    {-1.0f , +0.6f , -0.9f , +0.7f },   // Disappointed
 };
 
 /*
