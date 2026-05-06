@@ -12,6 +12,10 @@ bool moodRingEnabledFor(Expression expr) {
     case Expression::Joyful:
     case Expression::Excited:
     case Expression::Sad:
+    case Expression::Distressed:
+    case Expression::Depressed:
+    case Expression::Shocked:
+    case Expression::Disappointed:
     case Expression::OverlayAttention:
       return true;
     case Expression::Neutral:

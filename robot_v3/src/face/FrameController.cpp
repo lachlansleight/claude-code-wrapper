@@ -50,6 +50,18 @@ static Settings::NamedColor moodColorForExpression(Expression e) {
       return Settings::NamedColor::Excited;
     case Expression::OverlayAttention:
       return Settings::NamedColor::Attention;
+    case Expression::Sleepy:
+      return Settings::NamedColor::EmotionSleepy;
+    case Expression::Distressed:
+      return Settings::NamedColor::EmotionDistressed;
+    case Expression::Blissed:
+      return Settings::NamedColor::EmotionBlissed;
+    case Expression::Depressed:
+      return Settings::NamedColor::EmotionDepressed;
+    case Expression::Shocked:
+      return Settings::NamedColor::EmotionShocked;
+    case Expression::Disappointed:
+      return Settings::NamedColor::EmotionDisappointed;
     default:
       return Settings::NamedColor::Background;
   }
@@ -59,6 +71,28 @@ static FaceParams targetForExpression(Expression s, const FaceParams* baseTarget
   const uint8_t idx = (uint8_t)s;
   if (idx >= (uint8_t)Expression::Count) return baseTargets[0];
   return makeFaceParamsWithMood(baseTargets[idx], moodColorForExpression(s));
+}
+
+static bool isEmotionExpression(Expression s) {
+  return s == Expression::Neutral || s == Expression::Happy ||
+         s == Expression::Excited || s == Expression::Joyful ||
+         s == Expression::Sad || s == Expression::Sleepy ||
+         s == Expression::Distressed || s == Expression::Blissed ||
+         s == Expression::Depressed || s == Expression::Shocked ||
+         s == Expression::Disappointed;
+}
+
+// Resolve the live tween target. For emotion expressions the base
+// FaceParams comes from the continuous (v,a) blend in
+// SceneContextFill; for verbs and overlays it's the static
+// kBaseTargets row. Mood-ring colour is always baked from the
+// effective expression's palette entry.
+static FaceParams targetForContext(const SceneContext& ctx, const FaceParams* baseTargets) {
+  if (isEmotionExpression(ctx.effective_expression)) {
+    return makeFaceParamsWithMood(ctx.base_face_params,
+                                  moodColorForExpression(ctx.effective_expression));
+  }
+  return targetForExpression(ctx.effective_expression, baseTargets);
 }
 
 // Row order matches Face::Expression (see SceneTypes.h).
@@ -76,18 +110,18 @@ static const FaceParams kBaseTargets[(uint8_t)Expression::Count] = {
     /* Neutral */          {  2, 30,  -26, 0, +26, 0, 3,  0, 0, 0,   0,  3, 15,
                               0, 15,   +2, 0,  +2, 0, 3,  0, 0, 0,
                               0, 0,    0, 0, 0 },
-    /* Happy */            {  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   0,  0, 15,
-                              0, 13,   +3, 0,  +3, 0, 3,  0, 0, 0,
+    /* Happy */            {  0, 30,  -16, 0, +30, 0, 3,  0, 0, 0,   0,  5,  16,
+                              0,  +24,   3, 0,  3, 0, 3,  0, 0, 0,
+                              0, 5,    0, 0, 0 },
+    /* Excited */          {  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   0,  0,  17,
+                              0,  +27,   4, -2,  8, -2, 3,  0, 0, 0,
                               0, 0,    0, 0, 0 },
-    /* Excited */          {  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   0,  0, 15,
-                              0, 15,   +8, 0,  +8, 0, 3,  0, 0, 0,
-                              0, 0,    0, 0, 0 },
-    /* Joyful */           { -4, 24,   -7, 0,  -7, 0, 4,  0, 0, 0,   0,  0,  0,
+    /* Joyful */           { -4, 24,   -7, 0,  -7, 0, 4,  0, 0, 0,   0,  0,  15,
                               0, 18,    0, 0, +14, 0, 4,  0, 0, 0,
                               0, 0,    0, 0, 0 },
-    /* Sad */              {  2, 30,   +6, 0,  +6, 0, 3,  0, 0, 0,   0,  3, 15,
-                              4, 13,   -8, 0,  -8, 0, 3,  0, 0, 0,
-                              0, 0,    0, 0, 0 },
+    /* Sad */              {  4, 28,  -12, 0, +17, 0, 3,  0, 0, 0,   0,  3,  11,
+                              4,  +20,   -13, -7,  -11, -8, 3,  0, 0, 0,
+                              0, 6,    0, 0, 0 },
     /* VerbThinking */     {  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   7, -9, 15,
                               0, 11,   +3, 0,  +3, 0, 3,  0, 0, 0,
                             -10, 0,    0, 0, 0 },
@@ -103,7 +137,7 @@ static const FaceParams kBaseTargets[(uint8_t)Expression::Count] = {
     /* VerbStraining */    {  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
                               0, 18,    0, 0,   0, 0, 3,  4, 100, 360,
                               0, 0,    0, 0, 0 },
-    /* VerbSleeping */     {  8, 26,   -2, 0,  +2, 0, 3,  0, 0, 0,   0,  0,  0,
+    /* VerbSleeping */     {  8, 26,   -2, 0,  +2, 0, 3,  0, 0, 0,   0,  0,  15,
                               0,  9,    0, 0,   0, 0, 3,  0, 0, 0,
                               0, 0,    0, 0, 0 },
     /* OverlayWaking */    { -2, 34,  -34, 0, +34, 0, 3,  0, 0, 0,   0,  0, 18,
@@ -112,6 +146,25 @@ static const FaceParams kBaseTargets[(uint8_t)Expression::Count] = {
     /* OverlayAttention */ { -2, 34,  -34, 0, +34, 0, 3,  0, 0, 0,   0,  0, 18,
                               0,  7,   -9, 0,  +9, 0, 3,  0, 0, 0,
                               0, 0,    0, 0, 0 },
+    /* Sleepy */           {  0, 28,  0, 10, +34, 10, 3,  0, 0, 0,   0,  0,  15,
+                              0,  +13,   0, 0,  3, 0, 3,  0, 17, 90,
+                              0, 9,    0, 0, 0 },
+    /* Distressed */       {  2, 30,  -26, 0, +33, 0, 3,  0, 0, 0,   0,  7,  10,
+                              4,  +24,   -19, -7,  -7, 0, 3,  0, 0, 0,
+                              0, -15,    0, 0, 0 },
+    /* Blissed */          {  0, 20,   +3, 0, +1, 0, 3,  0, 0, 0,   0,  0,  15,
+                              0,  5,   3, 0,  13, 0, 3,  0, 0, 0,
+                              0, -17,    0, 0, 0 },
+    /* Depressed */        {  0, 30,   +16, 10, +34, 11, 3,  0, 0, 0,   0,  20,  6,
+                              0,  +13,   0, +6,  3, 4, 3,  0, 17, 90,
+                              0, 9,    0, 0, 0 },
+    /* Shocked */           { 0, 30,   -34, 0,   39, 0, 3,   1, 85, 720,   0, 3, 9,
+                             20, 17,  -17, 0,   8, 0, 1,    2, 49, 720,   
+                             0, 0,     0, 0, 0 },
+    /* Disappointed */      {  2, 30,   +6, 0, +6, 0, 3,  0, 0, 0,   0,  3,  15,
+                              4,  +13,   -8, 0,  -8, 0, 3,  0, 0, 0,
+                              0, 0,    0, 0, 0 },
+
 };
 
 static constexpr uint32_t kTweenMs = 250;
@@ -304,6 +357,15 @@ static uint32_t blinkPeriodMsFor(Expression s) {
       return (uint32_t)random(2500, 4000);
     case Expression::Happy:
       return (uint32_t)random(3000, 4500);
+    case Expression::Sleepy:
+      return (uint32_t)random(5000, 8000);
+    case Expression::Distressed:
+    case Expression::Depressed:
+    case Expression::Shocked:
+    case Expression::Disappointed:
+      return (uint32_t)random(2000, 4000);
+    case Expression::Blissed:
+      return (uint32_t)random(3500, 5500);
     default:
       return 0;
   }
@@ -391,6 +453,12 @@ void begin() {
 
 void invalidate() { sLastTickMs = 0; }
 
+const FaceParams& baseTargetFor(Expression e) {
+  const uint8_t idx = (uint8_t)e;
+  if (idx >= (uint8_t)Expression::Count) return kBaseTargets[0];
+  return kBaseTargets[idx];
+}
+
 static void onExpressionChange(Expression newExpr, uint32_t now, const SceneContext& ctx) {
   const float t = (float)(now - sTweenStartMs) / (float)kTweenMs;
   FaceParams currentFrame = lerpParams(sFrom, sTo, smoothstep01(t));
@@ -405,7 +473,7 @@ static void onExpressionChange(Expression newExpr, uint32_t now, const SceneCont
   }
 
   sFrom = currentFrame;
-  sTo = targetForExpression(newExpr, kBaseTargets);
+  sTo = targetForContext(ctx, kBaseTargets);
   sTweenStartMs = now;
 
   if (hadOld && oldExpr == Expression::Happy && newExpr == Expression::Neutral) {
@@ -453,7 +521,7 @@ void tick(const SceneContext& ctx) {
   const uint32_t settingsVersion = ctx.settings_version;
   if (settingsVersion != sLastSettingsVersion) {
     sLastSettingsVersion = settingsVersion;
-    sTo = targetForExpression(sNow, kBaseTargets);
+    sTo = targetForContext(ctx, kBaseTargets);
     sFrom.ring_r = sTo.ring_r;
     sFrom.ring_g = sTo.ring_g;
     sFrom.ring_b = sTo.ring_b;
@@ -472,6 +540,13 @@ void tick(const SceneContext& ctx) {
   const int16_t idx = (int16_t)exprIdx;
   if (idx != sLastExprIdx) {
     onExpressionChange(sNow, now, ctx);
+  } else if (isEmotionExpression(sNow)) {
+    // Continuous emotion blend: refresh the tween target every tick so
+    // the face follows the (v, a) point smoothly even without an
+    // expression-enum change. sFrom/tween-start are untouched, so any
+    // in-flight transition from a verb/overlay still completes
+    // normally; once tw >= 1, the rendered params equal sTo (live).
+    sTo = targetForContext(ctx, kBaseTargets);
   }
 
   const float tw = (float)(now - sTweenStartMs) / (float)kTweenMs;

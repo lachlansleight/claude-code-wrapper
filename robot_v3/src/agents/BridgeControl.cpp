@@ -64,6 +64,30 @@ bool tryParseNamedColor(const char* key, Settings::NamedColor* out) {
     *out = Settings::NamedColor::Attention;
     return true;
   }
+  if (strcmp(key, "emotion_sleepy") == 0) {
+    *out = Settings::NamedColor::EmotionSleepy;
+    return true;
+  }
+  if (strcmp(key, "emotion_distressed") == 0) {
+    *out = Settings::NamedColor::EmotionDistressed;
+    return true;
+  }
+  if (strcmp(key, "emotion_blissed") == 0) {
+    *out = Settings::NamedColor::EmotionBlissed;
+    return true;
+  }
+  if (strcmp(key, "emotion_depressed") == 0) {
+    *out = Settings::NamedColor::EmotionDepressed;
+    return true;
+  }
+  if (strcmp(key, "emotion_shocked") == 0) {
+    *out = Settings::NamedColor::EmotionShocked;
+    return true;
+  }
+  if (strcmp(key, "emotion_disappointed") == 0) {
+    *out = Settings::NamedColor::EmotionDisappointed;
+    return true;
+  }
   return false;
 }
 }

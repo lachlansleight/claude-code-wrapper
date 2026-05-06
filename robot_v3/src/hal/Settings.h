@@ -42,6 +42,12 @@ enum class NamedColor : uint8_t {
   Happy,           ///< Emotion: happy (steady-state positive).
   Sleeping,        ///< Idle / sleeping.
   Attention,       ///< Wants-attention (permission requested).
+  EmotionSleepy,
+  EmotionDistressed,
+  EmotionBlissed,
+  EmotionDepressed,
+  EmotionShocked,
+  EmotionDisappointed,
   Count            ///< Sentinel; not a valid color.
 };
 

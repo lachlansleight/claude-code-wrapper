@@ -62,4 +62,11 @@ void tick(const SceneContext& ctx);
  */
 void invalidate();
 
+/**
+ * Read-only access to the per-Expression preset table. Indexed by
+ * `Expression`; emotion rows (Neutral through Disappointed) supply the
+ * presets blended by EmotionBlend from `EmotionTriangulation`.
+ */
+const FaceParams& baseTargetFor(Expression e);
+
 }  // namespace Face

@@ -30,6 +30,18 @@ const char* expressionName(Expression e) {
       return "overlay_waking";
     case Expression::OverlayAttention:
       return "overlay_attention";
+    case Expression::Sleepy:
+      return "sleepy";
+    case Expression::Distressed:
+      return "distressed";
+    case Expression::Blissed:
+      return "blissed";
+    case Expression::Depressed:
+      return "depressed";
+    case Expression::Shocked:
+      return "shocked";
+    case Expression::Disappointed:
+      return "disappointed";
     default:
       return "?";
   }

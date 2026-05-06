@@ -38,6 +38,12 @@ quickstart; the rest lives here.
 - [firmware/DISPLAY_AND_FACE.md](firmware/DISPLAY_AND_FACE.md) — GC9A01
   hardware notes, sprite framebuffer, `FaceParams`/`SceneContext`, face
   modulators, text scene, effects overlays.
+- [firmware/EMOTION_BLEND.md](firmware/EMOTION_BLEND.md) — continuous
+  barycentric blend of emotion presets driven by (v, a); how to
+  regenerate the triangulation when `kBoxes` changes.
+- [firmware/KBASETARGETS_WIRING.md](firmware/KBASETARGETS_WIRING.md) —
+  checklist for adding a `Face::Expression` / `kBaseTargets` row and
+  keeping emotion tables, blend, palette, motion, and simulator in sync.
 
 ## Forward-looking ideas
 

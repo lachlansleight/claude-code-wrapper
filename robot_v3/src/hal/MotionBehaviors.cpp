@@ -44,6 +44,12 @@ static const ExprMotion kMotion[(uint8_t)Face::Expression::Count] = {
     /* VerbSleeping */ {OSCILLATE, -20, 5, 8000, 0, 0},
     /* OverlayWaking */ {STATIC, 18, 0, 0, 0, 0},
     /* OverlayAttention */ {WAGGLE, 0, 15, 900, 0, 0},
+    /* Sleepy */ {OSCILLATE, -18, 4, 5000, 0, 0},
+    /* Distressed */ {OSCILLATE, 0, 6, 900, 0, 0},
+    /* Blissed */ {RANDOM_DRIFT, -10, 6, 3000, 1500, 500},
+    /* Depressed */ {NONE, 0, 0, 0, 0, 0},
+    /* Shocked */ {STATIC, 0, 0, 0, 0, 0},
+    /* Disappointed */ {NONE, 0, 0, 0, 0, 0},
 };
 
 static_assert(sizeof(kMotion) / sizeof(kMotion[0]) == (uint8_t)Face::Expression::Count,

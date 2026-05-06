@@ -47,6 +47,12 @@ enum class NamedEmotion : uint8_t {
   Excited,      ///< High valence + high arousal.
   Joyful,       ///< Top-right: very high arousal + valence.
   Sad,          ///< Negative valence (full arousal range).
+  Sleepy,
+  Distressed,
+  Blissed,
+  Depressed,
+  Shocked,
+  Disappointed,
   Count
 };
 

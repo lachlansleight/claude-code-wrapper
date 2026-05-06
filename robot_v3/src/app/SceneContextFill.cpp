@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "../agents/AgentEvents.h"
+#include "../behaviour/EmotionBlend.h"
 #include "../behaviour/EmotionSystem.h"
 #include "../behaviour/VerbSystem.h"
 #include "../core/AsciiCopy.h"
@@ -30,6 +31,18 @@ Face::Expression expressionForEmotion(EmotionSystem::NamedEmotion e) {
       return Face::Expression::Joyful;
     case EmotionSystem::NamedEmotion::Sad:
       return Face::Expression::Sad;
+    case EmotionSystem::NamedEmotion::Sleepy:
+      return Face::Expression::Sleepy;
+    case EmotionSystem::NamedEmotion::Distressed:
+      return Face::Expression::Distressed;
+    case EmotionSystem::NamedEmotion::Blissed:
+      return Face::Expression::Blissed;
+    case EmotionSystem::NamedEmotion::Depressed:
+      return Face::Expression::Depressed;
+    case EmotionSystem::NamedEmotion::Shocked:
+      return Face::Expression::Shocked;
+    case EmotionSystem::NamedEmotion::Disappointed:
+      return Face::Expression::Disappointed;
     case EmotionSystem::NamedEmotion::Neutral:
     default:
       return Face::Expression::Neutral;
@@ -88,6 +101,18 @@ Settings::NamedColor accentNamedColor(Face::Expression e) {
       return Settings::NamedColor::Excited;
     case Face::Expression::OverlayAttention:
       return Settings::NamedColor::Attention;
+    case Face::Expression::Sleepy:
+      return Settings::NamedColor::EmotionSleepy;
+    case Face::Expression::Distressed:
+      return Settings::NamedColor::EmotionDistressed;
+    case Face::Expression::Blissed:
+      return Settings::NamedColor::EmotionBlissed;
+    case Face::Expression::Depressed:
+      return Settings::NamedColor::EmotionDepressed;
+    case Face::Expression::Shocked:
+      return Settings::NamedColor::EmotionShocked;
+    case Face::Expression::Disappointed:
+      return Settings::NamedColor::EmotionDisappointed;
     default:
       return Settings::NamedColor::Foreground;
   }
@@ -130,6 +155,7 @@ void fill(Face::SceneContext& out) {
   const EmotionSystem::Emotion raw = EmotionSystem::raw();
   out.mood_v = raw.valence;
   out.mood_a = raw.activation;
+  out.base_face_params = EmotionBlend::blendedFaceParams(raw.valence, raw.activation);
 
   const EmotionSystem::DebugState emotionDebug = EmotionSystem::debugState();
   copyField(out.snapped_emotion, sizeof(out.snapped_emotion),

@@ -165,6 +165,30 @@
       overflow-y: auto;
       color: var(--text);
     }
+    .blend-canvas-wrap {
+      background: #0b0d12;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.4em;
+      display: flex;
+      justify-content: center;
+    }
+    .blend-canvas-wrap canvas {
+      width: 100%;
+      max-width: 360px;
+      aspect-ratio: 1 / 1;
+      display: block;
+      image-rendering: pixelated;
+      touch-action: none;
+      cursor: crosshair;
+    }
+    .blend-meta {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.78em;
+      color: var(--muted);
+      margin-top: 0.4em;
+    }
+    .blend-meta b { color: var(--text); font-weight: 600; }
   </style>
   <script src="scripts/nav.js" defer></script>
 </head>
@@ -197,6 +221,28 @@
     <div>
       <h3>
         <label style="text-transform:none;letter-spacing:0;font-weight:600;">
+          <input type="checkbox" id="blendToggle" /> Blend mode (V/A → triangulated FaceParams)
+        </label>
+      </h3>
+      <div id="blendPanel" class="static-panel disabled">
+        <div class="blend-canvas-wrap">
+          <canvas id="blendCanvas" width="480" height="480"></canvas>
+        </div>
+        <div class="slider-row" style="margin-top:0.6em;">
+          <label>valence</label>
+          <input type="range" id="blendV" min="-1" max="1" step="0.01" value="0" />
+          <input type="number" id="blendVNum" min="-1" max="1" step="0.01" value="0" />
+        </div>
+        <div class="slider-row">
+          <label>activation</label>
+          <input type="range" id="blendA" min="0" max="1" step="0.01" value="0.5" />
+          <input type="number" id="blendANum" min="0" max="1" step="0.01" value="0.5" />
+        </div>
+        <div id="blendMeta" class="blend-meta">triangle: — &nbsp;·&nbsp; weights: —</div>
+      </div>
+
+      <h3>
+        <label style="text-transform:none;letter-spacing:0;font-weight:600;">
           <input type="checkbox" id="staticToggle" /> Static mode (bypass animation)
         </label>
       </h3>
@@ -207,6 +253,7 @@
           </label>
           <button id="staticCaptureBtn" type="button">Capture live frame</button>
           <button id="staticCopyBtn" type="button">Copy as kBaseTargets row</button>
+          <button id="staticPasteKBaseBtn" type="button">Paste from kBaseTargets row</button>
         </div>
         <div id="paramSliders"></div>
         <div class="slider-section">
@@ -222,6 +269,8 @@
   <script src="scripts/settings.js"></script>
   <script src="scripts/tft.js"></script>
   <script src="scripts/face-v3.js"></script>
+  <script src="scripts/emotion-triangulation.js"></script>
+  <script src="scripts/emotion-blend-v3.js"></script>
   <script src="scripts/frame-controller-v3.js"></script>
   <script>
     const FC = window.FrameControllerV3;
@@ -405,11 +454,94 @@
       });
     }
 
+    // kBaseTargets paste format — matches robot_v3 FrameController.cpp layout
+    // (comment column, brace column 28, 30-space continuations, apex + signs).
+    function formatKBaseTargetsCpp(exprName, params) {
+      const keys = FC.paramFields();
+      const v = keys.map((k) => params[k] | 0);
+      const apexPlus = new Set([2, 4, 14, 16]);
+      function fmt(i) {
+        const n = v[i];
+        if (n > 0 && apexPlus.has(i)) return `+${n}`;
+        return String(n);
+      }
+      const head = `    /* ${exprName} */`;
+      const headPad = Math.max(1, 27 - head.length);
+      const headPart = head + " ".repeat(headPad);
+      const s0 = fmt(0);
+      const braceLead = s0.length === 1 ? "{  " : "{ ";
+      const spBefore2 = fmt(2)[0] === "+" ? ",   " : ",  ";
+      const l1 =
+        headPart +
+        braceLead +
+        s0 +
+        ", " +
+        fmt(1) +
+        spBefore2 +
+        fmt(2) +
+        ", " +
+        fmt(3) +
+        ", " +
+        fmt(4) +
+        ", " +
+        fmt(5) +
+        ", " +
+        fmt(6) +
+        ",  " +
+        fmt(7) +
+        ", " +
+        fmt(8) +
+        ", " +
+        fmt(9) +
+        ",   " +
+        fmt(10) +
+        ",  " +
+        fmt(11) +
+        ",  " +
+        fmt(12) +
+        ",\n";
+      const ind2 = " ".repeat(30);
+      const l2 =
+        ind2 +
+        fmt(13) +
+        ",  " +
+        fmt(14) +
+        ",   " +
+        fmt(15) +
+        ", " +
+        fmt(16) +
+        ",  " +
+        fmt(17) +
+        ", " +
+        fmt(18) +
+        ", " +
+        fmt(19) +
+        ",  " +
+        fmt(20) +
+        ", " +
+        fmt(21) +
+        ", " +
+        fmt(22) +
+        ",\n";
+      const ind3 = " ".repeat(30 - Math.max(0, fmt(23).length - 1));
+      const l3 =
+        ind3 +
+        fmt(23) +
+        ", " +
+        fmt(24) +
+        ",    " +
+        fmt(25) +
+        ", " +
+        fmt(26) +
+        ", " +
+        fmt(27) +
+        " },\n";
+      return l1 + l2 + l3;
+    }
+
     function refreshCopyOutput() {
-      const order = FC.paramFields();
       const o = FC.staticOverride();
-      const arr = order.map((k) => o.params[k]);
-      copyOutput.textContent = "{ " + arr.join(", ") + " }";
+      copyOutput.textContent = formatKBaseTargetsCpp(o.expression || "Neutral", o.params);
     }
 
     function seedFromParams(params) {
@@ -474,6 +606,350 @@
         console.warn("Clipboard write blocked", e);
       }
     });
+
+    document.getElementById("staticPasteKBaseBtn").addEventListener("click", async () => {
+      let text;
+      try {
+        text = await navigator.clipboard.readText();
+      } catch (e) {
+        console.warn("Clipboard read blocked", e);
+        return;
+      }
+      const cleaned = text.replace(/[^0-9,+\-\s]/g, "");
+      const parts = cleaned.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+      const nums = parts.map((s) => parseInt(s, 10));
+      if (nums.some((n) => Number.isNaN(n))) {
+        alert("Could not parse one or more numbers after cleaning clipboard text.");
+        return;
+      }
+      const fields = FC.paramFields();
+      if (nums.length !== fields.length) {
+        alert(
+          `Expected ${fields.length} comma-separated integers (full kBaseTargets row), got ${nums.length}.`,
+        );
+        return;
+      }
+      const params = {};
+      fields.forEach((f, i) => {
+        params[f] = nums[i];
+      });
+
+      const blendEl = document.getElementById("blendToggle");
+      const blendPanelEl = document.getElementById("blendPanel");
+      if (blendEl && blendEl.checked) {
+        blendEl.checked = false;
+        FC.setBlendMode(false);
+        if (blendPanelEl) blendPanelEl.classList.add("disabled");
+      }
+
+      if (!staticToggle.checked) {
+        staticToggle.checked = true;
+        FC.setStaticMode(true);
+        staticPanel.classList.remove("disabled");
+      }
+
+      seedFromParams(params);
+      FC.setStaticOverride({ params, expression: staticPreset.value });
+      refreshCopyOutput();
+    });
+
+    // ---- Blend mode (V/A → triangulated FaceParams) ----
+    const blendToggle = document.getElementById("blendToggle");
+    const blendPanel  = document.getElementById("blendPanel");
+    const blendV      = document.getElementById("blendV");
+    const blendVNum   = document.getElementById("blendVNum");
+    const blendA      = document.getElementById("blendA");
+    const blendANum   = document.getElementById("blendANum");
+    const blendCanvas = document.getElementById("blendCanvas");
+    const blendMeta   = document.getElementById("blendMeta");
+
+    function syncStaticSlidersFromBlendedParams() {
+      if (!blendToggle.checked) return;
+      const blender = window.EmotionBlendV3;
+      const va = FC.blendVA();
+      let p = { ...FC.params() };
+      if (blender && blender.ready()) {
+        const blended = blender.blendedFaceParams(va.v, va.a);
+        if (blended) p = blended;
+      }
+      Object.assign(sliderValues.params, p);
+      sliderValues.blinkAmt = 0;
+      sliderValues.gdx = 0;
+      sliderValues.gdy = 0;
+      FC.setStaticOverride({ params: p, blinkAmt: 0, gdx: 0, gdy: 0 });
+
+      for (const f of FC.paramFields()) {
+        if (!PARAM_RANGES[f]) continue;
+        const range = paramSliders.querySelector(`[data-slider="${f}"]`);
+        const num = paramSliders.querySelector(`[data-num="${f}"]`);
+        if (!range || !num) continue;
+        range.value = String(p[f]);
+        num.value = String(p[f]);
+      }
+      for (const f of Object.keys(MOD_RANGES)) {
+        const range = modSliders.querySelector(`[data-slider="${f}"]`);
+        const num = modSliders.querySelector(`[data-num="${f}"]`);
+        if (!range || !num) continue;
+        range.value = String(sliderValues[f]);
+        num.value = String(sliderValues[f]);
+      }
+      refreshCopyOutput();
+    }
+
+    // Cosmetic per-emotion swatches for anchor dots.
+    const EMOTION_COLOR = {
+      Neutral: "#8b93a7",
+      Happy:   "#58d68d",
+      Excited: "#6ea8ff",
+      Joyful:  "#ffd166",
+      Sad:     "#ff7b7b",
+      Sleepy: "#5a6a8c",
+      Distressed: "#e8944a",
+      Blissed: "#c9a0ff",
+      Depressed: "#6b7588",
+      Shocked: "#5cd4f0",
+      Disappointed: "#a0826e",
+    };
+
+    function vaToCanvas(v, a, w, h) {
+      // V in [-1, +1] → x in [pad, w-pad]
+      // A in [0, 1]   → y in [h-pad, pad]   (high arousal = top)
+      const pad = 14;
+      const x = pad + ((v + 1) * 0.5) * (w - 2 * pad);
+      const y = (h - pad) - a * (h - 2 * pad);
+      return [x, y];
+    }
+
+    function drawBlendCanvas() {
+      const ctx = blendCanvas.getContext("2d");
+      const w = blendCanvas.width;
+      const h = blendCanvas.height;
+      ctx.fillStyle = "#0b0d12";
+      ctx.fillRect(0, 0, w, h);
+
+      const data = window.EmotionTriangulation;
+      if (!data) {
+        ctx.fillStyle = "#ff7b7b";
+        ctx.font = "13px ui-monospace, monospace";
+        ctx.fillText("emotion-triangulation.js missing — re-run script", 14, 22);
+        return;
+      }
+
+      // Axis hairlines: V = 0 vertical, A = 0.5 horizontal.
+      ctx.strokeStyle = "#1d222c";
+      ctx.lineWidth = 1;
+      const [zx] = vaToCanvas(0, 0, w, h);
+      ctx.beginPath(); ctx.moveTo(zx, 0); ctx.lineTo(zx, h); ctx.stroke();
+      const [, zy] = vaToCanvas(0, 0.5, w, h);
+      ctx.beginPath(); ctx.moveTo(0, zy); ctx.lineTo(w, zy); ctx.stroke();
+
+      // Triangle edges.
+      ctx.strokeStyle = "#2a3140";
+      ctx.lineWidth = 1;
+      for (const [i0, i1, i2] of data.triangles) {
+        const a0 = data.anchors[i0];
+        const a1 = data.anchors[i1];
+        const a2 = data.anchors[i2];
+        const p0 = vaToCanvas(a0.v, a0.a, w, h);
+        const p1 = vaToCanvas(a1.v, a1.a, w, h);
+        const p2 = vaToCanvas(a2.v, a2.a, w, h);
+        ctx.beginPath();
+        ctx.moveTo(p0[0], p0[1]);
+        ctx.lineTo(p1[0], p1[1]);
+        ctx.lineTo(p2[0], p2[1]);
+        ctx.closePath();
+        ctx.stroke();
+      }
+
+      // Highlight current triangle, if any. Compute directly (don't wait for FC tick).
+      const va = window.FrameControllerV3.blendVA();
+      const tri = window.EmotionBlendV3 && window.EmotionBlendV3.ready()
+        ? window.EmotionBlendV3.findTriangle(va.v, va.a)
+        : null;
+      if (tri) {
+        const [i0, i1, i2] = tri.indices;
+        const a0 = data.anchors[i0];
+        const a1 = data.anchors[i1];
+        const a2 = data.anchors[i2];
+        const p0 = vaToCanvas(a0.v, a0.a, w, h);
+        const p1 = vaToCanvas(a1.v, a1.a, w, h);
+        const p2 = vaToCanvas(a2.v, a2.a, w, h);
+        ctx.fillStyle = "rgba(110, 168, 255, 0.18)";
+        ctx.beginPath();
+        ctx.moveTo(p0[0], p0[1]);
+        ctx.lineTo(p1[0], p1[1]);
+        ctx.lineTo(p2[0], p2[1]);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Anchor dots.
+      for (const an of data.anchors) {
+        const [x, y] = vaToCanvas(an.v, an.a, w, h);
+        ctx.fillStyle = EMOTION_COLOR[an.emotion] || "#e6e8ee";
+        ctx.beginPath();
+        ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Current (V, A) marker.
+      const [px, py] = vaToCanvas(va.v, va.a, w, h);
+      ctx.fillStyle = "#fff";
+      ctx.strokeStyle = "#0b0d12";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(px, py, 5.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Axis labels.
+      ctx.fillStyle = "#8b93a7";
+      ctx.font = "10px ui-monospace, monospace";
+      ctx.fillText("v=-1", 4, h - 4);
+      ctx.fillText("v=+1", w - 32, h - 4);
+      ctx.fillText("a=1",  w - 32, 12);
+      ctx.fillText("a=0",  w - 32, h - 16);
+    }
+
+    function updateBlendMeta() {
+      const va = window.FrameControllerV3.blendVA();
+      const tri = window.EmotionBlendV3 && window.EmotionBlendV3.ready()
+        ? window.EmotionBlendV3.findTriangle(va.v, va.a)
+        : null;
+      if (!tri) {
+        blendMeta.textContent = "triangle: — · weights: —";
+        return;
+      }
+      const t = window.EmotionTriangulation;
+      const [i0, i1, i2] = tri.indices;
+      const [l0, l1, l2] = tri.weights;
+      const e0 = t.anchors[i0].emotion;
+      const e1 = t.anchors[i1].emotion;
+      const e2 = t.anchors[i2].emotion;
+      blendMeta.innerHTML =
+        `triangle: <b>${e0}</b> · <b>${e1}</b> · <b>${e2}</b> ` +
+        `&nbsp;·&nbsp; weights: ${l0.toFixed(2)} / ${l1.toFixed(2)} / ${l2.toFixed(2)}`;
+    }
+
+    function syncBlendInputs() {
+      const va = window.FrameControllerV3.blendVA();
+      blendV.value = String(va.v);
+      blendVNum.value = String(va.v);
+      blendA.value = String(va.a);
+      blendANum.value = String(va.a);
+    }
+
+    function setBlendVA(v, a) {
+      window.FrameControllerV3.setBlendVA(v, a);
+      drawBlendCanvas();
+      updateBlendMeta();
+      syncStaticSlidersFromBlendedParams();
+    }
+
+    function bindBlendPair(slider, num, axis) {
+      const sync = (src) => {
+        const val = parseFloat(src.value);
+        if (Number.isNaN(val)) return;
+        slider.value = String(val);
+        num.value = String(val);
+        const va = window.FrameControllerV3.blendVA();
+        if (axis === "v") setBlendVA(val, va.a);
+        else setBlendVA(va.v, val);
+      };
+      slider.addEventListener("input", () => sync(slider));
+      num.addEventListener("input", () => sync(num));
+    }
+
+    bindBlendPair(blendV, blendVNum, "v");
+    bindBlendPair(blendA, blendANum, "a");
+
+    let blendDragPointerId = null;
+
+    function clientToBlendVA(clientX, clientY) {
+      const rect = blendCanvas.getBoundingClientRect();
+      const cx = (clientX - rect.left) * (blendCanvas.width / rect.width);
+      const cy = (clientY - rect.top) * (blendCanvas.height / rect.height);
+      const pad = 14;
+      const w = blendCanvas.width;
+      const h = blendCanvas.height;
+      const v = ((cx - pad) / (w - 2 * pad)) * 2 - 1;
+      const a = 1 - (cy - pad) / (h - 2 * pad);
+      return [
+        Math.max(-1, Math.min(1, v)),
+        Math.max(0, Math.min(1, a)),
+      ];
+    }
+
+    function applyBlendFromPointer(e) {
+      const [v, a] = clientToBlendVA(e.clientX, e.clientY);
+      setBlendVA(v, a);
+      syncBlendInputs();
+    }
+
+    blendCanvas.addEventListener("pointerdown", (e) => {
+      if (!blendToggle.checked) return;
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      e.preventDefault();
+      blendDragPointerId = e.pointerId;
+      try {
+        blendCanvas.setPointerCapture(e.pointerId);
+      } catch (_) { /* already captured or unsupported */ }
+      applyBlendFromPointer(e);
+    });
+
+    blendCanvas.addEventListener("pointermove", (e) => {
+      if (blendDragPointerId === null || e.pointerId !== blendDragPointerId) return;
+      e.preventDefault();
+      applyBlendFromPointer(e);
+    });
+
+    function endBlendDrag(e) {
+      if (blendDragPointerId === null || e.pointerId !== blendDragPointerId) return;
+      blendDragPointerId = null;
+      try {
+        blendCanvas.releasePointerCapture(e.pointerId);
+      } catch (_) { /* */ }
+    }
+
+    blendCanvas.addEventListener("pointerup", endBlendDrag);
+    blendCanvas.addEventListener("pointercancel", endBlendDrag);
+
+    blendToggle.addEventListener("change", () => {
+      const on = blendToggle.checked;
+      window.FrameControllerV3.setBlendMode(on);
+      blendPanel.classList.toggle("disabled", !on);
+      if (!on && blendDragPointerId !== null) {
+        try {
+          blendCanvas.releasePointerCapture(blendDragPointerId);
+        } catch (_) { /* */ }
+        blendDragPointerId = null;
+      }
+      if (on) {
+        // Mutual exclusion with static mode.
+        if (staticToggle.checked) {
+          staticToggle.checked = false;
+          staticPanel.classList.add("disabled");
+        }
+        syncBlendInputs();
+        drawBlendCanvas();
+        updateBlendMeta();
+        syncStaticSlidersFromBlendedParams();
+      }
+    });
+
+    staticToggle.addEventListener("change", () => {
+      // If static is being turned on while blend is active, drop blend.
+      if (staticToggle.checked && blendToggle.checked) {
+        blendToggle.checked = false;
+        blendPanel.classList.add("disabled");
+      }
+    });
+
+    // Initial draw + animation tick to keep current-triangle highlight live.
+    setBlendVA(0, 0.5);
+    setInterval(() => {
+      if (blendToggle.checked) drawBlendCanvas();
+    }, 100);
   </script>
 </body>
 </html>

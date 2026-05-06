@@ -33,6 +33,12 @@ Rgb888 g_defaultColors[(size_t)NamedColor::Count] = {
     {104, 210, 140},// Happy
     {28, 40, 72},   // Sleeping
     {255, 200, 40}, // Attention
+    {72, 96, 140},   // EmotionSleepy
+    {255, 120, 48},  // EmotionDistressed
+    {220, 160, 255}, // EmotionBlissed
+    {90, 100, 120},  // EmotionDepressed
+    {80, 220, 255},  // EmotionShocked
+    {160, 130, 110}, // EmotionDisappointed
 };
 
 Rgb888 g_colors[(size_t)NamedColor::Count];

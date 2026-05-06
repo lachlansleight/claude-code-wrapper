@@ -58,6 +58,12 @@ enum class Expression : uint8_t {
   VerbSleeping,
   OverlayWaking,      ///< Transient: one-shot wake animation.
   OverlayAttention,   ///< Transient: attention pulse for permission requests.
+  Sleepy,
+  Distressed,
+  Blissed,
+  Depressed,
+  Shocked,
+  Disappointed,
   Count
 };
 
@@ -173,6 +179,17 @@ struct SceneContext {
 
   float mood_v;          ///< Raw valence in [-1, +1].
   float mood_a;          ///< Raw activation in [0, 1].
+
+  /**
+   * Continuous barycentric blend of emotion FaceParams presets at the
+   * current (mood_v, mood_a). Consumed by FrameController as the base
+   * tween target when `effective_expression` is an emotion (Neutral
+   * through Disappointed). Verb/overlay expressions ignore this and use the
+   * `kBaseTargets[expression]` row directly. The `ring_*` fields are
+   * undefined here — FrameController paints them from the snapped
+   * expression's palette colour.
+   */
+  FaceParams base_face_params;
 
   char latched_session[40];
   char pending_permission[48];

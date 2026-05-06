@@ -31,6 +31,12 @@
     "VerbSleeping",
     "OverlayWaking",
     "OverlayAttention",
+    "Sleepy",
+    "Distressed",
+    "Blissed",
+    "Depressed",
+    "Shocked",
+    "Disappointed",
   ];
 
   const PARAM_FIELDS = [
@@ -51,18 +57,18 @@
     Neutral:           [  2, 30,  -26, 0, +26, 0, 3,  0, 0, 0,   0,  3, 15,
                           0, 15,   +2, 0,  +2, 0, 3,  0, 0, 0,
                           0, 0,    0, 0, 0 ],
-    Happy:             [  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   0,  0, 15,
-                          0, 13,   +3, 0,  +3, 0, 3,  0, 0, 0,
+    Happy:             [  0, 30,  -16, 0, +30, 0, 3,  0, 0, 0,   0,  5,  16,
+                          0,  +24,   3, 0,  3, 0, 3,  0, 0, 0,
+                          0, 5,    0, 0, 0 ],
+    Excited:           [  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   0,  0,  17,
+                          0,  +27,   4, -2,  8, -2, 3,  0, 0, 0,
                           0, 0,    0, 0, 0 ],
-    Excited:           [  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   0,  0, 15,
-                          0, 15,   +8, 0,  +8, 0, 3,  0, 0, 0,
-                          0, 0,    0, 0, 0 ],
-    Joyful:            [ -4, 24,   -7, 0,  -7, 0, 4,  0, 0, 0,   0,  0,  0,
+    Joyful:            [ -4, 24,   -7, 0,  -7, 0, 4,  0, 0, 0,   0,  0,  15,
                           0, 18,    0, 0, +14, 0, 4,  0, 0, 0,
                           0, 0,    0, 0, 0 ],
-    Sad:               [  2, 30,   +6, 0,  +6, 0, 3,  0, 0, 0,   0,  3, 15,
-                          4, 13,   -8, 0,  -8, 0, 3,  0, 0, 0,
-                          0, 0,    0, 0, 0 ],
+    Sad:               [  4, 28,  -12, 0, +17, 0, 3,  0, 0, 0,   0,  3,  11,
+                          4,  +20,   -13, -7,  -11, -8, 3,  0, 0, 0,
+                          0, 6,    0, 0, 0 ],
     VerbThinking:      [  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   7, -9, 15,
                           0, 11,   +3, 0,  +3, 0, 3,  0, 0, 0,
                         -10, 0,    0, 0, 0 ],
@@ -78,7 +84,7 @@
     VerbStraining:     [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
                           0, 18,    0, 0,   0, 0, 3,  4, 100, 360,
                           0, 0,    0, 0, 0 ],
-    VerbSleeping:      [  8, 26,   -2, 0,  +2, 0, 3,  0, 0, 0,   0,  0,  0,
+    VerbSleeping:      [  8, 26,   -2, 0,  +2, 0, 3,  0, 0, 0,   0,  0,  15,
                           0,  9,    0, 0,   0, 0, 3,  0, 0, 0,
                           0, 0,    0, 0, 0 ],
     OverlayWaking:     [ -2, 34,  -34, 0, +34, 0, 3,  0, 0, 0,   0,  0, 18,
@@ -86,6 +92,24 @@
                           0, 0,    0, 0, 0 ],
     OverlayAttention:  [ -2, 34,  -34, 0, +34, 0, 3,  0, 0, 0,   0,  0, 18,
                           0,  7,   -9, 0,  +9, 0, 3,  0, 0, 0,
+                          0, 0,    0, 0, 0 ],
+    Sleepy:            [  0, 28,  0, 10, +34, 10, 3,  0, 0, 0,   0,  0,  15,
+                          0,  +13,   0, 0,  3, 0, 3,  0, 17, 90,
+                          0, 9,    0, 0, 0 ],
+    Distressed:        [  2, 30,  -26, 0, +33, 0, 3,  0, 0, 0,   0,  7,  10,
+                          4,  +24,   -19, -7,  -7, 0, 3,  0, 0, 0,
+                          0, -15,    0, 0, 0 ],
+    Blissed:           [  0, 20,   +3, 0, +1, 0, 3,  0, 0, 0,   0,  0,  15,
+                          0,  +26,   3, 0,  13, 0, 3,  0, 0, 0,
+                          0, 5,    0, 0, 0 ],
+    Depressed:         [  0, 30,   +16, 10, +34, 11, 3,  0, 0, 0,   0,  20,  6,
+                          0,  +13,   0, +6,  3, 4, 3,  0, 17, 90,
+                          0, 9,    0, 0, 0 ],
+    Shocked:           [ 0, 30,   -34, 0,   39, 0, 3,   1, 85, 720,   0, 3, 9,
+                         20, 17,  -17, 0,   8, 0, 1,    2, 49, 720,
+                         0, 0,     0, 0, 0 ],
+    Disappointed:      [  2, 30,   +6, 0, +6, 0, 3,  0, 0, 0,   0,  3,  15,
+                          4,  +13,   -8, 0,  -8, 0, 3,  0, 0, 0,
                           0, 0,    0, 0, 0 ],
   };
 
@@ -117,6 +141,8 @@
       case "Joyful": return 900;
       case "Excited": return 1000;
       case "VerbSleeping": return 8000;
+      case "Sleepy": return 5000;
+      case "Distressed": return 900;
       default: return 0;
     }
   }
@@ -130,6 +156,8 @@
       case "VerbStraining":
       case "Excited": amp = 5; break;
       case "Joyful": amp = 7; break;
+      case "Sleepy": amp = 4; break;
+      case "Distressed": amp = 6; break;
       default: return 0;
     }
     const t = (now % period) / period;
@@ -186,6 +214,14 @@
     gdy: 0,
     expression: "Neutral",
   };
+
+  // Blend mode: feeds (v, a) every tick through EmotionBlendV3 and
+  // renders the resulting params (no animation, no static sliders).
+  let sBlendMode = false;
+  let sBlendV = 0.0;
+  let sBlendA = 0.0;
+  let sBlendLastParams = arrToParams(BASE_TARGETS.Neutral);
+  let sBlendLastTri = null;  // { indices, weights } for canvas viz.
 
   // ---- Helpers -----------------------------------------------------------
   function now() { return performance.now() - sStartedAtMs; }
@@ -369,6 +405,25 @@
       return;
     }
 
+    if (sBlendMode) {
+      if (t - lastTickMs >= kTickIntervalMs) {
+        lastTickMs = t;
+        const blender = window.EmotionBlendV3;
+        let p = sBlendLastParams;
+        if (blender && blender.ready()) {
+          const blended = blender.blendedFaceParams(sBlendV, sBlendA);
+          if (blended) p = blended;
+          sBlendLastTri = blender.findTriangle(sBlendV, sBlendA);
+        }
+        sBlendLastParams = p;
+        window.RobotFaceV3.renderScene(sprite, p, 0, 0, 0, t);
+        sCurrentParams = p;
+        pushSpriteToCanvas();
+      }
+      rafHandle = requestAnimationFrame(tick);
+      return;
+    }
+
     if (t - lastTickMs >= kTickIntervalMs) {
       lastTickMs = t;
 
@@ -452,6 +507,7 @@
     setStaticMode(on) {
       sStaticMode = !!on;
       if (sStaticMode) {
+        sBlendMode = false;
         sStaticOverride.params = { ...sCurrentParams };
       } else {
         sFrom = { ...sCurrentParams };
@@ -463,6 +519,27 @@
       }
     },
     isStatic() { return sStaticMode; },
+
+    setBlendMode(on) {
+      sBlendMode = !!on;
+      if (sBlendMode) {
+        sStaticMode = false;
+      } else {
+        sFrom = { ...sCurrentParams };
+        sTo = targetForExpression(sCurrentExpr);
+        sTweenStartMs = now();
+        sLastExpr = sCurrentExpr;
+        sBlinkActive = false;
+        sNextBlinkMs = 0;
+      }
+    },
+    isBlend() { return sBlendMode; },
+    setBlendVA(v, a) {
+      if (typeof v === "number") sBlendV = Math.max(-1, Math.min(1, v));
+      if (typeof a === "number") sBlendA = Math.max(0, Math.min(1, a));
+    },
+    blendVA() { return { v: sBlendV, a: sBlendA }; },
+    lastBlendTriangle() { return sBlendLastTri; },
     setStaticOverride(partial) {
       if (!partial) return;
       if (partial.params) sStaticOverride.params = { ...sStaticOverride.params, ...partial.params };
