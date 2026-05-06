@@ -1,0 +1,15 @@
+{
+  "name": "region-raycaster",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Render rays cast from random AABBs into a 512x512 PNG using node-canvas.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "multi": "node multi-image.js",
+    "combine": "node combine-images.js"
+  },
+  "dependencies": {
+    "canvas": "^3.2.3"
+  }
+}
