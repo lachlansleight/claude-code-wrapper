@@ -30,6 +30,19 @@ static inline void paintLocalSpan(TFT_eSprite& s, int16_t cx, int16_t cy, float 
   const int16_t x1 = cx + (int16_t)lroundf(ax - ly1 * sinA);
   const int16_t y1 = cy + (int16_t)lroundf(ay + ly1 * cosA);
   s.drawLine(x0, y0, x1, y1, color);
+
+  // Rotated spans can leave 1px seams between adjacent columns due to endpoint
+  // rounding. Stamp a second nearby line only when meaningfully rotated.
+  const float rotMix = fabsf(sinA * cosA);
+  if (rotMix > 0.08f) {
+    const int16_t dx = (int16_t)(x1 - x0);
+    const int16_t dy = (int16_t)(y1 - y0);
+    if (abs(dx) >= abs(dy)) {
+      s.drawLine(x0, (int16_t)(y0 + 1), x1, (int16_t)(y1 + 1), color);
+    } else {
+      s.drawLine((int16_t)(x0 + 1), y0, (int16_t)(x1 + 1), y1, color);
+    }
+  }
 }
 
 static void drawMouth(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy, uint32_t nowMs,
