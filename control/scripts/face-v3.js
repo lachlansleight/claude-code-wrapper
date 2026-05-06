@@ -46,6 +46,25 @@
     const x1 = cx + Math.round(ax - ly1 * sinA);
     const y1 = cy + Math.round(ay + ly1 * cosA);
     s.drawLine(x0, y0, x1, y1, color);
+
+    // Match firmware seam fill for rotated spans to reduce 1px cracks.
+    const rotMix = Math.abs(sinA * cosA);
+    if (rotMix > 0.08) {
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        s.drawLine(x0, y0 + 1, x1, y1 + 1, color);
+      } else {
+        s.drawLine(x0 + 1, y0, x1 + 1, y1, color);
+      }
+    }
+  }
+
+  function localToScreen(lx, ly, cx, cy, cosA, sinA) {
+    return [
+      cx + Math.round(lx * cosA - ly * sinA),
+      cy + Math.round(lx * sinA + ly * cosA),
+    ];
   }
 
   // Trace an elliptical arc as a polyline, then expand outward by 1px and
@@ -120,7 +139,17 @@
     const pupilLy = p.pupil_dy + gdy;
     const pupilR = p.pupil_r;
     const pupilR2 = pupilR * pupilR;
+    const maskPupilR = pupilR + 2;
+    const maskPupilR2 = maskPupilR * maskPupilR;
     const drawPupil = pupilR > 0 && blink < 0.6;
+    const pupilMinX = Math.floor(pupilLx - maskPupilR) - 1;
+    const pupilMaxX = Math.ceil(pupilLx + maskPupilR) + 1;
+
+    if (drawPupil) {
+      const [px, py] = localToScreen(pupilLx, pupilLy, cx, cy, cosA, sinA);
+      // Mirror firmware: render smooth circular pupil first.
+      s.fillSmoothCircle(px, py, Math.round(pupilR), fg, bg);
+    }
 
     // --- Interior fill (column-major over the inner envelope) ---
     for (let lx = -halfw; lx <= halfw; lx++) {
@@ -132,30 +161,48 @@
         yt += w; yb += w;
       }
       if (yb < yt) { const tmp = yt; yt = yb; yb = tmp; }
-      if (yb <= yt) continue;  // collapsed envelope: no interior.
+      const clipTopBound = yt;
+      const clipBotBound = yb > yt ? yb : yt;
 
-      const interiorTop = yt;
-      const interiorBot = yb;
-      if (drawPupil) {
+      if (drawPupil && lx >= pupilMinX && lx <= pupilMaxX) {
         const dx = lx - pupilLx;
-        if (dx * dx <= pupilR2) {
-          const dyMag = Math.sqrt(pupilR2 - dx * dx);
+        if (dx * dx <= maskPupilR2) {
+          const dyMag = Math.sqrt(maskPupilR2 - dx * dx);
           const pupilTop = pupilLy - dyMag;
           const pupilBot = pupilLy + dyMag;
-          const clipTop = pupilTop > interiorTop ? pupilTop : interiorTop;
-          const clipBot = pupilBot < interiorBot ? pupilBot : interiorBot;
-          if (clipBot >= clipTop) {
-            if (clipTop > interiorTop) paintLocalSpan(s, cx, cy, lx, interiorTop, clipTop, cosA, sinA, bg);
-            paintLocalSpan(s, cx, cy, lx, clipTop, clipBot, cosA, sinA, fg);
-            if (clipBot < interiorBot) paintLocalSpan(s, cx, cy, lx, clipBot, interiorBot, cosA, sinA, bg);
-          } else {
-            paintLocalSpan(s, cx, cy, lx, interiorTop, interiorBot, cosA, sinA, bg);
+
+          if (pupilTop < clipTopBound) {
+            const maskBot = pupilBot < clipTopBound ? pupilBot : clipTopBound;
+            if (maskBot > pupilTop) {
+              paintLocalSpan(s, cx, cy, lx, pupilTop, maskBot, cosA, sinA, bg);
+            }
           }
-        } else {
-          paintLocalSpan(s, cx, cy, lx, interiorTop, interiorBot, cosA, sinA, bg);
+          if (pupilBot > clipBotBound) {
+            const maskTop = pupilTop > clipBotBound ? pupilTop : clipBotBound;
+            if (pupilBot > maskTop) {
+              paintLocalSpan(s, cx, cy, lx, maskTop, pupilBot, cosA, sinA, bg);
+            }
+          }
         }
-      } else {
-        paintLocalSpan(s, cx, cy, lx, interiorTop, interiorBot, cosA, sinA, bg);
+      }
+    }
+
+    // Clip pupil side overhang beyond eye width with bg rectangular bands.
+    if (drawPupil) {
+      const sideTop = pupilLy - maskPupilR;
+      const sideBot = pupilLy + maskPupilR;
+
+      if (pupilMinX < -halfw) {
+        const leftEnd = Math.min(pupilMaxX, -halfw - 1);
+        for (let lx = pupilMinX; lx <= leftEnd; lx++) {
+          paintLocalSpan(s, cx, cy, lx, sideTop, sideBot, cosA, sinA, bg);
+        }
+      }
+      if (pupilMaxX > halfw) {
+        const rightStart = Math.max(pupilMinX, halfw + 1);
+        for (let lx = rightStart; lx <= pupilMaxX; lx++) {
+          paintLocalSpan(s, cx, cy, lx, sideTop, sideBot, cosA, sinA, bg);
+        }
       }
     }
 

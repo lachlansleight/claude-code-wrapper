@@ -45,6 +45,13 @@ static inline void paintLocalSpan(TFT_eSprite& s, int16_t cx, int16_t cy, float 
   }
 }
 
+static inline void localToScreen(float lx, float ly, int16_t cx, int16_t cy, float cosA, float sinA,
+                                 int16_t* outX, int16_t* outY) {
+  if (!outX || !outY) return;
+  *outX = cx + (int16_t)lroundf(lx * cosA - ly * sinA);
+  *outY = cy + (int16_t)lroundf(lx * sinA + ly * cosA);
+}
+
 // Trace an elliptical arc as a polyline, then expand outward by 1px and
 // re-trace, repeating `thick` times so the resulting band has uniform
 // thickness perpendicular to the arc — including at the corners where
@@ -140,7 +147,19 @@ static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy,
   const float pupilLy = (float)(p.pupil_dy + gdy);
   const float pupilR = (float)p.pupil_r;
   const float pupilR2 = pupilR * pupilR;
+  const float maskPupilR = pupilR + 2.0f;
+  const float maskPupilR2 = maskPupilR * maskPupilR;
   const bool drawPupil = (p.pupil_r > 0) && (blink < 0.6f);
+  const int16_t pupilMinX = (int16_t)floorf(pupilLx - maskPupilR) - 1;
+  const int16_t pupilMaxX = (int16_t)ceilf(pupilLx + maskPupilR) + 1;
+
+  if (drawPupil) {
+    int16_t px = 0;
+    int16_t py = 0;
+    localToScreen(pupilLx, pupilLy, cx, cy, cosA, sinA, &px, &py);
+    // Draw anti-aliased pupil first; edge pass below trims overflow.
+    s.fillSmoothCircle(px, py, (int32_t)lroundf(pupilR), fg565, bg565);
+  }
 
   // --- Interior fill (column-major, hollow inside the inner envelope) ---
   for (int16_t lx = -halfw; lx <= halfw; ++lx) {
@@ -157,38 +176,50 @@ static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy,
       yt = yb;
       yb = tmp;
     }
-    if (yb <= yt) continue;  // collapsed envelope: no interior.
+    const float clipTopBound = yt;
+    const float clipBotBound = yb > yt ? yb : yt;
 
-    // Hollow interior: pupil where it intersects, bg elsewhere.
-    const float interiorTop = yt;
-    const float interiorBot = yb;
-    if (drawPupil) {
+    // Pupil is pre-rendered as a smooth circle. Mask only the overhang that
+    // falls outside the eye envelope with bg-colored spans.
+    if (drawPupil && lx >= pupilMinX && lx <= pupilMaxX) {
       const float dx = (float)lx - pupilLx;
-      if (dx * dx <= pupilR2) {
-        const float dyMag = sqrtf(pupilR2 - dx * dx);
+      if (dx * dx <= maskPupilR2) {
+        const float dyMag = sqrtf(maskPupilR2 - dx * dx);
         const float pupilTop = pupilLy - dyMag;
         const float pupilBot = pupilLy + dyMag;
-        const float clipTop = pupilTop > interiorTop ? pupilTop : interiorTop;
-        const float clipBot = pupilBot < interiorBot ? pupilBot : interiorBot;
-        if (clipBot >= clipTop) {
-          // bg above pupil
-          if (clipTop > interiorTop) {
-            paintLocalSpan(s, cx, cy, (float)lx, interiorTop, clipTop, cosA, sinA, bg565);
+        if (pupilTop < clipTopBound) {
+          const float maskBot = pupilBot < clipTopBound ? pupilBot : clipTopBound;
+          if (maskBot > pupilTop) {
+            paintLocalSpan(s, cx, cy, (float)lx, pupilTop, maskBot, cosA, sinA, bg565);
           }
-          // pupil
-          paintLocalSpan(s, cx, cy, (float)lx, clipTop, clipBot, cosA, sinA, fg565);
-          // bg below pupil
-          if (clipBot < interiorBot) {
-            paintLocalSpan(s, cx, cy, (float)lx, clipBot, interiorBot, cosA, sinA, bg565);
-          }
-        } else {
-          paintLocalSpan(s, cx, cy, (float)lx, interiorTop, interiorBot, cosA, sinA, bg565);
         }
-      } else {
-        paintLocalSpan(s, cx, cy, (float)lx, interiorTop, interiorBot, cosA, sinA, bg565);
+        if (pupilBot > clipBotBound) {
+          const float maskTop = pupilTop > clipBotBound ? pupilTop : clipBotBound;
+          if (pupilBot > maskTop) {
+            paintLocalSpan(s, cx, cy, (float)lx, maskTop, pupilBot, cosA, sinA, bg565);
+          }
+        }
       }
-    } else {
-      paintLocalSpan(s, cx, cy, (float)lx, interiorTop, interiorBot, cosA, sinA, bg565);
+    }
+  }
+
+  // If the pupil extends beyond the eye width, clip the side overhang with
+  // bg-colored "rectangles" (column spans) in local space.
+  if (drawPupil) {
+    const float sideTop = pupilLy - maskPupilR;
+    const float sideBot = pupilLy + maskPupilR;
+
+    if (pupilMinX < -halfw) {
+      const int16_t leftEnd = pupilMaxX < (int16_t)(-halfw - 1) ? pupilMaxX : (int16_t)(-halfw - 1);
+      for (int16_t lx = pupilMinX; lx <= leftEnd; ++lx) {
+        paintLocalSpan(s, cx, cy, (float)lx, sideTop, sideBot, cosA, sinA, bg565);
+      }
+    }
+    if (pupilMaxX > halfw) {
+      const int16_t rightStart = pupilMinX > (int16_t)(halfw + 1) ? pupilMinX : (int16_t)(halfw + 1);
+      for (int16_t lx = rightStart; lx <= pupilMaxX; ++lx) {
+        paintLocalSpan(s, cx, cy, (float)lx, sideTop, sideBot, cosA, sinA, bg565);
+      }
     }
   }
 
