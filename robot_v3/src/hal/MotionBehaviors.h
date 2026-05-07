@@ -16,15 +16,16 @@
  * requires updating that table (a `static_assert` in the .cpp enforces
  * matching size).
  *
- * On each tick(expression):
- *  - If the expression has changed since the last tick, run an
- *    `onEnter` for the new mode (kicks off the first jog/pattern/etc.).
- *  - If a Motion hold has just expired, re-enter to restart motion.
- *  - Otherwise run `onDuring`, which schedules the next cycle (e.g.
- *    flips an oscillator, picks a new drift target).
+ * On each tick(ctx):
+ *  - Emotion expressions (Neutral … Disappointed) drive the continuous
+ *    blended arm layer via ctx.base_emotion_arm; the kMotion table is
+ *    not used for those.
+ *  - Verbs/overlays use kMotion: on expression change run `onEnter`, poll
+ *    hold expiry, then `onDuring` for periodic verb cycles.
  *
  * Centre offsets here are constrained to ±45° via Motion::setSafeRange.
- * The face uses periodMsFor() to body-bob in time with the arm.
+ * The face uses periodMsForContext() / periodMsFor() to body-bob with
+ * the arm.
  */
 namespace MotionBehaviors {
 
@@ -36,13 +37,10 @@ namespace MotionBehaviors {
 void begin();
 
 /**
- * Drive the servo for the supplied effective expression. Edge-detects
- * expression changes to call `onEnter`, polls Motion::consumeHoldExpired
- * to recover from holds, and otherwise advances the active periodic
- * cycle. Intended to be called every loop with the result of
- * EmotionSystem + VerbSystem composition.
+ * Drive the servo from the filled scene context (verbs use kMotion;
+ * idle emotions use blended base_emotion_arm).
  */
-void tick(Face::Expression expression);
+void tick(const Face::SceneContext& ctx);
 
 /**
  * Period in ms for the arm motion attached to @p expression, or 0 if
@@ -52,5 +50,7 @@ void tick(Face::Expression expression);
  * auto-resyncs.
  */
 uint16_t periodMsFor(Face::Expression expression);
+
+uint16_t periodMsForContext(const Face::SceneContext& ctx);
 
 }  // namespace MotionBehaviors

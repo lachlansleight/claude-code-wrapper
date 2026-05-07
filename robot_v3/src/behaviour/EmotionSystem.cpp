@@ -169,7 +169,8 @@ void tick() {
   const float alphaV = 1.0f - expf(-(float)dtMs / kTauMsV);
   const float targetV = activeTargetV();
 
-  sRaw.activation = clampf(sRaw.activation + (0.0f - sRaw.activation) * alphaA, 0.0f, 1.0f);
+  const float newActivation = fmaxf(0.5f, clampf(sRaw.activation + (0.0f - sRaw.activation) * alphaA, 0.0f, 1.0f));
+  sRaw.activation = fminf(sRaw.activation, newActivation);
   sRaw.valence = clampf(sRaw.valence + (targetV - sRaw.valence) * alphaV, -1.0f, 1.0f);
 
   float bestDist = 0.0f;

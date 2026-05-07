@@ -67,6 +67,30 @@ enum class Expression : uint8_t {
   Count
 };
 
+/// True for expressions driven by the continuous (v, a) emotion layer
+/// (Neutral … Disappointed), excluding verbs and overlays.
+inline bool isEmotionExpression(Expression s) {
+  return s == Expression::Neutral || s == Expression::Happy ||
+         s == Expression::Excited || s == Expression::Joyful ||
+         s == Expression::Sad || s == Expression::Sleepy ||
+         s == Expression::Distressed || s == Expression::Blissed ||
+         s == Expression::Depressed || s == Expression::Shocked ||
+         s == Expression::Disappointed;
+}
+
+/**
+ * Blended base-layer arm motion (offsets from centre, degrees).
+ * One cycle: sine arch from min → max → min over @p waggle_period_s,
+ * then hold at min for @p waggle_interval_s. Blended in (v, a) like
+ * FaceParams; verbs/overlays ignore this and use MotionBehaviors tables.
+ */
+struct EmotionArmMotion {
+  int16_t min_offset_deg;
+  int16_t max_offset_deg;
+  float waggle_period_s;
+  float waggle_interval_s;
+};
+
 /**
  * Per-expression face geometry target. FrameController tweens between
  * these. All fields except rotation/speed are integer pixel offsets
@@ -190,6 +214,9 @@ struct SceneContext {
    * expression's palette colour.
    */
   FaceParams base_face_params;
+
+  /** Continuous arm preset at (mood_v, mood_a); see EmotionArmMotion. */
+  EmotionArmMotion base_emotion_arm;
 
   char latched_session[40];
   char pending_permission[48];

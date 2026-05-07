@@ -99,6 +99,56 @@ int16_t blendField(int16_t a, int16_t b, int16_t c, float la, float lb, float lc
   return (int16_t)lroundf(v);
 }
 
+struct ArmPreset {
+  int16_t min_deg;
+  int16_t max_deg;
+  float period_s;
+  float interval_s;
+};
+
+static ArmPreset armPresetFor(Face::Expression e) {
+  switch (e) {
+    case Face::Expression::Neutral:
+      return {-25, -15, 2.0f, 1.0f};
+    case Face::Expression::Happy:
+      return {-23, -7, 1.5f, 0.5f};
+    case Face::Expression::Excited:
+      return {-15, -5, 1.0f, 0.0f};
+    case Face::Expression::Joyful:
+      return {10, 25, 0.9f, 0.2f};
+    case Face::Expression::Sad:
+      return {-25, -15, 2.0f, 1.0f};
+    case Face::Expression::Sleepy:
+      return {-25, -20, 3.0f, 6.0f};
+    case Face::Expression::Distressed:
+      return {-15, -5, 1.0f, 0.0f};
+    case Face::Expression::Blissed:
+      return {-25, -20, 3.0f, 6.0f};
+    case Face::Expression::Depressed:
+      return {-25, -20, 3.0f, 6.0f};
+    case Face::Expression::Shocked:
+      return {-15, -5, 1.0f, 0.0f};
+    case Face::Expression::Disappointed:
+      return {-23, -7, 1.5f, 0.5f};
+    default:
+      return {-25, -15, 2.0f, 1.0f};
+  }
+}
+
+static float blendFloat(float a, float b, float c, float la, float lb, float lc) {
+  return a * la + b * lb + c * lc;
+}
+
+static Face::EmotionArmMotion blendArmThree(const ArmPreset& A, const ArmPreset& B,
+                                            const ArmPreset& C, float la, float lb, float lc) {
+  Face::EmotionArmMotion r;
+  r.min_offset_deg = blendField(A.min_deg, B.min_deg, C.min_deg, la, lb, lc);
+  r.max_offset_deg = blendField(A.max_deg, B.max_deg, C.max_deg, la, lb, lc);
+  r.waggle_period_s = blendFloat(A.period_s, B.period_s, C.period_s, la, lb, lc);
+  r.waggle_interval_s = blendFloat(A.interval_s, B.interval_s, C.interval_s, la, lb, lc);
+  return r;
+}
+
 Face::FaceParams blendThree(const Face::FaceParams& A, const Face::FaceParams& B,
                             const Face::FaceParams& C, float la, float lb, float lc) {
   Face::FaceParams r;
@@ -172,6 +222,60 @@ Face::FaceParams blendedFaceParams(float v, float a) {
 
   return blendThree(Face::baseTargetFor(eA), Face::baseTargetFor(eB),
                     Face::baseTargetFor(eC), l0, l1, l2);
+}
+
+Face::EmotionArmMotion blendedEmotionArmMotion(float v, float a) {
+  v = clampf(v, -1.0f, 1.0f);
+  a = clampf(a, 0.0f, 1.0f);
+
+  uint16_t i0 = 0, i1 = 0, i2 = 0;
+  float l0 = 0.0f, l1 = 0.0f, l2 = 0.0f;
+  if (!findTriangle(v, a, i0, i1, i2, l0, l1, l2)) {
+    float best = INFINITY;
+    uint16_t bestIdx = 0;
+    for (size_t i = 0; i < EmotionSystem::kAnchorCount; ++i) {
+      const EmotionSystem::Anchor& an = EmotionSystem::kAnchors[i];
+      const float dv = v - an.v;
+      const float da = a - an.a;
+      const float d = dv * dv + da * da;
+      if (d < best) {
+        best = d;
+        bestIdx = (uint16_t)i;
+      }
+    }
+    const Face::Expression ex =
+        expressionForNamedEmotion(EmotionSystem::kAnchors[bestIdx].emotion);
+    const ArmPreset p = armPresetFor(ex);
+    Face::EmotionArmMotion one;
+    one.min_offset_deg = p.min_deg;
+    one.max_offset_deg = p.max_deg;
+    if (one.min_offset_deg > one.max_offset_deg) {
+      const int16_t t = one.min_offset_deg;
+      one.min_offset_deg = one.max_offset_deg;
+      one.max_offset_deg = t;
+    }
+    one.waggle_period_s = p.period_s < 0.05f ? 0.05f : p.period_s;
+    one.waggle_interval_s = p.interval_s < 0.0f ? 0.0f : p.interval_s;
+    return one;
+  }
+
+  const Face::Expression eA =
+      expressionForNamedEmotion(EmotionSystem::kAnchors[i0].emotion);
+  const Face::Expression eB =
+      expressionForNamedEmotion(EmotionSystem::kAnchors[i1].emotion);
+  const Face::Expression eC =
+      expressionForNamedEmotion(EmotionSystem::kAnchors[i2].emotion);
+
+  Face::EmotionArmMotion r =
+      blendArmThree(armPresetFor(eA), armPresetFor(eB), armPresetFor(eC), l0, l1, l2);
+  if (r.min_offset_deg > r.max_offset_deg) {
+    const int16_t t = r.min_offset_deg;
+    r.min_offset_deg = r.max_offset_deg;
+    r.max_offset_deg = t;
+  }
+  if (r.waggle_period_s < 0.05f) r.waggle_period_s = 0.05f;
+  if (r.waggle_interval_s < 0.0f) r.waggle_interval_s = 0.0f;
+  return r;
 }
 
 }  // namespace EmotionBlend

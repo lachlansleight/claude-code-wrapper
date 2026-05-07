@@ -5,7 +5,9 @@ Reads constexpr Box kBoxes[(size_t)NamedEmotion::Count] from
 robot_v3/src/behaviour/EmotionSystem.cpp. Each row is either two opposite
 corners (v0,a0), (v1,a1) — four floats, normalized to axis-aligned min/max —
 or a single (v, a) point — two floats (degenerate box). Emits one anchor per
-row at the box center ((minV+maxV)/2, (minA+maxA)/2), tagged with the emotion.
+row: box center by default; if the box touches a domain edge, snap to that edge
+at mid-span along the other axis; if it contains a domain corner, use that
+corner; two opposite corners on the same edge use mid-span on that edge.
 Computes a Delaunay triangulation of the deduplicated anchor set via
 Bowyer-Watson (no scipy dep). Emits a C++ header with two constexpr arrays:
 kAnchors[] and kTriangles[].
@@ -14,8 +16,8 @@ Run by hand whenever kBoxes changes:
     python scripts/gen_emotion_triangulation.py
 
 Asserts each corner of the (v,a) domain [-1, +1] x [0, 1] lies inside
-at least one kBoxes axis-aligned region (anchors are centers only; this check
-still uses the full rectangles). If not, refuses to emit.
+at least one kBoxes axis-aligned region (anchor placement uses edge/corner
+snapping; this check still uses the full rectangles). If not, refuses to emit.
 """
 
 from __future__ import annotations
@@ -27,7 +29,8 @@ from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # kBoxes source (parsed at runtime from EmotionSystem.cpp).
-# Each entry: (NamedEmotion name, minV, maxV, minA, maxA); anchor at center.
+# Each entry: (NamedEmotion name, minV, maxV, minA, maxA); anchor via
+# anchor_from_box (center, edge mid-span, or domain corner).
 # ---------------------------------------------------------------------------
 
 DOMAIN_V = (-1.0, 1.0)
@@ -53,8 +56,8 @@ def parse_k_boxes_from_emotion_system_cpp(path: Path) -> list[tuple[str, float, 
 
     Each row is `{ ... }, // Name` with either four floats (v0, a0, v1, a1 —
     two opposite corners of an axis-aligned box) or two floats (v, a) — a
-    degenerate box. Both normalize to (minV, maxV, minA, maxA); triangulation
-    uses the center of each row's box.
+    degenerate box.     Both normalize to (minV, maxV, minA, maxA); triangulation uses
+    anchor_from_box() for each row.
     """
     if not path.is_file():
         raise SystemExit(
@@ -148,13 +151,81 @@ class Anchor:
     emotion: str
 
 
+# Domain corners (v, a) for [-1,1] x [0,1].
+_DOMAIN_CORNERS: tuple[tuple[float, float], ...] = (
+    (DOMAIN_V[0], DOMAIN_A[0]),
+    (DOMAIN_V[0], DOMAIN_A[1]),
+    (DOMAIN_V[1], DOMAIN_A[0]),
+    (DOMAIN_V[1], DOMAIN_A[1]),
+)
+
+
+def anchor_from_box(min_v: float, max_v: float, min_a: float, max_a: float) -> tuple[float, float]:
+    """Placement inside each kBoxes row's axis-aligned rectangle.
+
+    - If the closed box contains exactly one domain corner, anchor there.
+    - If it contains two corners on the same vertical (same v), use (v, mid_a).
+    - If two corners on the same horizontal (same a), use (mid_v, a).
+    - If it contains three or four corners, or two diagonal corners, use the
+      rectangle center.
+    - Otherwise, if the box is flush with exactly one domain edge, snap to
+      that edge at mid-span along the other axis (e.g. top-only → (mid_v, 1)).
+    - If flush with both vertical edges or both horizontal edges (no corner
+      inside), use the rectangle center.
+    - Otherwise use the rectangle center.
+    """
+    mid_v = 0.5 * (min_v + max_v)
+    mid_a = 0.5 * (min_a + max_a)
+
+    def corner_in_box(vc: float, ac: float) -> bool:
+        return (
+            min_v - EPS <= vc <= max_v + EPS
+            and min_a - EPS <= ac <= max_a + EPS
+        )
+
+    corners_present = [(vc, ac) for vc, ac in _DOMAIN_CORNERS if corner_in_box(vc, ac)]
+    n_c = len(corners_present)
+
+    if n_c >= 3:
+        return mid_v, mid_a
+    if n_c == 2:
+        (v0, a0), (v1, a1) = corners_present[0], corners_present[1]
+        if abs(v0 - v1) < EPS:
+            return v0, mid_a
+        if abs(a0 - a1) < EPS:
+            return mid_v, a0
+        return mid_v, mid_a
+    if n_c == 1:
+        return corners_present[0]
+
+    touches_left = min_v <= DOMAIN_V[0] + EPS
+    touches_right = max_v >= DOMAIN_V[1] - EPS
+    touches_bottom = min_a <= DOMAIN_A[0] + EPS
+    touches_top = max_a >= DOMAIN_A[1] - EPS
+
+    if touches_left and touches_right:
+        return mid_v, mid_a
+    if touches_bottom and touches_top:
+        return mid_v, mid_a
+
+    if touches_left:
+        return DOMAIN_V[0], mid_a
+    if touches_right:
+        return DOMAIN_V[1], mid_a
+    if touches_bottom:
+        return mid_v, DOMAIN_A[0]
+    if touches_top:
+        return mid_v, DOMAIN_A[1]
+
+    return mid_v, mid_a
+
+
 def collect_anchors(
     boxes: list[tuple[str, float, float, float, float]],
 ) -> list[Anchor]:
     seen: dict[tuple[float, float], Anchor] = {}
     for emotion, minV, maxV, minA, maxA in boxes:
-        v = 0.5 * (minV + maxV)
-        a = 0.5 * (minA + maxA)
+        v, a = anchor_from_box(minV, maxV, minA, maxA)
         key = (round(v, 9), round(a, 9))
         if key not in seen:
             seen[key] = Anchor(v, a, emotion)

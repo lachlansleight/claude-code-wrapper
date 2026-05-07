@@ -73,22 +73,13 @@ static FaceParams targetForExpression(Expression s, const FaceParams* baseTarget
   return makeFaceParamsWithMood(baseTargets[idx], moodColorForExpression(s));
 }
 
-static bool isEmotionExpression(Expression s) {
-  return s == Expression::Neutral || s == Expression::Happy ||
-         s == Expression::Excited || s == Expression::Joyful ||
-         s == Expression::Sad || s == Expression::Sleepy ||
-         s == Expression::Distressed || s == Expression::Blissed ||
-         s == Expression::Depressed || s == Expression::Shocked ||
-         s == Expression::Disappointed;
-}
-
 // Resolve the live tween target. For emotion expressions the base
 // FaceParams comes from the continuous (v,a) blend in
 // SceneContextFill; for verbs and overlays it's the static
 // kBaseTargets row. Mood-ring colour is always baked from the
 // effective expression's palette entry.
 static FaceParams targetForContext(const SceneContext& ctx, const FaceParams* baseTargets) {
-  if (isEmotionExpression(ctx.effective_expression)) {
+  if (Face::isEmotionExpression(ctx.effective_expression)) {
     return makeFaceParamsWithMood(ctx.base_face_params,
                                   moodColorForExpression(ctx.effective_expression));
   }
@@ -253,9 +244,16 @@ static float breathPhase(uint32_t now) {
   return sinf(t * 2.0f * (float)PI);
 }
 
-static int16_t bodyBobFor(Expression s, uint32_t now) {
-  const uint16_t period = MotionBehaviors::periodMsFor(s);
+static int16_t bodyBobFor(const SceneContext& ctx, uint32_t now) {
+  const Expression s = ctx.effective_expression;
+  const uint16_t period = MotionBehaviors::periodMsForContext(ctx);
   if (period == 0) return 0;
+
+  if (Face::isEmotionExpression(s)) {
+    if (ctx.base_emotion_arm.min_offset_deg == ctx.base_emotion_arm.max_offset_deg) return 0;
+    const float t = (float)(now % period) / (float)period;
+    return (int16_t)(-sinf(t * 2.0f * (float)PI) * 3.0f);
+  }
 
   int8_t amp = 0;
   switch (s) {
@@ -540,7 +538,7 @@ void tick(const SceneContext& ctx) {
   const int16_t idx = (int16_t)exprIdx;
   if (idx != sLastExprIdx) {
     onExpressionChange(sNow, now, ctx);
-  } else if (isEmotionExpression(sNow)) {
+  } else if (Face::isEmotionExpression(sNow)) {
     // Continuous emotion blend: refresh the tween target every tick so
     // the face follows the (v, a) point smoothly even without an
     // expression-enum change. sFrom/tween-start are untouched, so any
@@ -581,7 +579,7 @@ void tick(const SceneContext& ctx) {
     p.mouth_dy = (int16_t)(p.mouth_dy + b / 2);
   }
 
-  p.face_y = (int16_t)(p.face_y + bodyBobFor(sNow, now));
+  p.face_y = (int16_t)(p.face_y + bodyBobFor(ctx, now));
 
   if (sNow == Expression::VerbThinking) {
     maybeFlipThinkTilt(now);

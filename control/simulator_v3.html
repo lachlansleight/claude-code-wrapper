@@ -207,6 +207,7 @@
         <canvas id="faceCanvas" width="480" height="480"></canvas>
         <div class="stage-meta">
           expression: <span id="currentExpr">Neutral</span>
+          &nbsp;·&nbsp; <span id="armLabel">arm —°</span>
           &nbsp;·&nbsp; <span id="fpsLabel">— fps</span>
         </div>
       </div>
@@ -276,6 +277,15 @@
     const FC = window.FrameControllerV3;
 
     FC.start(document.getElementById("faceCanvas"));
+
+    const armLabel = document.getElementById("armLabel");
+
+    // FPS + arm offset (matches firmware centre-relative servo degrees)
+    setInterval(() => {
+      if (armLabel && typeof FC.armOffsetDeg === "function") {
+        armLabel.textContent = `arm ${FC.armOffsetDeg().toFixed(0)}°`;
+      }
+    }, 100);
 
     // FPS counter
     let frames = 0, lastFpsT = performance.now();
@@ -816,8 +826,21 @@
       const tri = window.EmotionBlendV3 && window.EmotionBlendV3.ready()
         ? window.EmotionBlendV3.findTriangle(va.v, va.a)
         : null;
+      let armHtml = "";
+      let armPlain = "";
+      if (window.EmotionBlendV3 && window.EmotionBlendV3.ready()) {
+        const m = window.EmotionBlendV3.blendedEmotionArmMotion(va.v, va.a);
+        if (m) {
+          armPlain =
+            ` · arm blend: [${m.min_offset_deg}°, ${m.max_offset_deg}°] ` +
+            `P=${m.waggle_period_s.toFixed(2)}s I=${m.waggle_interval_s.toFixed(2)}s`;
+          armHtml =
+            ` &nbsp;·&nbsp; arm blend: [${m.min_offset_deg}°, ${m.max_offset_deg}°] ` +
+            `P=${m.waggle_period_s.toFixed(2)}s I=${m.waggle_interval_s.toFixed(2)}s`;
+        }
+      }
       if (!tri) {
-        blendMeta.textContent = "triangle: — · weights: —";
+        blendMeta.textContent = `triangle: — · weights: —${armPlain}`;
         return;
       }
       const t = window.EmotionTriangulation;
@@ -828,7 +851,8 @@
       const e2 = t.anchors[i2].emotion;
       blendMeta.innerHTML =
         `triangle: <b>${e0}</b> · <b>${e1}</b> · <b>${e2}</b> ` +
-        `&nbsp;·&nbsp; weights: ${l0.toFixed(2)} / ${l1.toFixed(2)} / ${l2.toFixed(2)}`;
+        `&nbsp;·&nbsp; weights: ${l0.toFixed(2)} / ${l1.toFixed(2)} / ${l2.toFixed(2)}` +
+        armHtml;
     }
 
     function syncBlendInputs() {

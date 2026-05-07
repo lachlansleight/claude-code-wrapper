@@ -30,16 +30,16 @@ struct Triangle {
 static constexpr size_t kAnchorCount = 11;
 static constexpr Anchor kAnchors[kAnchorCount] = {
     { +0.000000f, +0.500000f, NamedEmotion::Neutral },
-    { +0.950000f, +0.350000f, NamedEmotion::Happy },
-    { +0.950000f, +0.650000f, NamedEmotion::Excited },
-    { +0.950000f, +0.950000f, NamedEmotion::Joyful },
-    { -0.950000f, +0.350000f, NamedEmotion::Sad },
-    { +0.000000f, +0.050000f, NamedEmotion::Sleepy },
-    { -0.950000f, +0.950000f, NamedEmotion::Distressed },
-    { +0.950000f, +0.050000f, NamedEmotion::Blissed },
-    { -0.950000f, +0.050000f, NamedEmotion::Depressed },
-    { +0.000000f, +0.950000f, NamedEmotion::Shocked },
-    { -0.950000f, +0.650000f, NamedEmotion::Disappointed },
+    { +1.000000f, +0.350000f, NamedEmotion::Happy },
+    { +1.000000f, +0.650000f, NamedEmotion::Excited },
+    { +1.000000f, +1.000000f, NamedEmotion::Joyful },
+    { -1.000000f, +0.350000f, NamedEmotion::Sad },
+    { +0.000000f, +0.000000f, NamedEmotion::Sleepy },
+    { -1.000000f, +1.000000f, NamedEmotion::Distressed },
+    { +1.000000f, +0.000000f, NamedEmotion::Blissed },
+    { -1.000000f, +0.000000f, NamedEmotion::Depressed },
+    { +0.000000f, +1.000000f, NamedEmotion::Shocked },
+    { -1.000000f, +0.650000f, NamedEmotion::Disappointed },
 };
 
 static constexpr size_t kTriangleCount = 10;

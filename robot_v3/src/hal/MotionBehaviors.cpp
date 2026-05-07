@@ -1,5 +1,7 @@
 #include "MotionBehaviors.h"
 
+#include <math.h>
+
 #include "../core/DebugLog.h"
 #include "Motion.h"
 
@@ -58,6 +60,7 @@ static_assert(sizeof(kMotion) / sizeof(kMotion[0]) == (uint8_t)Face::Expression:
 static int16_t sLastExprIdx = -1;
 static uint32_t sNextTimedMs = 0;
 static bool sOscAtLow = false;
+static bool sEmotionArmDriving = false;
 
 static int8_t randInRange(int8_t lo, int8_t hi) {
   if (lo > hi) {
@@ -181,15 +184,45 @@ uint16_t periodMsFor(Face::Expression s) {
   }
 }
 
+uint16_t periodMsForContext(const Face::SceneContext& ctx) {
+  if (Face::isEmotionExpression(ctx.effective_expression)) {
+    const float total =
+        ctx.base_emotion_arm.waggle_period_s + ctx.base_emotion_arm.waggle_interval_s;
+    float msf = total * 1000.0f;
+    if (msf < 50.0f) msf = 50.0f;
+    if (msf > 65535.0f) return 65535;
+    return (uint16_t)lroundf(msf);
+  }
+  return periodMsFor(ctx.effective_expression);
+}
+
 void begin() {
   Motion::setSafeRange(kSafeMin, kSafeMax);
   sLastExprIdx = -1;
   sNextTimedMs = 0;
+  sEmotionArmDriving = false;
 }
 
-void tick(Face::Expression expression) {
+void tick(const Face::SceneContext& ctx) {
+  const Face::Expression expression = ctx.effective_expression;
   const int16_t idx = (int16_t)(uint8_t)expression;
   if (idx < 0 || idx >= (int16_t)Face::Expression::Count) return;
+
+  if (Face::isEmotionExpression(expression)) {
+    (void)Motion::consumeHoldExpired();
+    if (!sEmotionArmDriving) {
+      Motion::resetEmotionArmPhase();
+    }
+    sEmotionArmDriving = true;
+    const Face::EmotionArmMotion& ar = ctx.base_emotion_arm;
+    Motion::syncEmotionArmLayer(true, ar.min_offset_deg, ar.max_offset_deg, ar.waggle_period_s,
+                                ar.waggle_interval_s);
+    sLastExprIdx = idx;
+    return;
+  }
+
+  sEmotionArmDriving = false;
+  Motion::syncEmotionArmLayer(false, 0, 0, 1.0f, 0.0f);
 
   if (idx != sLastExprIdx) {
     LOG_EVT("motion: enter %s", Face::expressionName(expression));

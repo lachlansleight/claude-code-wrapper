@@ -54,11 +54,11 @@ void loop() {
   WifiMgr::tick(gCfg.wifi_ssid.c_str(), gCfg.wifi_password.c_str());
   Bridge::tick();
   EventRouter::tick();
-  Motion::tick();
 
   Face::SceneContext ctx;
   SceneContextFill::fill(ctx);
-  MotionBehaviors::tick(ctx.effective_expression);
+  MotionBehaviors::tick(ctx);
+  Motion::tick();
   Face::tick(ctx);
 
   #if DEBUG_SERIAL_VERBOSE

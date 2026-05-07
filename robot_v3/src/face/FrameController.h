@@ -23,8 +23,8 @@
  *    sign of `face_rot` and `pupil_dx` is smoothly inverted, so the
  *    head sways back and forth while thinking.
  *  - Compute a body-bob offset for body-bobbing expressions, in
- *    lockstep with `MotionBehaviors::periodMsFor(expr)` so the face
- *    syncs visually with the arm.
+ *    lockstep with `MotionBehaviors::periodMsForContext(ctx)` (or
+ *    `periodMsFor` for verbs) so the face syncs with the arm.
  *  - Add a per-expression gaze offset (idle micro-glances during
  *    Neutral; small repeating motion otherwise).
  *  - Smooth the mood-ring colour (200 ms τ low-pass) and the

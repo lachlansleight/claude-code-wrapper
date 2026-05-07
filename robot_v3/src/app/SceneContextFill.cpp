@@ -156,6 +156,7 @@ void fill(Face::SceneContext& out) {
   out.mood_v = raw.valence;
   out.mood_a = raw.activation;
   out.base_face_params = EmotionBlend::blendedFaceParams(raw.valence, raw.activation);
+  out.base_emotion_arm = EmotionBlend::blendedEmotionArmMotion(raw.valence, raw.activation);
 
   const EmotionSystem::DebugState emotionDebug = EmotionSystem::debugState();
   copyField(out.snapped_emotion, sizeof(out.snapped_emotion),

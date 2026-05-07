@@ -59,6 +59,16 @@ bool motionEnabled = true;
 
 uint8_t commandedAngle = kCentre;
 
+bool emotionArmEnabled = false;
+int16_t emotionMinDeg = 0;
+int16_t emotionMaxDeg = 0;
+float emotionPeriodS = 1.0f;
+float emotionIntervalS = 0.0f;
+bool emotionInOsc = true;
+float emotionOscAccum01 = 0.0f;
+float emotionDwellRemainS = 0.0f;
+uint32_t emotionLastAdvanceMs = 0;
+
 int8_t clampToSafe(int value) {
   if (value < (int)safeMin) value = safeMin;
   if (value > (int)safeMax) value = safeMax;
@@ -162,6 +172,54 @@ void tick() {
     return;
   }
 
+  if (emotionArmEnabled && !thinkingMode) {
+    const uint32_t nowEm = millis();
+    float dt_s = (emotionLastAdvanceMs == 0) ? 0.0f
+                                             : (float)(nowEm - emotionLastAdvanceMs) / 1000.0f;
+    emotionLastAdvanceMs = nowEm;
+    if (dt_s > 0.5f) dt_s = 0.5f;
+
+    int16_t lo = emotionMinDeg;
+    int16_t hi = emotionMaxDeg;
+    if (lo > hi) {
+      const int16_t t = lo;
+      lo = hi;
+      hi = t;
+    }
+    const float period = emotionPeriodS < 0.05f ? 0.05f : emotionPeriodS;
+
+    if (lo == hi) {
+      writeAngle(offsetToAngle((int8_t)lo));
+      return;
+    }
+
+    if (emotionInOsc) {
+      emotionOscAccum01 += dt_s / period;
+      const float oscDraw = emotionOscAccum01 >= 1.0f ? 1.0f : emotionOscAccum01;
+      if (emotionOscAccum01 >= 1.0f) {
+        emotionOscAccum01 = 0.0f;
+        if (emotionIntervalS < 0.02f) {
+          emotionInOsc = true;
+        } else {
+          emotionInOsc = false;
+          emotionDwellRemainS = emotionIntervalS;
+        }
+      }
+      const float u = sinf((float)PI * oscDraw);
+      const float off = (float)lo + (float)(hi - lo) * u;
+      writeAngle(offsetToAngle((int8_t)lroundf(off)));
+      return;
+    }
+
+    emotionDwellRemainS -= dt_s;
+    writeAngle(offsetToAngle((int8_t)lo));
+    if (emotionDwellRemainS <= 0.0f) {
+      emotionInOsc = true;
+      emotionOscAccum01 = 0.0f;
+    }
+    return;
+  }
+
   if (!thinkingMode) return;
   const uint32_t now = millis();
   if (now - lastThinkWriteMs < kThinkWriteEvery) return;
@@ -202,6 +260,33 @@ void cancelAll() {
   playing = nullptr;
   jogActive = false;
   thinkingMode = false;
+  emotionArmEnabled = false;
+  emotionLastAdvanceMs = 0;
+}
+
+void syncEmotionArmLayer(bool enable, int16_t minDeg, int16_t maxDeg, float periodS,
+                         float intervalS) {
+  if (!motionEnabled) {
+    emotionArmEnabled = false;
+    return;
+  }
+  if (!enable) {
+    emotionArmEnabled = false;
+    emotionLastAdvanceMs = 0;
+    return;
+  }
+  emotionArmEnabled = true;
+  emotionMinDeg = minDeg;
+  emotionMaxDeg = maxDeg;
+  emotionPeriodS = periodS;
+  emotionIntervalS = intervalS < 0.0f ? 0.0f : intervalS;
+}
+
+void resetEmotionArmPhase() {
+  emotionInOsc = true;
+  emotionOscAccum01 = 0.0f;
+  emotionDwellRemainS = 0.0f;
+  emotionLastAdvanceMs = 0;
 }
 
 void playJog(int8_t offsetDeg, uint16_t durationMs) {
@@ -266,6 +351,8 @@ void setEnabled(bool enabled) {
     cancelAll();
     holdActive = false;
     holdExpiredEdge = false;
+    emotionArmEnabled = false;
+    emotionLastAdvanceMs = 0;
     if (attached) writeAngle(kCentre);
   }
 }

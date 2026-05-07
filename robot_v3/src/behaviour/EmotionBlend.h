@@ -37,4 +37,10 @@ namespace EmotionBlend {
  */
 Face::FaceParams blendedFaceParams(float v, float a);
 
+/**
+ * Barycentric blend of per-anchor arm motion presets at (v, a), same
+ * triangulation as blendedFaceParams.
+ */
+Face::EmotionArmMotion blendedEmotionArmMotion(float v, float a);
+
 }  // namespace EmotionBlend

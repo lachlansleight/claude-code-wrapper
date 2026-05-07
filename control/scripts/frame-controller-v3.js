@@ -15,6 +15,7 @@
 //   FrameControllerV3.setStaticMode(on)
 //   FrameControllerV3.setStaticOverride({ params?, blinkAmt?, gdx?, gdy?, expression? })
 //   FrameControllerV3.staticOverride()
+//   FrameControllerV3.armOffsetDeg()   -> live servo offset (deg) for rim viz
 
 (function () {
   const EXPRESSIONS = [
@@ -131,7 +132,7 @@
     return r;
   }
 
-  // Mirrors MotionBehaviors::periodMsFor for the bobbing expressions.
+  // Mirrors MotionBehaviors::periodMsFor for verb/overlay expressions.
   function motorPeriodMsFor(name) {
     switch (name) {
       case "VerbThinking": return 2000;
@@ -146,11 +147,66 @@
       default: return 0;
     }
   }
-  function bodyBobFor(name, now) {
-    const period = motorPeriodMsFor(name);
+
+  const EMOTION_NAMES = new Set([
+    "Neutral", "Happy", "Excited", "Joyful", "Sad", "Sleepy", "Distressed",
+    "Blissed", "Depressed", "Shocked", "Disappointed",
+  ]);
+  function isEmotionExpression(name) {
+    return EMOTION_NAMES.has(name);
+  }
+
+  function vaForExpression(name) {
+    const tab = window.EmotionTriangulation;
+    if (!tab || !Array.isArray(tab.anchors)) return { v: 0, a: 0.5 };
+    const an = tab.anchors.find((x) => x.emotion === name);
+    return an ? { v: an.v, a: an.a } : { v: 0, a: 0.5 };
+  }
+
+  /** Like firmware MotionBehaviors::periodMsForContext. */
+  function motorPeriodMsForContext(expr, blendMode, blendV, blendA) {
+    const EB = window.EmotionBlendV3;
+    if (blendMode && EB && EB.ready()) {
+      const m = EB.blendedEmotionArmMotion(blendV, blendA);
+      if (m) {
+        return Math.round(Math.max(0.05, m.waggle_period_s + m.waggle_interval_s) * 1000);
+      }
+    }
+    if (isEmotionExpression(expr) && EB && EB.ready()) {
+      const va = vaForExpression(expr);
+      const m = EB.blendedEmotionArmMotion(va.v, va.a);
+      if (m) {
+        return Math.round(Math.max(0.05, m.waggle_period_s + m.waggle_interval_s) * 1000);
+      }
+    }
+    return motorPeriodMsFor(expr);
+  }
+
+  function bodyBobFor(expr, now, blendMode, blendV, blendA) {
+    const period = motorPeriodMsForContext(expr, blendMode, blendV, blendA);
     if (period === 0) return 0;
+
+    if (blendMode && window.EmotionBlendV3 && window.EmotionBlendV3.ready()) {
+      const m = window.EmotionBlendV3.blendedEmotionArmMotion(blendV, blendA);
+      if (m && m.min_offset_deg !== m.max_offset_deg) {
+        const te = (now % period) / period;
+        return -Math.sin(te * 2 * Math.PI) * 3;
+      }
+      return 0;
+    }
+
+    if (isEmotionExpression(expr) && window.EmotionBlendV3 && window.EmotionBlendV3.ready()) {
+      const va = vaForExpression(expr);
+      const m = window.EmotionBlendV3.blendedEmotionArmMotion(va.v, va.a);
+      if (m && m.min_offset_deg !== m.max_offset_deg) {
+        const te = (now % period) / period;
+        return -Math.sin(te * 2 * Math.PI) * 3;
+      }
+      return 0;
+    }
+
     let amp = 0;
-    switch (name) {
+    switch (expr) {
       case "VerbSleeping": amp = 10; break;
       case "VerbExecuting":
       case "VerbStraining":
@@ -222,6 +278,153 @@
   let sBlendA = 0.0;
   let sBlendLastParams = arrToParams(BASE_TARGETS.Neutral);
   let sBlendLastTri = null;  // { indices, weights } for canvas viz.
+
+  /** Servo offset (deg) for rim hands; emotion uses firmware-style sine + dwell. */
+  let sCurrentArmDeg = 0;
+  let sArmLogicLastMs = 0;
+  let sArmEmotionInOsc = true;
+  let sArmEmotionOsc01 = 0;
+  let sArmEmotionDwellS = 0;
+  let sPrevArmDriverEmotion = false;
+
+  function resetEmotionArmPhase() {
+    sArmEmotionInOsc = true;
+    sArmEmotionOsc01 = 0;
+    sArmEmotionDwellS = 0;
+    sArmLogicLastMs = 0;
+  }
+
+  function tickEmotionArm(dt, arm) {
+    let lo = arm.min_offset_deg;
+    let hi = arm.max_offset_deg;
+    if (lo > hi) {
+      const tmp = lo;
+      lo = hi;
+      hi = tmp;
+    }
+    if (lo === hi) return lo;
+    const period = Math.max(0.05, arm.waggle_period_s);
+    if (sArmEmotionInOsc) {
+      sArmEmotionOsc01 += dt / period;
+      const oscDraw = sArmEmotionOsc01 >= 1 ? 1 : sArmEmotionOsc01;
+      if (sArmEmotionOsc01 >= 1) {
+        sArmEmotionOsc01 = 0;
+        if (arm.waggle_interval_s < 0.02) {
+          /* immediate next arch */
+        } else {
+          sArmEmotionInOsc = false;
+          sArmEmotionDwellS = arm.waggle_interval_s;
+        }
+      }
+      const u = Math.sin(Math.PI * oscDraw);
+      return lo + (hi - lo) * u;
+    }
+    sArmEmotionDwellS -= dt;
+    if (sArmEmotionDwellS <= 0) {
+      sArmEmotionInOsc = true;
+      sArmEmotionOsc01 = 0;
+    }
+    return lo;
+  }
+
+  function verbArmOffset(name, t) {
+    switch (name) {
+      case "VerbReading": return -8;
+      case "OverlayWaking": return 18;
+      case "VerbThinking": {
+        const T = 2000;
+        const u = (t % T) / T;
+        return -15 + 5 * Math.sin(u * 2 * Math.PI);
+      }
+      case "VerbWriting":
+        return 5 + 4 * Math.sin((t % 840) / 840 * 2 * Math.PI);
+      case "VerbExecuting":
+        return -5 + 5 * Math.sin((t % 1000) / 1000 * 2 * Math.PI);
+      case "VerbStraining":
+        return 5 * Math.sin((t % 750) / 750 * 2 * Math.PI);
+      case "VerbSleeping":
+        return -20 + 5 * Math.sin((t % 8000) / 8000 * 2 * Math.PI);
+      case "OverlayAttention":
+        return 15 * Math.sin((t % 900) / 900 * 2 * Math.PI);
+      default:
+        return 0;
+    }
+  }
+
+  function updateArmOffset(t, expr) {
+    const EB = window.EmotionBlendV3;
+    const dt = sArmLogicLastMs === 0 ? 0 : Math.min(0.5, (t - sArmLogicLastMs) / 1000);
+    sArmLogicLastMs = t;
+
+    const armDriverEmotion = sBlendMode || isEmotionExpression(expr);
+    if (armDriverEmotion && !sPrevArmDriverEmotion) {
+      resetEmotionArmPhase();
+    }
+    sPrevArmDriverEmotion = armDriverEmotion;
+
+    if (sBlendMode && EB && EB.ready()) {
+      const arm = EB.blendedEmotionArmMotion(sBlendV, sBlendA);
+      sCurrentArmDeg = arm ? tickEmotionArm(dt, arm) : 0;
+      return;
+    }
+
+    if (isEmotionExpression(expr) && EB && EB.ready()) {
+      const va = vaForExpression(expr);
+      const arm = EB.blendedEmotionArmMotion(va.v, va.a);
+      sCurrentArmDeg = arm ? tickEmotionArm(dt, arm) : 0;
+      return;
+    }
+
+    resetEmotionArmPhase();
+    sCurrentArmDeg = verbArmOffset(expr, t);
+  }
+
+  /**
+   * Rim markers orbit the centre: offset 0° → 3 and 9 o'clock; e.g. -30° →
+   * ~4 and ~8 (both shift by the same servo angle). Canvas polar: 0 = +x
+   * = 3 o'clock. No extra local spin — only position follows offsetDeg.
+   */
+  function drawArmOverlay(octx, w, h, offsetDeg) {
+    const cx = w * 0.5;
+    const cy = h * 0.5;
+    const R = Math.min(w, h) * 0.5 - 14;
+    const offsetRad = (offsetDeg * Math.PI) / 180;
+    const thetaRight = -offsetRad;
+    // Y-axis mirror of the right rim point (like meshed gears: same vertical motion,
+    // opposite horizontal). Not π − offset — that was 180° rigid rotation of both.
+    const thetaLeft = Math.PI - thetaRight;
+
+    function palmAtOrbital(thetaRad) {
+      const rx = cx + R * Math.cos(thetaRad);
+      const ry = cy + R * Math.sin(thetaRad);
+      octx.save();
+      octx.translate(rx, ry);
+      octx.fillStyle = "rgba(228,232,242,0.92)";
+      octx.strokeStyle = "rgba(24,28,40,0.92)";
+      octx.lineWidth = 1.25;
+      octx.beginPath();
+      if (typeof octx.roundRect === "function") {
+        octx.roundRect(-6, -18, 12, 22, 5);
+      } else {
+        octx.moveTo(-5, -18);
+        octx.lineTo(5, -18);
+        octx.quadraticCurveTo(7, -18, 7, -14);
+        octx.lineTo(7, 2);
+        octx.quadraticCurveTo(7, 6, 2, 6);
+        octx.lineTo(-2, 6);
+        octx.quadraticCurveTo(-7, 6, -7, 2);
+        octx.lineTo(-7, -14);
+        octx.quadraticCurveTo(-7, -18, -5, -18);
+        octx.closePath();
+      }
+      octx.fill();
+      octx.stroke();
+      octx.restore();
+    }
+
+    palmAtOrbital(thetaRight);
+    palmAtOrbital(thetaLeft);
+  }
 
   // ---- Helpers -----------------------------------------------------------
   function now() { return performance.now() - sStartedAtMs; }
@@ -381,6 +584,9 @@
       sprite.canvas, 0, 0, sprite.width, sprite.height,
       0, 0, outputCanvas.width, outputCanvas.height,
     );
+    if (!sStaticMode) {
+      drawArmOverlay(octx, outputCanvas.width, outputCanvas.height, sCurrentArmDeg);
+    }
   }
 
   function tick() {
@@ -396,6 +602,7 @@
     if (sStaticMode) {
       if (t - lastTickMs >= kTickIntervalMs) {
         lastTickMs = t;
+        sCurrentArmDeg = 0;
         const o = sStaticOverride;
         window.RobotFaceV3.renderScene(sprite, o.params, o.blinkAmt, o.gdx, o.gdy, t);
         sCurrentParams = o.params;
@@ -416,6 +623,18 @@
           sBlendLastTri = blender.findTriangle(sBlendV, sBlendA);
         }
         sBlendLastParams = p;
+
+        updateArmOffset(t, sCurrentExpr);
+
+        if (sCurrentExpr !== "Joyful" && sCurrentExpr !== "VerbSleeping") {
+          const b = breathPhase(t) * 1.5;
+          p = { ...p, eye_dy: Math.round(p.eye_dy + b), mouth_dy: Math.round(p.mouth_dy + b / 2) };
+        }
+        p = {
+          ...p,
+          face_y: Math.round(p.face_y + bodyBobFor(sCurrentExpr, t, true, sBlendV, sBlendA)),
+        };
+
         window.RobotFaceV3.renderScene(sprite, p, 0, 0, 0, t);
         sCurrentParams = p;
         pushSpriteToCanvas();
@@ -439,7 +658,9 @@
         p.mouth_dy = Math.round(p.mouth_dy + b / 2);
       }
 
-      p.face_y = Math.round(p.face_y + bodyBobFor(expr, t));
+      updateArmOffset(t, expr);
+
+      p.face_y = Math.round(p.face_y + bodyBobFor(expr, t, false, 0, 0));
 
       if (expr === "VerbThinking") {
         maybeFlipThinkTilt(t);
@@ -479,6 +700,9 @@
     sLastExpr = sCurrentExpr;
     sTweenStartMs = 0;
     sLastSettingsVersion = window.RobotSettings.version();
+    resetEmotionArmPhase();
+    sPrevArmDriverEmotion = false;
+    sCurrentArmDeg = 0;
     rafHandle = requestAnimationFrame(tick);
   }
 
@@ -524,7 +748,10 @@
       sBlendMode = !!on;
       if (sBlendMode) {
         sStaticMode = false;
+        // If already on an emotion expression, keep arm phase across blend toggle.
+        sPrevArmDriverEmotion = isEmotionExpression(sCurrentExpr);
       } else {
+        sPrevArmDriverEmotion = isEmotionExpression(sCurrentExpr);
         sFrom = { ...sCurrentParams };
         sTo = targetForExpression(sCurrentExpr);
         sTweenStartMs = now();
@@ -556,6 +783,11 @@
         gdy: sStaticOverride.gdy,
         expression: sStaticOverride.expression,
       };
+    },
+
+    /** Centre-relative servo offset (deg) used for rim hands + debug. */
+    armOffsetDeg() {
+      return sCurrentArmDeg;
     },
   };
 })();

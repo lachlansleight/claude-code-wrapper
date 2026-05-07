@@ -22,6 +22,9 @@
  *  3. **playWaggle** / **setThinkingMode** — periodic motion. Waggle is
  *     a fixed 5-frame keyframe pattern; thinking is a continuous sine
  *     drift around a centre with ease-in.
+ *  4. **Emotion arm layer** — continuous sine + dwell at min (see
+ *     syncEmotionArmLayer); lowest priority among periodic modes, only
+ *     writes when nothing else is driving the servo.
  *
  * Motion::tick() must be called every loop; everything else is
  * non-blocking and edge-triggered. Higher-level expression-driven
@@ -81,6 +84,20 @@ void cancelAll();
  */
 void setThinkingMode(bool on, int8_t centerOffset = 0, uint8_t amplitude = 5,
                      uint16_t periodMs = 2000);
+
+/**
+ * Base-layer emotion arm: one arch min→max→min on a sine (half-period
+ * of sin) over @p periodS seconds, then hold at min for @p intervalS.
+ * Call each frame from MotionBehaviors when verbs/overlays are idle;
+ * pass enable=false when verbs own the arm. No-op if a jog, hold,
+ * pattern, or thinking mode is active. Angles are centre offsets in
+ * degrees (same as playJog).
+ */
+void syncEmotionArmLayer(bool enable, int16_t minDeg, int16_t maxDeg, float periodS,
+                         float intervalS);
+
+/** Restart the emotion sine+dwell cycle at min (e.g. after verb→emotion). */
+void resetEmotionArmPhase();
 
 /**
  * Slew to `offsetDeg` over a 250 ms eased jog and lock the servo there

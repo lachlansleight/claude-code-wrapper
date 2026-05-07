@@ -13,6 +13,7 @@
 // Public API:
 //   EmotionBlendV3.findTriangle(v, a) -> { indices: [i0,i1,i2], weights: [l0,l1,l2] } | null
 //   EmotionBlendV3.blendedFaceParams(v, a) -> FaceParams
+//   EmotionBlendV3.blendedEmotionArmMotion(v, a) -> { min_offset_deg, max_offset_deg, waggle_period_s, waggle_interval_s }
 //   EmotionBlendV3.ready() -> bool
 //
 // This module mirrors the firmware's algorithm exactly, including the
@@ -79,6 +80,73 @@
     return FC.baseTargetForExpression(name);
   }
 
+  // Mirrors robot_v3 EmotionBlend.cpp::armPresetFor (keep in sync).
+  const ARM_PRESETS = {
+    Neutral: { min: -25, max: -15, period_s: 5.0, interval_s: 2.0 },
+    Happy: { min: -23, max: -7, period_s: 2.0, interval_s: 1.0 },
+    Excited: { min: -15, max: -5, period_s: 1.0, interval_s: 0.0 },
+    Joyful: { min: -15, max: 15, period_s: 0.9, interval_s: 0.2 },
+    Sad: { min: -20, max: -20, period_s: 1.0, interval_s: 0.0 },
+    Sleepy: { min: -22, max: -14, period_s: 5.0, interval_s: 3.0 },
+    Distressed: { min: -6, max: 6, period_s: 0.9, interval_s: 0.15 },
+    Blissed: { min: -16, max: -4, period_s: 3.0, interval_s: 1.5 },
+    Depressed: { min: 0, max: 0, period_s: 1.0, interval_s: 0.0 },
+    Shocked: { min: 0, max: 0, period_s: 1.0, interval_s: 0.0 },
+    Disappointed: { min: -15, max: -15, period_s: 1.0, interval_s: 0.0 },
+  };
+
+  function armPresetForEmotion(name) {
+    return ARM_PRESETS[name] || { min: -20, max: -15, period_s: 4.0, interval_s: 2.0 };
+  }
+
+  function blendArmField(a, b, c, la, lb, lc) {
+    return Math.round(a * la + b * lb + c * lc);
+  }
+
+  function blendArmFloat(a, b, c, la, lb, lc) {
+    return a * la + b * lb + c * lc;
+  }
+
+  function blendArmThree(Pa, Pb, Pc, la, lb, lc) {
+    return {
+      min_offset_deg: blendArmField(Pa.min, Pb.min, Pc.min, la, lb, lc),
+      max_offset_deg: blendArmField(Pa.max, Pb.max, Pc.max, la, lb, lc),
+      waggle_period_s: blendArmFloat(Pa.period_s, Pb.period_s, Pc.period_s, la, lb, lc),
+      waggle_interval_s: blendArmFloat(Pa.interval_s, Pb.interval_s, Pc.interval_s, la, lb, lc),
+    };
+  }
+
+  function normalizeArmMotion(r) {
+    let { min_offset_deg: lo, max_offset_deg: hi, waggle_period_s: ps, waggle_interval_s: is } = r;
+    if (lo > hi) {
+      const t = lo;
+      lo = hi;
+      hi = t;
+    }
+    if (ps < 0.05) ps = 0.05;
+    if (is < 0) is = 0;
+    return { min_offset_deg: lo, max_offset_deg: hi, waggle_period_s: ps, waggle_interval_s: is };
+  }
+
+  function blendedEmotionArmMotion(v, a) {
+    if (!ready()) return null;
+    v = clampf(v, -1, 1);
+    a = clampf(a, 0, 1);
+    const tri = findTriangle(v, a);
+    if (!tri) {
+      const idx = nearestAnchor(v, a);
+      const e = table().anchors[idx].emotion;
+      return normalizeArmMotion(armPresetForEmotion(e));
+    }
+    const [i0, i1, i2] = tri.indices;
+    const [l0, l1, l2] = tri.weights;
+    const t = table();
+    const Pa = armPresetForEmotion(t.anchors[i0].emotion);
+    const Pb = armPresetForEmotion(t.anchors[i1].emotion);
+    const Pc = armPresetForEmotion(t.anchors[i2].emotion);
+    return normalizeArmMotion(blendArmThree(Pa, Pb, Pc, l0, l1, l2));
+  }
+
   function blendField(a, b, c, la, lb, lc) {
     return Math.round(a * la + b * lb + c * lc);
   }
@@ -131,6 +199,7 @@
     ready,
     findTriangle,
     blendedFaceParams,
+    blendedEmotionArmMotion,
     table,
   };
 })();
