@@ -15,7 +15,7 @@ void renderScene(TFT_eSprite& s, const FaceParams& p, float blinkAmt, int16_t gd
            renderState.bg565);
   drawEffects(s, now, renderState.read_stream_alpha, renderState.write_stream_alpha);
 
-  if (moodRingEnabledFor(renderState.expression)) {
+  if (moodRingShouldDraw(renderState.expression)) {
     drawMoodRing(s, (uint8_t)renderState.mood_r, (uint8_t)renderState.mood_g, (uint8_t)renderState.mood_b);
   }
 

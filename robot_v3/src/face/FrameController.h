@@ -27,10 +27,10 @@
  *    `periodMsFor` for verbs) so the face syncs with the arm.
  *  - Add a per-expression gaze offset (idle micro-glances during
  *    Neutral; small repeating motion otherwise).
- *  - Smooth the mood-ring colour (200 ms τ low-pass) and the
- *    read/write stream-effect alphas (100 ms τ).
- *  - Detect Settings::settingsVersion() changes and immediately
- *    re-bake the mood-ring colour from the palette.
+ *  - Smooth the mood-ring colour (200 ms τ low-pass toward tweened
+ *    `FaceParams::ring_*`) and the read/write stream-effect alphas (100 ms τ).
+ *  - Detect Settings::settingsVersion() changes and refresh tween targets
+ *    (geometry + ring literals from kBaseTargets / emotion blend).
  *  - Finally call Scene::renderScene or TextScene::renderTextScene
  *    and Display::pushFrame.
  *

@@ -12,7 +12,8 @@
  *   1. background fill,
  *   2. FaceRenderer::drawFace (eyes + mouth, rotated/translated),
  *   3. EffectsRenderer::drawEffects (left/right token streams),
- *   4. MoodRingRenderer::drawMoodRing (only for expressions that opt in),
+ *   4. MoodRingRenderer::drawMoodRing (all emotions; verbs/overlays per
+ *      moodRingShouldDraw),
  *   5. ActivityDots overlay.
  *
  * Called by FrameController once per frame in face mode; text/debug

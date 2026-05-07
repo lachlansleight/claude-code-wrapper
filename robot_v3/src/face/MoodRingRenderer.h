@@ -8,22 +8,21 @@
  * @file MoodRingRenderer.h
  * @brief Optional thin coloured ring around the face perimeter.
  *
- * The mood ring is the only outward-facing colour signal for emotion /
- * verb in face mode. It is enabled per-expression — the steady "happy"
- * face has none (the smile carries it), but verb states and high
- * emotions get one.
+ * Colour comes from FrameController's smoothed tween of `FaceParams::ring_*`
+ * (kBaseTargets literals and emotion blend), not from Settings.
+ *
+ * **Emotion** expressions (Neutral … Disappointed) always run the draw
+ * path (`drawMoodRing` no-ops when RGB is black). **Verb / overlay**
+ * expressions use a smaller allow-list so idle chrome stays minimal.
  */
 namespace Face {
 
 /**
- * True if @p expr opts into a mood ring. The current set:
- *  - All verb states except VerbSleeping,
- *  - Joyful / Excited / Sad,
- *  - OverlayAttention.
- *
- * Excluded: Neutral, Happy, OverlayWaking, VerbSleeping.
+ * True if the mood ring should be drawn for @p expr. All emotion
+ * expressions return true; verbs/overlays defer to the legacy verb table
+ * (e.g. thinking/reading, not VerbSleeping or OverlayWaking).
  */
-bool moodRingEnabledFor(Expression expr);
+bool moodRingShouldDraw(Expression expr);
 
 /**
  * Draw a 6-pixel-thick ring (radii 110..115 from screen centre) in the

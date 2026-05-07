@@ -2,7 +2,9 @@
 
 namespace Face {
 
-bool moodRingEnabledFor(Expression expr) {
+namespace {
+
+bool moodRingEnabledForVerbOrOverlay(Expression expr) {
   switch (expr) {
     case Expression::VerbThinking:
     case Expression::VerbReading:
@@ -25,6 +27,13 @@ bool moodRingEnabledFor(Expression expr) {
     default:
       return false;
   }
+}
+
+}  // namespace
+
+bool moodRingShouldDraw(Expression expr) {
+  if (isEmotionExpression(expr)) return true;
+  return moodRingEnabledForVerbOrOverlay(expr);
 }
 
 void drawMoodRing(TFT_eSprite& s, uint8_t r, uint8_t g, uint8_t b) {

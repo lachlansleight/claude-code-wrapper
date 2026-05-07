@@ -308,7 +308,7 @@ void renderTextScene(TFT_eSprite& s, const SceneRenderState& renderState, const 
       sleepUi ? "Zzz..." : (ctx.status_line[0] ? ctx.status_line : "Idle");
 
   uint16_t titleColor = renderState.fg565;
-  if (moodRingEnabledFor(renderState.expression)) {
+  if (moodRingShouldDraw(renderState.expression)) {
     int r = (int)lroundf(renderState.mood_r);
     int g = (int)lroundf(renderState.mood_g);
     int b = (int)lroundf(renderState.mood_b);
@@ -373,7 +373,7 @@ void renderTextScene(TFT_eSprite& s, const SceneRenderState& renderState, const 
     }
   }
 
-  if (moodRingEnabledFor(renderState.expression)) {
+  if (moodRingShouldDraw(renderState.expression)) {
     drawMoodRing(s, (uint8_t)renderState.mood_r, (uint8_t)renderState.mood_g, (uint8_t)renderState.mood_b);
   }
 }

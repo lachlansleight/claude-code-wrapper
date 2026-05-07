@@ -13,75 +13,18 @@ namespace Face {
 
 static constexpr float kMoodRingTauMs = 200.0f;
 
-static FaceParams makeFaceParamsWithMood(const FaceParams& base, Settings::NamedColor moodColor) {
-  FaceParams p = base;
-  const Settings::Rgb888 c = Settings::colorRgb(moodColor);
-  p.ring_r = c.r;
-  p.ring_g = c.g;
-  p.ring_b = c.b;
-  return p;
-}
-
-static Settings::NamedColor moodColorForExpression(Expression e) {
-  switch (e) {
-    case Expression::Neutral:
-      return Settings::NamedColor::Background;
-    case Expression::Happy:
-      return Settings::NamedColor::Happy;
-    case Expression::Excited:
-      return Settings::NamedColor::Excited;
-    case Expression::Joyful:
-      return Settings::NamedColor::Joyful;
-    case Expression::Sad:
-      return Settings::NamedColor::Sad;
-    case Expression::VerbThinking:
-      return Settings::NamedColor::Thinking;
-    case Expression::VerbReading:
-      return Settings::NamedColor::Reading;
-    case Expression::VerbWriting:
-      return Settings::NamedColor::Writing;
-    case Expression::VerbExecuting:
-      return Settings::NamedColor::Executing;
-    case Expression::VerbStraining:
-      return Settings::NamedColor::Straining;
-    case Expression::VerbSleeping:
-      return Settings::NamedColor::Sleeping;
-    case Expression::OverlayWaking:
-      return Settings::NamedColor::Excited;
-    case Expression::OverlayAttention:
-      return Settings::NamedColor::Attention;
-    case Expression::Sleepy:
-      return Settings::NamedColor::EmotionSleepy;
-    case Expression::Distressed:
-      return Settings::NamedColor::EmotionDistressed;
-    case Expression::Blissed:
-      return Settings::NamedColor::EmotionBlissed;
-    case Expression::Depressed:
-      return Settings::NamedColor::EmotionDepressed;
-    case Expression::Shocked:
-      return Settings::NamedColor::EmotionShocked;
-    case Expression::Disappointed:
-      return Settings::NamedColor::EmotionDisappointed;
-    default:
-      return Settings::NamedColor::Background;
-  }
-}
-
 static FaceParams targetForExpression(Expression s, const FaceParams* baseTargets) {
   const uint8_t idx = (uint8_t)s;
   if (idx >= (uint8_t)Expression::Count) return baseTargets[0];
-  return makeFaceParamsWithMood(baseTargets[idx], moodColorForExpression(s));
+  return baseTargets[idx];
 }
 
 // Resolve the live tween target. For emotion expressions the base
-// FaceParams comes from the continuous (v,a) blend in
-// SceneContextFill; for verbs and overlays it's the static
-// kBaseTargets row. Mood-ring colour is always baked from the
-// effective expression's palette entry.
+// FaceParams (including ring_*) come from the continuous (v,a) blend in
+// SceneContextFill; for verbs and overlays it's the static kBaseTargets row.
 static FaceParams targetForContext(const SceneContext& ctx, const FaceParams* baseTargets) {
   if (Face::isEmotionExpression(ctx.effective_expression)) {
-    return makeFaceParamsWithMood(ctx.base_face_params,
-                                  moodColorForExpression(ctx.effective_expression));
+    return ctx.base_face_params;
   }
   return targetForExpression(ctx.effective_expression, baseTargets);
 }
@@ -115,28 +58,28 @@ static const FaceParams kBaseTargets[(uint8_t)Expression::Count] = {
                               0, 6,    0, 0, 0 },
     /* VerbThinking */     {  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   7, -9, 15,
                               0, 11,   +3, 0,  +3, 0, 3,  0, 0, 0,
-                            -10, 0,    0, 0, 0 },
+                            -10, 0,    36, 56, 120 },
     /* VerbReading */      {  0, 28,  -26, 0, +26, 0, 3,  0, 0, 0,   0,  8, 12,
                               0,  9,   +3, 0,  +3, 0, 3,  0, 0, 0,
-                              0, 12,   0, 0, 0 },
+                              0, 12,   78, 146, 210 },
     /* VerbWriting */      {  0, 30,  -26, 0, +26, 0, 3,  0, 0, 0,   0, -8, 15,
                               0, 15,    0, 0, +14, 0, 3,  0, 0, 0,
-                              0, 0,    0, 0, 0 },
+                              0, 0,    104, 118, 228 },
     /* VerbExecuting */    {  0, 30,  -16, 0, +16, 0, 3,  0, 0, 0,   0, -4, 10,
                               0,  9,   +2, 0,  +2, 0, 3,  0, 0, 0,
-                              0, 0,    0, 0, 0 },
+                              0, 0,    156, 64, 216 },
     /* VerbStraining */    {  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
                               0, 18,    0, 0,   0, 0, 3,  4, 100, 360,
-                              0, 0,    0, 0, 0 },
+                              0, 0,    210, 75, 220 },
     /* VerbSleeping */     {  8, 26,   -2, 0,  +2, 0, 3,  0, 0, 0,   0,  0,  15,
                               0,  9,    0, 0,   0, 0, 3,  0, 0, 0,
                               0, 0,    0, 0, 0 },
     /* OverlayWaking */    { -2, 34,  -34, 0, +34, 0, 3,  0, 0, 0,   0,  0, 18,
                               0,  7,   -9, 0,  +9, 0, 3,  0, 0, 0,
-                              0, 0,    0, 0, 0 },
+                              0, 0,    128, 128, 128 },
     /* OverlayAttention */ { -2, 34,  -34, 0, +34, 0, 3,  0, 0, 0,   0,  0, 18,
                               0,  7,   -9, 0,  +9, 0, 3,  0, 0, 0,
-                              0, 0,    0, 0, 0 },
+                              0, 0,    255, 20, 40 },
     /* Sleepy */           {  0, 28,  0, 10, +34, 10, 3,  0, 0, 0,   0,  0,  15,
                               0,  +13,   0, 0,  3, 0, 3,  0, 17, 90,
                               0, 9,    0, 0, 0 },
@@ -575,10 +518,9 @@ void tick(const SceneContext& ctx) {
 
   const uint32_t moodDt = (sLastMoodMs == 0) ? 0 : (now - sLastMoodMs);
   const float alpha = 1.0f - expf(-(float)moodDt / kMoodRingTauMs);
-  const FaceParams moodTarget = targetForExpression(sNow, kBaseTargets);
-  sMoodR += ((float)moodTarget.ring_r - sMoodR) * alpha;
-  sMoodG += ((float)moodTarget.ring_g - sMoodG) * alpha;
-  sMoodB += ((float)moodTarget.ring_b - sMoodB) * alpha;
+  sMoodR += ((float)p.ring_r - sMoodR) * alpha;
+  sMoodG += ((float)p.ring_g - sMoodG) * alpha;
+  sMoodB += ((float)p.ring_b - sMoodB) * alpha;
   sLastMoodMs = now;
 
   const uint32_t effectsDt = (sLastEffectsMs == 0) ? 0 : (now - sLastEffectsMs);

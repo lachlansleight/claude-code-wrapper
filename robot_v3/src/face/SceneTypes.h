@@ -40,7 +40,7 @@ enum class RenderMode : uint8_t {
  * Effective expression chosen by the composition layer from
  * (verb, emotion, overlay). Order **matters** — many tables
  * (`MotionBehaviors::kMotion`, `FrameController::kBaseTargets`,
- * `moodColorForExpression`) are indexed by this enum and rely on the
+ * `SceneContextFill::accentNamedColor`, …) are indexed by this enum and rely on the
  * exact ordering. Add new entries before `Count` and update every
  * indexed table.
  */
@@ -94,8 +94,8 @@ struct EmotionArmMotion {
 /**
  * Per-expression face geometry target. FrameController tweens between
  * these. All fields except rotation/speed are integer pixel offsets
- * (positive = down/right, expression-relative). `ring_*` is the
- * mood-ring RGB888 baked from the expression's palette colour.
+ * (positive = down/right, expression-relative). `ring_*` is mood-ring
+ * RGB888 from kBaseTargets / emotion blend (not Settings).
  *
  * Both eye and mouth are described as a top edge curve and a bottom
  * edge curve, each as a semicircular interpolation between an apex
@@ -157,8 +157,8 @@ struct FaceParams {
  * Per-frame derived rendering state computed by FrameController.
  * Distinct from SceneContext (which is the *snapshot of the world*) —
  * SceneRenderState carries values that only make sense for *this*
- * frame: tweened mood ring colour, fade alphas, the precomputed RGB565
- * foreground/background.
+ * frame: smoothed mood ring colour (from FaceParams ring_*), fade alphas,
+ * the precomputed RGB565 foreground/background.
  */
 struct SceneRenderState {
   Expression expression;             ///< Effective expression to render.
@@ -210,8 +210,7 @@ struct SceneContext {
    * tween target when `effective_expression` is an emotion (Neutral
    * through Disappointed). Verb/overlay expressions ignore this and use the
    * `kBaseTargets[expression]` row directly. The `ring_*` fields are
-   * undefined here — FrameController paints them from the snapped
-   * expression's palette colour.
+   * part of the same blend as the rest of the preset geometry.
    */
   FaceParams base_face_params;
 

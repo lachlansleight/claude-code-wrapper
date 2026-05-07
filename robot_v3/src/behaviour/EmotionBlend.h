@@ -21,19 +21,15 @@
  * emotion → the blend collapses to that emotion's preset exactly.
  * Between rectangles, the blend produces a smooth gradient.
  *
- * The mood ring fields (`ring_*`) are not produced here; the colour
- * pipeline still uses the snapped emotion via FrameController.
+ * The mood ring fields (`ring_*`) are blended like other FaceParams
+ * and consumed by FrameController for the perimeter ring.
  */
 namespace EmotionBlend {
 
 /**
  * Compute the blended base FaceParams for the current (valence,
  * activation) point. @p v should be in [-1, +1] and @p a in [0, 1];
- * out-of-range inputs are clamped.
- *
- * Output `ring_r/g/b` are blended too but should be considered
- * undefined here — FrameController overwrites them from the snapped
- * expression's palette colour.
+ * out-of-range inputs are clamped. Includes `ring_r/g/b`.
  */
 Face::FaceParams blendedFaceParams(float v, float a);
 
