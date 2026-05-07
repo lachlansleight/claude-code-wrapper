@@ -13,6 +13,11 @@
   const kMouthY = 165;
   const kPivotY = 130;
 
+  // Mood ring (simulator): 10px band, outer edge inset 15px from 240×240 bounds.
+  const kDisplayHalf = 120;
+  const kMoodRingInsetPx = 15;
+  const kMoodRingThickPx = 10;
+
   function clamp01(t) { return t < 0 ? 0 : t > 1 ? 1 : t; }
   function smoothstep01(t) { t = clamp01(t); return t * t * (3 - 2 * t); }
 
@@ -254,13 +259,41 @@
     drawMouth(s, p, mx, my, nowMs, cosA, sinA, fg);
   }
 
+  /**
+   * Perimeter mood ring from FaceParams ring_* (RGB888). Matches firmware
+   * idea (annulus of stroked circles); no-op if colour is black.
+   */
+  function drawMoodRing(s, ringR, ringG, ringB) {
+    let r = Number(ringR) | 0;
+    let g = Number(ringG) | 0;
+    let b = Number(ringB) | 0;
+    if (r < 0) r = 0;
+    if (r > 255) r = 255;
+    if (g < 0) g = 0;
+    if (g > 255) g = 255;
+    if (b < 0) b = 0;
+    if (b > 255) b = 255;
+    if (r === 0 && g === 0 && b === 0) return;
+
+    const outerR = kDisplayHalf - kMoodRingInsetPx;
+    const innerR = outerR - kMoodRingThickPx;
+    if (innerR < 1 || outerR <= innerR) return;
+
+    const color565 = TFT.color565(r, g, b);
+    for (let rad = innerR + 1; rad <= outerR; rad++) {
+      s.drawCircle(kCx, kCy, rad, color565);
+    }
+  }
+
   function renderScene(s, p, blinkAmt, gdx, gdy, nowMs) {
     s.fillSprite(bg565());
     drawFace(s, p, blinkAmt, gdx, gdy, nowMs);
+    drawMoodRing(s, p.ring_r, p.ring_g, p.ring_b);
   }
 
   window.RobotFaceV3 = {
     drawFace,
+    drawMoodRing,
     renderScene,
     geometry: { kCx, kCy, kEyeY, kEyeLX, kEyeRX, kMouthY, kPivotY },
     smoothstep01,
