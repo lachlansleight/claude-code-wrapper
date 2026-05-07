@@ -213,7 +213,22 @@
       </div>
 
       <h3>Force expression</h3>
-      <div id="exprGrid" class="expr-grid"></div>
+      <h3 style="margin-top:0.6em;">Emotions</h3>
+      <div id="emotionGrid" class="expr-grid"></div>
+
+      <h3 style="margin-top:0.9em;">Verbs</h3>
+      <div class="row" style="margin: 0 0 0.6em;">
+        <button id="clearVerbBtn" type="button">Clear verb</button>
+      </div>
+      <div id="verbGrid" class="expr-grid"></div>
+
+      <h3 style="margin-top:0.9em;">Overlays</h3>
+      <div class="row" style="margin: 0 0 0.6em;">
+        <label style="color:var(--muted);font-size:0.85em;">duration (ms)
+          <input id="overlayDurationMs" type="number" min="100" max="60000" value="1200" style="width:7.5em;margin-left:0.4em;" />
+        </label>
+      </div>
+      <div id="overlayGrid" class="expr-grid"></div>
 
       <h3>Live params</h3>
       <pre id="paramsBox" class="params-box"></pre>
@@ -221,9 +236,14 @@
 
     <div>
       <h3>
-        <label style="text-transform:none;letter-spacing:0;font-weight:600;">
-          <input type="checkbox" id="blendToggle" /> Blend mode (V/A → triangulated FaceParams)
-        </label>
+        <div class="row" style="margin:0;">
+          <label style="text-transform:none;letter-spacing:0;font-weight:600;">
+            <input type="checkbox" id="blendToggle" /> Blend mode (V/A → triangulated FaceParams)
+          </label>
+          <label style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--muted);font-size:0.9em;">
+            <input type="checkbox" id="autoSendToggle" /> Auto-Send (robot)
+          </label>
+        </div>
       </h3>
       <div id="blendPanel" class="static-panel disabled">
         <div class="blend-canvas-wrap">
@@ -301,19 +321,145 @@
     })();
 
     // ---- Expression buttons ----
-    const exprGrid = document.getElementById("exprGrid");
-    FC.expressions().forEach((e) => {
+    const emotionGrid = document.getElementById("emotionGrid");
+    const verbGrid = document.getElementById("verbGrid");
+    const overlayGrid = document.getElementById("overlayGrid");
+
+    const BRIDGE_TOKEN_KEY = "claude-code-wrapper.bridge_ws_dev_token";
+    const BRIDGE_HTTP_BASE_KEY = "claude-code-wrapper.bridge_http_base";
+
+    function normalizeBase(raw) {
+      const s = (raw || "").trim().replace(/\/+$/, "");
+      return s || "http://localhost:8787";
+    }
+
+    function bridgeBase() {
+      return normalizeBase(localStorage.getItem(BRIDGE_HTTP_BASE_KEY) || "http://localhost:8787");
+    }
+
+    function bridgeToken() {
+      return (localStorage.getItem(BRIDGE_TOKEN_KEY) || "").trim();
+    }
+
+    async function postRaw(path, body) {
+      const url = bridgeBase() + path;
+      const token = bridgeToken();
+      try {
+        const headers = { "Content-Type": "application/json" };
+        if (token) headers.Authorization = "Bearer " + token;
+        const res = await fetch(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body ?? {}),
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          console.warn("raw POST failed", res.status, res.statusText, url, text);
+        }
+        return res;
+      } catch (e) {
+        console.warn("raw POST error", url, e);
+        return null;
+      }
+    }
+
+    function isEmotionExpr(name) {
+      return !name.startsWith("Verb") && !name.startsWith("Overlay");
+    }
+
+    function emotionVA(name) {
+      const tab = window.EmotionTriangulation;
+      if (!tab || !Array.isArray(tab.anchors)) return { v: 0, a: 0.5 };
+      const an = tab.anchors.find((x) => x.emotion === name);
+      return an ? { v: an.v, a: an.a } : { v: 0, a: 0.5 };
+    }
+
+    const VERB_MAP = {
+      VerbThinking: "thinking",
+      VerbReading: "reading",
+      VerbWriting: "writing",
+      VerbExecuting: "executing",
+      VerbStraining: "straining",
+      VerbSleeping: "sleeping",
+    };
+
+    const OVERLAY_MAP = {
+      OverlayWaking: "waking",
+      OverlayAttention: "attracting_attention",
+    };
+
+    let blendSendDirty = false;
+
+    async function sendBlendVAIfEnabled() {
+      const blendToggle = document.getElementById("blendToggle");
+      const autoSendToggle = document.getElementById("autoSendToggle");
+      if (!blendToggle?.checked || !autoSendToggle?.checked) return;
+      const va = FC.blendVA();
+      await postRaw("/api/raw/emotion/set-both", { a: va.a, v: va.v });
+    }
+
+    function markBlendDirty() {
+      blendSendDirty = true;
+    }
+
+    setInterval(() => {
+      if (!blendSendDirty) return;
+      blendSendDirty = false;
+      sendBlendVAIfEnabled();
+    }, 100);
+
+    const autoSendToggleEl = document.getElementById("autoSendToggle");
+    if (autoSendToggleEl) {
+      autoSendToggleEl.addEventListener("change", () => {
+        markBlendDirty();
+      });
+    }
+
+    function addExprButton(grid, label, onClick) {
       const b = document.createElement("button");
       b.type = "button";
-      b.textContent = e;
-      b.dataset.expr = e;
-      b.addEventListener("click", () => FC.requestExpression(e));
-      exprGrid.appendChild(b);
+      b.textContent = label;
+      b.dataset.expr = label;
+      b.addEventListener("click", onClick);
+      grid.appendChild(b);
+    }
+
+    FC.expressions().forEach((e) => {
+      if (e.startsWith("Overlay")) return;
+      if (e.startsWith("Verb")) {
+        addExprButton(verbGrid, e, async () => {
+          FC.requestExpression(e);
+          const verb = VERB_MAP[e];
+          if (verb) await postRaw("/api/raw/verb/start", { verb });
+        });
+        return;
+      }
+      addExprButton(emotionGrid, e, async () => {
+        FC.requestExpression(e);
+        const va = emotionVA(e);
+        await postRaw("/api/raw/emotion/set-both", { a: va.a, v: va.v });
+      });
     });
+
+    Object.keys(OVERLAY_MAP).forEach((e) => {
+      addExprButton(overlayGrid, e, async () => {
+        FC.requestExpression(e);
+        const verb = OVERLAY_MAP[e];
+        const ms = Number(document.getElementById("overlayDurationMs")?.value) || 1200;
+        await postRaw("/api/raw/verb/overlay", { verb, duration_ms: ms });
+      });
+    });
+
+    document.getElementById("clearVerbBtn").addEventListener("click", async () => {
+      await postRaw("/api/raw/verb/clear", {});
+    });
+
     function paintActiveExpr(name) {
       document.getElementById("currentExpr").textContent = name;
-      exprGrid.querySelectorAll("button").forEach((b) => {
-        b.classList.toggle("active", b.dataset.expr === name);
+      [emotionGrid, verbGrid, overlayGrid].forEach((g) => {
+        g.querySelectorAll("button").forEach((b) => {
+          b.classList.toggle("active", b.dataset.expr === name);
+        });
       });
     }
     FC.onExpressionChange(paintActiveExpr);
@@ -868,6 +1014,7 @@
       drawBlendCanvas();
       updateBlendMeta();
       syncStaticSlidersFromBlendedParams();
+      markBlendDirty();
     }
 
     function bindBlendPair(slider, num, axis) {
@@ -958,6 +1105,7 @@
         drawBlendCanvas();
         updateBlendMeta();
         syncStaticSlidersFromBlendedParams();
+        markBlendDirty();
       }
     });
 
