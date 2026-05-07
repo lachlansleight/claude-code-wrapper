@@ -8,11 +8,14 @@
  *
  * EmotionSystem owns the *how it feels*. It maintains a 2D continuous
  * state — `valence` in [-1, +1] (negative→positive) and `activation`
- * in [0, 1] (calm→excited) — that decays toward driver targets via a
- * first-order low-pass each tick. The plane is partitioned into
- * axis-aligned rectangles (one per `NamedEmotion`); the state is
- * "snapped" to whichever region contains it, with hysteresis so the
- * snap doesn't chatter near boundaries.
+ * in [0, 1] (calm→excited). An internal **goal** point receives
+ * impulses and direct setters immediately; held drivers relax the goal
+ * valence slowly. The **raw** point (what `raw()` / blend / snap read)
+ * first-order follows the goal with a short τ (~300 ms) so bridge or
+ * agent-driven jumps do not visibly pop the face. The plane is
+ * partitioned into axis-aligned rectangles (one per `NamedEmotion`);
+ * the raw point is "snapped" to whichever region contains it, with
+ * hysteresis so the snap doesn't chatter near boundaries.
  *
  * ## Inputs
  *
@@ -24,14 +27,15 @@
  *    |target| wins. Setting a target with the same id re-targets;
  *    releasing clears the slot.
  *  - **Direct setters** — setValence/setArousal etc. for the bridge
- *    test path.
+ *    test path (they update the goal; raw eases toward the goal).
  *
- * Activation always relaxes toward 0; valence relaxes toward the
- * winning held-driver target (or 0 if none).
+ * On the goal layer: activation relaxes toward 0; valence relaxes
+ * toward the winning held-driver target (or 0 if none).
  *
  * ## Time constants
- * Activation τ ≈ 6 s, valence τ ≈ 90 s — emotion shifts are slow on
- * purpose; verb changes are the fast layer.
+ * Goal activation τ ≈ 6 s, goal valence τ ≈ 90 s — slow emotional drift.
+ * Raw follows goal with τ ≈ 300 ms so discrete inputs stay responsive
+ * but do not snap the rendered mood.
  *
  * ## Snap hysteresis
  * The current snap survives until a *different* region's centre is
@@ -103,9 +107,9 @@ static constexpr uint8_t Straining = 2;
 void begin();
 
 /**
- * Advance the low-pass filter toward the active driver target and
- * update the snapped region with hysteresis. Must be called every
- * loop. No-op if dt == 0.
+ * Advance the goal toward held-driver / decay dynamics, ease raw
+ * toward the goal (~300 ms), then update the snapped region with
+ * hysteresis. Must be called every loop. No-op if dt == 0.
  */
 void tick();
 

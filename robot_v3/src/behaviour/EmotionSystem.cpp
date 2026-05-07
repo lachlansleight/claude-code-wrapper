@@ -9,6 +9,7 @@ namespace {
 
 static constexpr float kTauMsA = 6000.0f;
 static constexpr float kTauMsV = 90000.0f;
+static constexpr float kTauMsRawFollow = 50.0f;
 static constexpr float kSnapHysteresisDist = 0.05f;
 static constexpr uint32_t kSnapHysteresisHoldMs = 100;
 struct Coord {
@@ -30,6 +31,7 @@ struct Driver {
   float targetV;
 };
 
+Emotion sGoal = {0.0f, 0.0f};
 Emotion sRaw = {0.0f, 0.0f};
 Driver sDrivers[kMaxHeldDrivers];
 uint32_t sLastTickMs = 0;
@@ -152,6 +154,7 @@ NamedEmotion emotionForPoint(float v, float a, float* outBestDist = nullptr) {
 
 void begin() {
   memset(sDrivers, 0, sizeof(sDrivers));
+  sGoal = {0.0f, 0.0f};
   sRaw = {0.0f, 0.0f};
   sLastTickMs = millis();
   sCurrentSnap = NamedEmotion::Neutral;
@@ -167,11 +170,18 @@ void tick() {
 
   const float alphaA = 1.0f - expf(-(float)dtMs / kTauMsA);
   const float alphaV = 1.0f - expf(-(float)dtMs / kTauMsV);
+  const float alphaFollow = 1.0f - expf(-(float)dtMs / kTauMsRawFollow);
   const float targetV = activeTargetV();
 
-  const float newActivation = fmaxf(0.5f, clampf(sRaw.activation + (0.0f - sRaw.activation) * alphaA, 0.0f, 1.0f));
-  sRaw.activation = fminf(sRaw.activation, newActivation);
-  sRaw.valence = clampf(sRaw.valence + (targetV - sRaw.valence) * alphaV, -1.0f, 1.0f);
+  const float newActivation =
+      fmaxf(0.5f, clampf(sGoal.activation + (0.0f - sGoal.activation) * alphaA, 0.0f, 1.0f));
+  sGoal.activation = fminf(sGoal.activation, newActivation);
+  sGoal.valence = clampf(sGoal.valence + (targetV - sGoal.valence) * alphaV, -1.0f, 1.0f);
+
+  sRaw.valence =
+      clampf(sRaw.valence + (sGoal.valence - sRaw.valence) * alphaFollow, -1.0f, 1.0f);
+  sRaw.activation =
+      clampf(sRaw.activation + (sGoal.activation - sRaw.activation) * alphaFollow, 0.0f, 1.0f);
 
   float bestDist = 0.0f;
   const NamedEmotion nearest =
@@ -200,14 +210,14 @@ void tick() {
 }
 
 void impulse(float dValence, float dActivation) {
-  sRaw.valence = clampf(sRaw.valence + dValence, -1.0f, 1.0f);
-  sRaw.activation = clampf(sRaw.activation + dActivation, 0.0f, 1.0f);
+  sGoal.valence = clampf(sGoal.valence + dValence, -1.0f, 1.0f);
+  sGoal.activation = clampf(sGoal.activation + dActivation, 0.0f, 1.0f);
 }
 
-void setValence(float value) { sRaw.valence = clampf(value, -1.0f, 1.0f); }
-void setArousal(float value) { sRaw.activation = clampf(value, 0.0f, 1.0f); }
-void modifyValence(float delta) { setValence(sRaw.valence + delta); }
-void modifyArousal(float delta) { setArousal(sRaw.activation + delta); }
+void setValence(float value) { sGoal.valence = clampf(value, -1.0f, 1.0f); }
+void setArousal(float value) { sGoal.activation = clampf(value, 0.0f, 1.0f); }
+void modifyValence(float delta) { setValence(sGoal.valence + delta); }
+void modifyArousal(float delta) { setArousal(sGoal.activation + delta); }
 
 void setHeldTarget(uint8_t driverId, float targetValence) {
   for (size_t i = 0; i < kMaxHeldDrivers; ++i) {

@@ -143,9 +143,9 @@ static const FaceParams kBaseTargets[(uint8_t)Expression::Count] = {
     /* Distressed */       {  2, 30,  -26, 0, +33, 0, 3,  0, 0, 0,   0,  7,  10,
                               4,  +24,   -19, -7,  -7, 0, 3,  0, 0, 0,
                               0, -15,    0, 0, 0 },
-    /* Blissed */          {  0, 20,   +3, 0, +1, 0, 3,  0, 0, 0,   0,  0,  15,
-                              0,  5,   3, 0,  13, 0, 3,  0, 0, 0,
-                              0, -17,    0, 0, 0 },
+    /* Blissed */          {  1, 20,   +3, 0, +1, 0, 3,  0, 0, 0,   0,  0,  15,
+                              1,  +26,   3, 0,  13, 0, 3,  0, 0, 0,
+                              0, 5,    0, 0, 0 },
     /* Depressed */        {  0, 30,   +16, 10, +34, 11, 3,  0, 0, 0,   0,  20,  6,
                               0,  +13,   0, +6,  3, 4, 3,  0, 17, 90,
                               0, 9,    0, 0, 0 },
@@ -204,6 +204,11 @@ static uint32_t sIdleGlanceStartMs = 0;
 static uint32_t sNextIdleGlanceMs = 0;
 static constexpr uint32_t kIdleGlanceTweenMs = 200;
 
+// Body vertical bob: integrate phase so a changing waggle period (blended
+// emotion) does not re-phase from wall-clock % period (which jitters).
+static float sBodyBobPhaseRad = 0.0f;
+static uint32_t sBodyBobPhaseLastMs = 0;
+
 static int16_t lerpi(int16_t a, int16_t b, float t) { return (int16_t)(a + (b - a) * t); }
 
 static FaceParams lerpParams(const FaceParams& a, const FaceParams& b, float t) {
@@ -247,33 +252,50 @@ static float breathPhase(uint32_t now) {
 static int16_t bodyBobFor(const SceneContext& ctx, uint32_t now) {
   const Expression s = ctx.effective_expression;
   const uint16_t period = MotionBehaviors::periodMsForContext(ctx);
-  if (period == 0) return 0;
+  if (period == 0) {
+    sBodyBobPhaseLastMs = now;
+    return 0;
+  }
 
+  int16_t amp = 0;
+  bool integrate = false;
   if (Face::isEmotionExpression(s)) {
-    if (ctx.base_emotion_arm.min_offset_deg == ctx.base_emotion_arm.max_offset_deg) return 0;
-    const float t = (float)(now % period) / (float)period;
-    return (int16_t)(-sinf(t * 2.0f * (float)PI) * 3.0f);
+    integrate = true;
+    if (ctx.base_emotion_arm.min_offset_deg != ctx.base_emotion_arm.max_offset_deg) amp = 3;
+  } else {
+    switch (s) {
+      case Expression::VerbSleeping:
+        amp = 10;
+        break;
+      case Expression::VerbExecuting:
+      case Expression::VerbStraining:
+      case Expression::Excited:
+        amp = 5;
+        break;
+      case Expression::Joyful:
+        amp = 7;
+        break;
+      default:
+        amp = 0;
+        break;
+    }
+    integrate = (amp != 0);
   }
 
-  int8_t amp = 0;
-  switch (s) {
-    case Expression::VerbSleeping:
-      amp = 10;
-      break;
-    case Expression::VerbExecuting:
-    case Expression::VerbStraining:
-    case Expression::Excited:
-      amp = 5;
-      break;
-    case Expression::Joyful:
-      amp = 7;
-      break;
-    default:
-      return 0;
+  constexpr float kTwoPi = 2.0f * (float)PI;
+  if (integrate) {
+    const float dt_ms =
+        (sBodyBobPhaseLastMs == 0) ? 0.0f : (float)(now - sBodyBobPhaseLastMs);
+    sBodyBobPhaseLastMs = now;
+    sBodyBobPhaseRad += (kTwoPi / (float)period) * dt_ms;
+    sBodyBobPhaseRad = fmodf(sBodyBobPhaseRad, kTwoPi);
+    if (sBodyBobPhaseRad < 0.0f) sBodyBobPhaseRad += kTwoPi;
+  } else {
+    sBodyBobPhaseLastMs = now;
   }
 
-  const float t = (float)(now % period) / (float)period;
-  return (int16_t)(-sinf(t * 2.0f * (float)PI) * (float)amp);
+  if (amp == 0) return 0;
+  return (int16_t)(-sinf(sBodyBobPhaseRad) * (float)amp);
 }
 
 static void gazeFor(Expression s, uint32_t now, int16_t& gdx, int16_t& gdy) {

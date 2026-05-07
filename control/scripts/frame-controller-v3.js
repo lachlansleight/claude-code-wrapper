@@ -184,40 +184,49 @@
 
   function bodyBobFor(expr, now, blendMode, blendV, blendA) {
     const period = motorPeriodMsForContext(expr, blendMode, blendV, blendA);
-    if (period === 0) return 0;
-
-    if (blendMode && window.EmotionBlendV3 && window.EmotionBlendV3.ready()) {
-      const m = window.EmotionBlendV3.blendedEmotionArmMotion(blendV, blendA);
-      if (m && m.min_offset_deg !== m.max_offset_deg) {
-        const te = (now % period) / period;
-        return -Math.sin(te * 2 * Math.PI) * 3;
-      }
-      return 0;
-    }
-
-    if (isEmotionExpression(expr) && window.EmotionBlendV3 && window.EmotionBlendV3.ready()) {
-      const va = vaForExpression(expr);
-      const m = window.EmotionBlendV3.blendedEmotionArmMotion(va.v, va.a);
-      if (m && m.min_offset_deg !== m.max_offset_deg) {
-        const te = (now % period) / period;
-        return -Math.sin(te * 2 * Math.PI) * 3;
-      }
+    if (period === 0) {
+      sBodyBobPhaseLastMs = now;
       return 0;
     }
 
     let amp = 0;
-    switch (expr) {
-      case "VerbSleeping": amp = 10; break;
-      case "VerbExecuting":
-      case "VerbStraining":
-      case "Excited": amp = 5; break;
-      case "Joyful": amp = 7; break;
-      case "Sleepy": amp = 4; break;
-      case "Distressed": amp = 6; break;
-      default: return 0;
+    let integrate = false;
+    if (blendMode && window.EmotionBlendV3 && window.EmotionBlendV3.ready()) {
+      const m = window.EmotionBlendV3.blendedEmotionArmMotion(blendV, blendA);
+      integrate = true;
+      if (m && m.min_offset_deg !== m.max_offset_deg) amp = 3;
+    } else if (isEmotionExpression(expr) && window.EmotionBlendV3 && window.EmotionBlendV3.ready()) {
+      const va = vaForExpression(expr);
+      const m = window.EmotionBlendV3.blendedEmotionArmMotion(va.v, va.a);
+      integrate = true;
+      if (m && m.min_offset_deg !== m.max_offset_deg) amp = 3;
+    } else {
+      switch (expr) {
+        case "VerbSleeping": amp = 10; break;
+        case "VerbExecuting":
+        case "VerbStraining":
+        case "Excited": amp = 5; break;
+        case "Joyful": amp = 7; break;
+        case "Sleepy": amp = 4; break;
+        case "Distressed": amp = 6; break;
+        default: amp = 0; break;
+      }
+      integrate = amp !== 0;
     }
-    const t = (now % period) / period;
-    return -Math.sin(t * 2 * Math.PI) * amp;
+
+    const twoPi = 2 * Math.PI;
+    if (integrate) {
+      const dtMs = sBodyBobPhaseLastMs === 0 ? 0 : now - sBodyBobPhaseLastMs;
+      sBodyBobPhaseLastMs = now;
+      sBodyBobPhaseRad += (twoPi / period) * dtMs;
+      sBodyBobPhaseRad %= twoPi;
+      if (sBodyBobPhaseRad < 0) sBodyBobPhaseRad += twoPi;
+    } else {
+      sBodyBobPhaseLastMs = now;
+    }
+
+    if (amp === 0) return 0;
+    return -Math.sin(sBodyBobPhaseRad) * amp;
   }
 
   function breathPhase(t) {
@@ -278,6 +287,10 @@
   let sBlendA = 0.0;
   let sBlendLastParams = arrToParams(BASE_TARGETS.Neutral);
   let sBlendLastTri = null;  // { indices, weights } for canvas viz.
+
+  /** Integrated body-bob phase (rad); avoids jitter when waggle period changes every frame. */
+  let sBodyBobPhaseRad = 0;
+  let sBodyBobPhaseLastMs = 0;
 
   /** Servo offset (deg) for rim hands; emotion uses firmware-style sine + dwell. */
   let sCurrentArmDeg = 0;

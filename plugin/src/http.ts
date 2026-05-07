@@ -625,6 +625,30 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
     return
   }
 
+  if (method === 'POST' && path === '/api/raw/emotion/set-both') {
+    const body = (await readJsonBody(req)) as { a?: unknown; v?: unknown }
+    const a =
+      typeof body.a === 'number' && Number.isFinite(body.a)
+        ? body.a
+        : Number.NaN
+      const v =
+      typeof body.v === 'number' && Number.isFinite(body.v)
+        ? body.v
+        : Number.NaN
+    if (!Number.isFinite(a)) {
+      json(res, 400, { error: 'a_or_value_required_number' })
+      return
+    }
+    if (!Number.isFinite(v)) {
+      json(res, 400, { error: 'v_or_value_required_number' })
+      return
+    }
+    emitRawToClients({ type: 'emotion.command', action: 'setArousal', params: { a } });
+    emitRawToClients({ type: 'emotion.command', action: 'setValence', params: { v } });
+    json(res, 200, { ok: true })
+    return
+  }
+
   if (method === 'POST' && path === '/api/raw/emotion/held-target') {
     const body = (await readJsonBody(req)) as { driver_id?: unknown; target_v?: unknown }
     const driver_id =
