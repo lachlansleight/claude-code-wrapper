@@ -35,10 +35,43 @@ void setup() {
     Provisioning::runPortal(gCfg);
   }
 
-  Display::drawConnecting(gCfg.wifi_ssid.c_str());
-  if (!WifiMgr::tryConnect(gCfg.wifi_ssid.c_str(), gCfg.wifi_password.c_str(), 15000)) {
+  // Try remembered networks most-recent-first. If no list exists yet,
+  // fall back to the legacy single provisioned entry from gCfg.
+  Provisioning::NetEntry nets[Provisioning::kMaxKnownNetworks];
+  size_t netCount = Provisioning::loadNetworks(nets, Provisioning::kMaxKnownNetworks);
+  if (netCount == 0 && gCfg.wifi_ssid.length() > 0) {
+    nets[0].ssid = gCfg.wifi_ssid;
+    nets[0].password = gCfg.wifi_password;
+    nets[0].bridge_host = gCfg.bridge_host;
+    nets[0].bridge_port = gCfg.bridge_port;
+    nets[0].bridge_token = gCfg.bridge_token;
+    netCount = 1;
+  }
+
+  bool wifiUp = false;
+  for (size_t i = 0; i < netCount; ++i) {
+    LOG_INFO("wifi attempt %u/%u: \"%s\"",
+             (unsigned)(i + 1),
+             (unsigned)netCount,
+             nets[i].ssid.c_str());
+    Display::drawConnecting(nets[i].ssid.c_str());
+    if (!WifiMgr::tryConnect(nets[i].ssid.c_str(), nets[i].password.c_str(), 15000)) {
+      continue;
+    }
+
+    gCfg.wifi_ssid = nets[i].ssid;
+    gCfg.wifi_password = nets[i].password;
+    gCfg.bridge_host = nets[i].bridge_host;
+    gCfg.bridge_port = nets[i].bridge_port;
+    gCfg.bridge_token = nets[i].bridge_token;
+    Provisioning::rememberNetwork(nets[i]);
+    wifiUp = true;
+    break;
+  }
+
+  if (!wifiUp) {
     Display::drawFailedToConnect();
-    LOG_WARN("wifi connect failed, entering provisioning portal");
+    LOG_WARN("wifi connect failed on all remembered networks, entering provisioning portal");
     Provisioning::runPortal(gCfg);
   }
 
