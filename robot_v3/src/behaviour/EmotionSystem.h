@@ -12,10 +12,10 @@
  * impulses and direct setters immediately; held drivers relax the goal
  * valence slowly. The **raw** point (what `raw()` / blend / snap read)
  * first-order follows the goal with a short τ (~300 ms) so bridge or
- * agent-driven jumps do not visibly pop the face. The plane is
- * partitioned into axis-aligned rectangles (one per `NamedEmotion`);
- * the raw point is "snapped" to whichever region contains it, with
- * hysteresis so the snap doesn't chatter near boundaries.
+ * agent-driven jumps do not visibly pop the face. Each `NamedEmotion`
+ * has an anchor point `(valence, activation)`; the raw point snaps to the
+ * nearest anchor (ties break by `kPickOrder` in `EmotionSystem.cpp`), with
+ * hysteresis so the snap doesn't chatter near Voronoi boundaries.
  *
  * ## Inputs
  *
@@ -38,9 +38,9 @@
  * but do not snap the rendered mood.
  *
  * ## Snap hysteresis
- * The current snap survives until a *different* region's centre is
- * meaningfully closer (Δdist > 0.05) for at least 100 ms — prevents
- * flapping when the raw point sits on a boundary.
+ * The current snap survives until a *different* anchor is meaningfully
+ * closer (Δdist > 0.05) for at least 100 ms — prevents flapping when the
+ * raw point sits near a Voronoi boundary between anchors.
  */
 namespace EmotionSystem {
 
@@ -59,6 +59,7 @@ enum class NamedEmotion : uint8_t {
   Disappointed,
   Cheeky,
   Gleeful,
+  Frustrated,
   Count
 };
 

@@ -17,13 +17,13 @@ Also read [EMOTION_BLEND.md](EMOTION_BLEND.md) for how `(valence, activation)` b
 
 ## 2. If it is a **named emotion** (V/A regions, idle face when no verb)
 
-Emotions are both a **snap** (`NamedEmotion` + `kBoxes`) and a **blend anchor** (triangulation). Verbs/overlays only use `kBaseTargets` directly.
+Emotions are both a **snap** (`NamedEmotion` + `kEmotionPoints` anchor) and a **blend anchor** (triangulation). Verbs/overlays only use `kBaseTargets` directly.
 
 | Step | File | What to do |
 |------|------|------------|
-| 2a | `robot_v3/src/behaviour/EmotionSystem.h` | Add `NamedEmotion::YourName` before `Count` (same spirit as `Expression`; order defines `kBoxes` index). |
-| 2b | `robot_v3/src/behaviour/EmotionSystem.cpp` | Add a `kBoxes[]` entry `(minV, maxV, minA, maxA)`. Add to `kPickOrder[]` (first matching box wins—put **smaller** regions before larger overlapping ones). Extend `emotionName()`. |
-| 2c | `scripts/gen_emotion_triangulation.py` | Mirror the new box in `BOXES` (must match `kBoxes`). |
+| 2a | `robot_v3/src/behaviour/EmotionSystem.h` | Add `NamedEmotion::YourName` before `Count` (same spirit as `Expression`; order defines `kEmotionPoints` index). |
+| 2b | `robot_v3/src/behaviour/EmotionSystem.cpp` | Add a `kEmotionPoints[]` row `{ v, a }` and a `kPickOrder[]` entry (ties in nearest-anchor snap: **earlier** in `kPickOrder` wins). Extend `emotionName()`. |
+| 2c | `scripts/gen_emotion_triangulation.py` | Reads `kEmotionPoints` from the same `.cpp` file—no separate table to mirror. |
 | 2d | Run | `python scripts/gen_emotion_triangulation.py` — commit **`robot_v3/src/behaviour/EmotionTriangulation.h`** and **`control/scripts/emotion-triangulation.js`**. |
 | 2e | `robot_v3/src/behaviour/EmotionBlend.cpp` | Map `NamedEmotion::YourName` → `Face::Expression::YourName` in `expressionForNamedEmotion`. |
 | 2f | `robot_v3/src/app/SceneContextFill.cpp` | Same mapping in `expressionForEmotion()`. |
@@ -83,9 +83,29 @@ Optional polish in the same file: `blinkPeriodMsFor`, `gazeFor`, `bodyBobFor` if
 ## Quick sanity checks
 
 - `Expression::Count` equals the number of rows in `kBaseTargets` and `MotionBehaviors::kMotion`.
-- For emotions: `kBoxes` ↔ `gen_emotion_triangulation.py` `BOXES` stay identical; regenerate headers/JS after edits.
+- For emotions: edit `kEmotionPoints` once, then run `gen_emotion_triangulation.py`; regenerate headers/JS after edits.
 - `EmotionBlend::expressionForNamedEmotion` and `SceneContextFill::expressionForEmotion` stay in sync.
 - New emotion expressions used for idle face belong in **`isEmotionExpression()`** so the face tracks the V/A blend.
+- **`kPickOrder`** must list **every** `NamedEmotion` exactly once (tie-break when two anchors are equidistant).
+
+---
+
+## Worked example: `Frustrated`
+
+Adding a named emotion end-to-end (as done for **Frustrated**):
+
+1. **`SceneTypes.h`** — `Expression::Frustrated` before `Count`; extend **`isEmotionExpression()`**.
+2. **`FrameController.cpp`** — `kBaseTargets[]` row at the matching index; optional **`blinkPeriodMsFor`** (and similar polish).
+3. **`EmotionSystem.h` / `.cpp`** — `NamedEmotion::Frustrated`, **`kEmotionPoints`** row `{ v, a }`, **`kPickOrder`** entry, **`emotionName()`**.
+4. **`python scripts/gen_emotion_triangulation.py`** — commit **`EmotionTriangulation.h`** + **`emotion-triangulation.js`**.
+5. **`EmotionBlend.cpp`** — `expressionForNamedEmotion` + **`armPresetFor`** for blend arm motion.
+6. **`SceneContextFill.cpp`** — `expressionForEmotion` + **`accentNamedColor`** (often a new **`Settings::NamedColor`**).
+7. **`Settings.h` / `.cpp`** — **`NamedColor::EmotionFrustrated`** (append-only), default RGB, **bump `kSettingsSchemaVersion`** when the palette gains a slot so NVS reloads cleanly.
+8. **`BridgeControl.cpp`** — optional **`tryParseNamedColor`** alias (e.g. `emotion_frustrated`).
+9. **`MotionBehaviors.cpp`** — one **`kMotion[]`** row.
+10. **`SceneTypes.cpp`** — **`expressionName()`** snake_case string.
+11. **`control/scripts/frame-controller-v3.js`** — **`EXPRESSIONS`**, **`BASE_TARGETS`**, **`EMOTION_NAMES`**, **`motorPeriodMsFor`** (and any **`bodyBobFor`** branches).
+12. **`simulator_v3.html`** — **`EMOTION_COLOR`** entry for the blend diagram.
 
 ---
 

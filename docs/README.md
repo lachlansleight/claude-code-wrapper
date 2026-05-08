@@ -40,7 +40,7 @@ quickstart; the rest lives here.
   modulators, text scene, effects overlays.
 - [firmware/EMOTION_BLEND.md](firmware/EMOTION_BLEND.md) — continuous
   barycentric blend of emotion presets driven by (v, a); how to
-  regenerate the triangulation when `kBoxes` changes.
+  regenerate the triangulation when `kEmotionPoints` changes.
 - [firmware/KBASETARGETS_WIRING.md](firmware/KBASETARGETS_WIRING.md) —
   checklist for adding a `Face::Expression` / `kBaseTargets` row and
   keeping emotion tables, blend, palette, motion, and simulator in sync.

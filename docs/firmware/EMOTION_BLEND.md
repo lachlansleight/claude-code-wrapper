@@ -7,19 +7,20 @@ lookup.
 
 ## How it works
 
-1. `EmotionSystem::kBoxes` partitions the (v, a) plane into one
-   axis-aligned rectangle per `NamedEmotion`. The four corners of each
-   box are **anchor points** at which that emotion's preset (the
-   matching row of `Face::baseTargetFor`) is fully expressed.
+1. `EmotionSystem::kEmotionPoints` lists one `(valence, activation)`
+   **anchor** per `NamedEmotion`. Discrete snap uses nearest-anchor
+   distance (ties: `kPickOrder`). Blend triangulation uses the same
+   coordinates: each anchor is where that emotion's `FaceParams` preset
+   applies fully.
 2. The anchor cloud is Delaunay-triangulated **offline** by a Python
    script. Output is committed in two places: a C++ header for the
    firmware and a JS sibling for the web simulator.
 3. Per-frame, `EmotionBlend::blendedFaceParams(v, a)` linear-scans the
    triangle list, finds the one containing (v, a), and blends the three
    corner emotions' `FaceParams` per-field with barycentric weights.
-4. Inside any rectangle, all four corners share the same emotion → the
-   blend collapses to that emotion's preset exactly. Between rectangles
-   you get a smooth gradient.
+4. Inside each Delaunay triangle, the three corners are three
+   emotions — barycentric blend of their presets. Across the mesh you
+   get a continuous piecewise-linear surface in `FaceParams` space.
 
 `SceneContextFill::fill` puts the result on `SceneContext.base_face_params`.
 `FrameController` uses it as the tween target whenever
@@ -32,21 +33,17 @@ overlays continue to read directly from `kBaseTargets[expression]`.
 mood-ring colour, accent colour, and debug fields still come from the
 snapped enum. Only the base `FaceParams` is now blended.
 
-## Hard requirement: hull covers the domain
+## Coverage sanity check
 
-The convex hull of all anchors **must** cover `[-1, +1] × [0, 1]`. The
-generator script enforces this by checking that the four extreme
-corners — `(-1, 0)`, `(-1, 1)`, `(+1, 0)`, `(+1, 1)` — are anchors. If
-you change `kBoxes` such that a corner is missing, the script aborts
-with an error rather than emitting a header.
+The generator spot-checks that several interior sample points fall inside
+some triangle. If anchors are degenerate (e.g. almost collinear) or too
+sparse, triangulation can leave gaps — the script aborts with an error.
 
-## Regenerating after a `kBoxes` change
+## Regenerating after a `kEmotionPoints` change
 
-When you edit
+Edit
 [`robot_v3/src/behaviour/EmotionSystem.cpp`](../../robot_v3/src/behaviour/EmotionSystem.cpp)'s
-`kBoxes` table, mirror the same edit in the `BOXES` list at the top of
-[`scripts/gen_emotion_triangulation.py`](../../scripts/gen_emotion_triangulation.py),
-then run:
+`kEmotionPoints` table only (the Python script parses it directly). Then run:
 
 ```
 python scripts/gen_emotion_triangulation.py
@@ -73,14 +70,14 @@ needed; the script ships its own Bowyer-Watson.
 3. Update the `expressionForNamedEmotion` switch in
    `EmotionBlend.cpp` and the parallel one in
    `SceneContextFill::expressionForEmotion`.
-4. Add a `kBoxes` entry and a `BOXES` entry in the script. Re-run the
+4. Add a `kEmotionPoints` row and `kPickOrder` tie-break if needed. Re-run the
    script. Commit both generated files.
 5. Add a palette colour entry if the new emotion needs its own accent
    (`Settings::NamedColor` + `accentNamedColor` + `moodColorForExpression`).
 
 ## Performance
 
-Today: 20 anchors, 24 triangles. A few dozen rectangles would push it
-to ~200 triangles, still well under a millisecond per frame on the
-S3. If it ever becomes a bottleneck, the upgrade is a coarse spatial
-bucket index over triangles.
+Anchor count tracks `NamedEmotion` (duplicate coordinates are merged for
+Delaunay). A few dozen triangles is still well under a millisecond per
+frame on the S3. If it ever becomes a bottleneck, the upgrade is a
+coarse spatial index over triangles.

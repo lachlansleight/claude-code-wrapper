@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
-"""Generate EmotionTriangulation.h from the emotion box table.
+"""Generate EmotionTriangulation.h from the emotion anchor table.
 
-Reads constexpr Box kBoxes[(size_t)NamedEmotion::Count] from
-robot_v3/src/behaviour/EmotionSystem.cpp. Each row is either two opposite
-corners (v0,a0), (v1,a1) — four floats, normalized to axis-aligned min/max —
-or a single (v, a) point — two floats (degenerate box). Emits one anchor per
-row: box center by default; if the box touches a domain edge, snap to that edge
-at mid-span along the other axis; if it contains a domain corner, use that
-corner; two opposite corners on the same edge use mid-span on that edge.
-Computes a Delaunay triangulation of the deduplicated anchor set via
-Bowyer-Watson (no scipy dep). Emits a C++ header with two constexpr arrays:
-kAnchors[] and kTriangles[].
+Reads `constexpr EmotionPoint kEmotionPoints[(size_t)NamedEmotion::Count]`
+from robot_v3/src/behaviour/EmotionSystem.cpp. Each row is `{ v, a }, // Name`
+— two floats per named emotion (same coordinates used for discrete snap and
+for blend triangulation). Optionally supports legacy four-float rows as an
+axis-aligned box; those are converted to box centre `(mid_v, mid_a)`.
 
-Run by hand whenever kBoxes changes:
+Computes a Delaunay triangulation via Bowyer-Watson (no scipy dep). Emits a
+C++ header with `kAnchors[]` and `kTriangles[]`, plus `emotion-triangulation.js`
+for the simulator.
+
+Duplicate (v, a) coordinates collapse to one anchor (first emotion in file
+order wins); matches firmware tie-breaking via `kPickOrder`.
+
+Run by hand whenever kEmotionPoints changes:
     python scripts/gen_emotion_triangulation.py
 
-Asserts each corner of the (v,a) domain [-1, +1] x [0, 1] lies inside
-at least one kBoxes axis-aligned region (anchor placement uses edge/corner
-snapping; this check still uses the full rectangles). If not, refuses to emit.
+Sample interior points are checked to lie inside some triangle (coverage
+sanity). Domain-corner “inside some box” assertions are not used — anchors are
+points, not rectangles.
 """
 
 from __future__ import annotations
@@ -27,12 +29,6 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# kBoxes source (parsed at runtime from EmotionSystem.cpp).
-# Each entry: (NamedEmotion name, minV, maxV, minA, maxA); anchor via
-# anchor_from_box (center, edge mid-span, or domain corner).
-# ---------------------------------------------------------------------------
-
 DOMAIN_V = (-1.0, 1.0)
 DOMAIN_A = (0.0, 1.0)
 
@@ -41,38 +37,33 @@ EMOTION_SYSTEM_CPP = REPO_ROOT / "robot_v3" / "src" / "behaviour" / "EmotionSyst
 OUTPUT_PATH = REPO_ROOT / "robot_v3" / "src" / "behaviour" / "EmotionTriangulation.h"
 JS_OUTPUT_PATH = REPO_ROOT / "control" / "scripts" / "emotion-triangulation.js"
 
-_KBOXES_MARKER = "kBoxes[(size_t)NamedEmotion::Count]"
+_KPOINTS_MARKER = "kEmotionPoints[(size_t)NamedEmotion::Count]"
 _ROW_RE = re.compile(
     r"^\s*\{\s*([^}]+?)\}\s*,?\s*(?://\s*([^\s/]+)\s*)?$"
 )
 
-# Tolerance for circumcircle / point-equality tests. Boxes use coords in
-# [-1, 1] so 1e-9 is plenty.
 EPS = 1e-9
 
 
-def parse_k_boxes_from_emotion_system_cpp(path: Path) -> list[tuple[str, float, float, float, float]]:
-    """Parse kBoxes initializer: lines from '= {' until '};'.
+def parse_emotion_points_from_cpp(path: Path) -> list[tuple[str, float, float]]:
+    """Parse kEmotionPoints initializer: lines from '= {' until '};'.
 
-    Each row is `{ ... }, // Name` with either four floats (v0, a0, v1, a1 —
-    two opposite corners of an axis-aligned box) or two floats (v, a) — a
-    degenerate box.     Both normalize to (minV, maxV, minA, maxA); triangulation uses
-    anchor_from_box() for each row.
+    Each row: `{ v, a }, // Name` or four floats as legacy box corners.
     """
     if not path.is_file():
         raise SystemExit(
             f"[gen_emotion_triangulation] missing {path}; "
-            "cannot read kBoxes."
+            "cannot read kEmotionPoints."
         )
     lines = path.read_text(encoding="utf-8").splitlines()
     start: int | None = None
     for i, line in enumerate(lines):
-        if _KBOXES_MARKER in line:
+        if _KPOINTS_MARKER in line:
             start = i
             break
     if start is None:
         raise SystemExit(
-            f"[gen_emotion_triangulation] could not find '{_KBOXES_MARKER}' "
+            f"[gen_emotion_triangulation] could not find '{_KPOINTS_MARKER}' "
             f"in {path}"
         )
 
@@ -81,12 +72,12 @@ def parse_k_boxes_from_emotion_system_cpp(path: Path) -> list[tuple[str, float, 
         j += 1
     if j >= len(lines):
         raise SystemExit(
-            f"[gen_emotion_triangulation] kBoxes declaration has no '= {{' "
+            f"[gen_emotion_triangulation] kEmotionPoints declaration has no '= {{' "
             f"in {path}"
         )
     j += 1
 
-    boxes: list[tuple[str, float, float, float, float]] = []
+    points: list[tuple[str, float, float]] = []
     while j < len(lines):
         stripped = lines[j].strip()
         if stripped.startswith("};"):
@@ -98,50 +89,50 @@ def parse_k_boxes_from_emotion_system_cpp(path: Path) -> list[tuple[str, float, 
         m = _ROW_RE.match(lines[j])
         if not m:
             raise SystemExit(
-                f"[gen_emotion_triangulation] unparseable kBoxes line "
+                f"[gen_emotion_triangulation] unparseable kEmotionPoints line "
                 f"{j + 1} in {path}:\n{lines[j]!r}"
             )
         inner, name = m.group(1), m.group(2)
         if not name:
             raise SystemExit(
-                f"[gen_emotion_triangulation] kBoxes line {j + 1} in {path} "
+                f"[gen_emotion_triangulation] kEmotionPoints line {j + 1} in {path} "
                 "needs a // EmotionName comment:\n"
                 f"{lines[j]!r}"
             )
         parts = [p.strip() for p in inner.split(",") if p.strip()]
         if len(parts) not in (2, 4):
             raise SystemExit(
-                f"[gen_emotion_triangulation] expected 2 or 4 floats in kBoxes "
-                f"line {j + 1} in {path}, got {len(parts)}:\n{lines[j]!r}"
+                f"[gen_emotion_triangulation] expected 2 or 4 floats in "
+                f"kEmotionPoints line {j + 1} in {path}, got {len(parts)}:\n"
+                f"{lines[j]!r}"
             )
         try:
             nums = [float(p.rstrip("fF")) for p in parts]
         except ValueError as e:
             raise SystemExit(
-                f"[gen_emotion_triangulation] bad float literal in kBoxes "
+                f"[gen_emotion_triangulation] bad float literal in kEmotionPoints "
                 f"line {j + 1} in {path}:\n{lines[j]!r}\n{e}"
             ) from e
         if len(nums) == 4:
             v0, a0, v1, a1 = nums
             min_v, max_v = min(v0, v1), max(v0, v1)
             min_a, max_a = min(a0, a1), max(a0, a1)
+            v, a = 0.5 * (min_v + max_v), 0.5 * (min_a + max_a)
         else:
             v, a = nums
-            min_v = max_v = v
-            min_a = max_a = a
-        boxes.append((name, min_v, max_v, min_a, max_a))
+        points.append((name, v, a))
         j += 1
     else:
         raise SystemExit(
-            f"[gen_emotion_triangulation] kBoxes initializer not closed "
+            f"[gen_emotion_triangulation] kEmotionPoints initializer not closed "
             f"with '}};' before EOF in {path}"
         )
 
-    if not boxes:
+    if not points:
         raise SystemExit(
-            f"[gen_emotion_triangulation] no kBoxes rows parsed from {path}"
+            f"[gen_emotion_triangulation] no kEmotionPoints rows parsed from {path}"
         )
-    return boxes
+    return points
 
 
 @dataclass(frozen=True)
@@ -151,139 +142,21 @@ class Anchor:
     emotion: str
 
 
-# Domain corners (v, a) for [-1,1] x [0,1].
-_DOMAIN_CORNERS: tuple[tuple[float, float], ...] = (
-    (DOMAIN_V[0], DOMAIN_A[0]),
-    (DOMAIN_V[0], DOMAIN_A[1]),
-    (DOMAIN_V[1], DOMAIN_A[0]),
-    (DOMAIN_V[1], DOMAIN_A[1]),
-)
-
-
-def anchor_from_box(min_v: float, max_v: float, min_a: float, max_a: float) -> tuple[float, float]:
-    """Placement inside each kBoxes row's axis-aligned rectangle.
-
-    - If the closed box contains exactly one domain corner, anchor there.
-    - If it contains two corners on the same vertical (same v), use (v, mid_a).
-    - If two corners on the same horizontal (same a), use (mid_v, a).
-    - If it contains three or four corners, or two diagonal corners, use the
-      rectangle center.
-    - Otherwise, if the box is flush with exactly one domain edge, snap to
-      that edge at mid-span along the other axis (e.g. top-only → (mid_v, 1)).
-    - If flush with both vertical edges or both horizontal edges (no corner
-      inside), use the rectangle center.
-    - Otherwise use the rectangle center.
-    """
-    mid_v = 0.5 * (min_v + max_v)
-    mid_a = 0.5 * (min_a + max_a)
-
-    def corner_in_box(vc: float, ac: float) -> bool:
-        return (
-            min_v - EPS <= vc <= max_v + EPS
-            and min_a - EPS <= ac <= max_a + EPS
-        )
-
-    corners_present = [(vc, ac) for vc, ac in _DOMAIN_CORNERS if corner_in_box(vc, ac)]
-    n_c = len(corners_present)
-
-    if n_c >= 3:
-        return mid_v, mid_a
-    if n_c == 2:
-        (v0, a0), (v1, a1) = corners_present[0], corners_present[1]
-        if abs(v0 - v1) < EPS:
-            return v0, mid_a
-        if abs(a0 - a1) < EPS:
-            return mid_v, a0
-        return mid_v, mid_a
-    if n_c == 1:
-        return corners_present[0]
-
-    touches_left = min_v <= DOMAIN_V[0] + EPS
-    touches_right = max_v >= DOMAIN_V[1] - EPS
-    touches_bottom = min_a <= DOMAIN_A[0] + EPS
-    touches_top = max_a >= DOMAIN_A[1] - EPS
-
-    if touches_left and touches_right:
-        return mid_v, mid_a
-    if touches_bottom and touches_top:
-        return mid_v, mid_a
-
-    if touches_left:
-        return DOMAIN_V[0], mid_a
-    if touches_right:
-        return DOMAIN_V[1], mid_a
-    if touches_bottom:
-        return mid_v, DOMAIN_A[0]
-    if touches_top:
-        return mid_v, DOMAIN_A[1]
-
-    return mid_v, mid_a
-
-
-def collect_anchors(
-    boxes: list[tuple[str, float, float, float, float]],
-) -> list[Anchor]:
-    seen: dict[tuple[float, float], Anchor] = {}
-    for emotion, minV, maxV, minA, maxA in boxes:
-        v, a = anchor_from_box(minV, maxV, minA, maxA)
+def collect_anchors(points: list[tuple[str, float, float]]) -> list[Anchor]:
+    """One Anchor per distinct (v, a); first emotion wins duplicates."""
+    seen: set[tuple[float, float]] = set()
+    out: list[Anchor] = []
+    for emotion, v, a in points:
         key = (round(v, 9), round(a, 9))
-        if key not in seen:
-            seen[key] = Anchor(v, a, emotion)
-    return list(seen.values())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(Anchor(v, a, emotion))
+    return out
 
-
-def _in_closed_box(
-    v: float,
-    a: float,
-    min_v: float,
-    max_v: float,
-    min_a: float,
-    max_a: float,
-) -> bool:
-    return (
-        min_v - EPS <= v <= max_v + EPS
-        and min_a - EPS <= a <= max_a + EPS
-    )
-
-
-def assert_domain_corners_pinned_by_boxes(
-    boxes: list[tuple[str, float, float, float, float]],
-) -> None:
-    """Each domain rectangle corner must lie inside some kBoxes region.
-
-    Uses the axis-aligned rectangles from kBoxes, independent of anchor
-    placement (centers only).
-    """
-    corners = (
-        (DOMAIN_V[0], DOMAIN_A[0]),
-        (DOMAIN_V[0], DOMAIN_A[1]),
-        (DOMAIN_V[1], DOMAIN_A[0]),
-        (DOMAIN_V[1], DOMAIN_A[1]),
-    )
-    missing: list[tuple[float, float]] = []
-    for v, a in corners:
-        if not any(
-            _in_closed_box(v, a, min_v, max_v, min_a, max_a)
-            for _name, min_v, max_v, min_a, max_a in boxes
-        ):
-            missing.append((v, a))
-    if missing:
-        raise SystemExit(
-            "[gen_emotion_triangulation] domain corner(s) not covered by any "
-            "kBoxes region: "
-            + ", ".join(f"({v}, {a})" for (v, a) in missing)
-            + ". Expand or overlap boxes so (-1,0), (-1,1), (1,0), (1,1) "
-            "each lie inside at least one axis-aligned box."
-        )
-
-
-# ---------------------------------------------------------------------------
-# Bowyer-Watson Delaunay triangulation.
-# Reference: https://en.wikipedia.org/wiki/Bowyer%E2%80%93Watson_algorithm
-# ---------------------------------------------------------------------------
 
 Point = tuple[float, float]
-Triangle = tuple[int, int, int]  # indices into points
+Triangle = tuple[int, int, int]
 
 
 def circumcircle_contains(pts: list[Point], tri: Triangle, p: Point) -> bool:
@@ -292,7 +165,6 @@ def circumcircle_contains(pts: list[Point], tri: Triangle, p: Point) -> bool:
     cx, cy = pts[tri[2]]
     px, py = p
 
-    # Ensure CCW orientation; if not, swap so the in-circle predicate sign works.
     cross = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
     if cross < 0:
         bx, by, cx, cy = cx, cy, bx, by
@@ -310,18 +182,17 @@ def circumcircle_contains(pts: list[Point], tri: Triangle, p: Point) -> bool:
 
 
 def bowyer_watson(points: list[Point]) -> list[Triangle]:
-    # Super-triangle large enough to contain all points.
-    minV = min(p[0] for p in points) - 10.0
-    maxV = max(p[0] for p in points) + 10.0
-    minA = min(p[1] for p in points) - 10.0
-    maxA = max(p[1] for p in points) + 10.0
-    width = maxV - minV
-    height = maxA - minA
-    midV = 0.5 * (minV + maxV)
+    min_v = min(p[0] for p in points) - 10.0
+    max_v = max(p[0] for p in points) + 10.0
+    min_a = min(p[1] for p in points) - 10.0
+    max_a = max(p[1] for p in points) + 10.0
+    width = max_v - min_v
+    height = max_a - min_a
+    mid_v = 0.5 * (min_v + max_v)
     super_pts = [
-        (midV - 20.0 * width, minA - 1.0),
-        (midV + 20.0 * width, minA - 1.0),
-        (midV, maxA + 20.0 * height),
+        (mid_v - 20.0 * width, min_a - 1.0),
+        (mid_v + 20.0 * width, min_a - 1.0),
+        (mid_v, max_a + 20.0 * height),
     ]
 
     pts = list(points) + super_pts
@@ -331,8 +202,6 @@ def bowyer_watson(points: list[Point]) -> list[Triangle]:
     for pi, p in enumerate(points):
         bad = [t for t in triangles if circumcircle_contains(pts, t, p)]
 
-        # Find the boundary edges of the bad-triangle polygon: edges that
-        # appear in exactly one bad triangle.
         edge_count: dict[tuple[int, int], int] = {}
         for (i, j, k) in bad:
             for e in ((i, j), (j, k), (k, i)):
@@ -340,25 +209,19 @@ def bowyer_watson(points: list[Point]) -> list[Triangle]:
                 edge_count[key] = edge_count.get(key, 0) + 1
         boundary = [e for e, c in edge_count.items() if c == 1]
 
-        # Remove bad triangles, re-triangulate the cavity.
         triangles = [t for t in triangles if t not in bad]
         for (i, j) in boundary:
             triangles.append((i, j, pi))
 
-    # Discard triangles that touch the super-triangle vertices.
     triangles = [t for t in triangles if all(idx < len(points) for idx in t)]
     return triangles
 
 
-# ---------------------------------------------------------------------------
-# Output formatting.
-# ---------------------------------------------------------------------------
-
 HEADER_TEMPLATE = """\
 // !!! GENERATED FILE - DO NOT EDIT !!!
 //
-// Generated by scripts/gen_emotion_triangulation.py from the kBoxes
-// table in EmotionSystem.cpp. Re-run that script whenever kBoxes
+// Generated by scripts/gen_emotion_triangulation.py from the kEmotionPoints
+// table in EmotionSystem.cpp. Re-run that script whenever kEmotionPoints
 // changes.
 //
 // Anchors: {n_anchors}
@@ -409,15 +272,11 @@ def format_triangle(t: Triangle) -> str:
     return f"    {{ {t[0]}, {t[1]}, {t[2]} }},"
 
 
-# ---------------------------------------------------------------------------
-# JS sibling output. Read by control/simulator_v3.html in blend mode.
-# ---------------------------------------------------------------------------
-
 JS_TEMPLATE = """\
 // !!! GENERATED FILE - DO NOT EDIT !!!
 //
-// Generated by scripts/gen_emotion_triangulation.py from the kBoxes
-// table in EmotionSystem.cpp. Re-run that script whenever kBoxes
+// Generated by scripts/gen_emotion_triangulation.py from the kEmotionPoints
+// table in EmotionSystem.cpp. Re-run that script whenever kEmotionPoints
 // changes; this file is the JS sibling of EmotionTriangulation.h and
 // must stay in lockstep.
 //
@@ -447,22 +306,34 @@ def format_js_triangle(t: Triangle) -> str:
     return f"    [{t[0]}, {t[1]}, {t[2]}],"
 
 
+def _point_in_any_triangle(p: Point, pts: list[Point], tris: list[Triangle]) -> bool:
+    for t in tris:
+        a, b, c = pts[t[0]], pts[t[1]], pts[t[2]]
+        denom = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+        if abs(denom) < EPS:
+            continue
+        l1 = ((b[1] - c[1]) * (p[0] - c[0]) + (c[0] - b[0]) * (p[1] - c[1])) / denom
+        l2 = ((c[1] - a[1]) * (p[0] - c[0]) + (a[0] - c[0]) * (p[1] - c[1])) / denom
+        l3 = 1.0 - l1 - l2
+        if l1 >= -EPS and l2 >= -EPS and l3 >= -EPS:
+            return True
+    return False
+
+
 def main() -> int:
-    boxes = parse_k_boxes_from_emotion_system_cpp(EMOTION_SYSTEM_CPP)
-    assert_domain_corners_pinned_by_boxes(boxes)
-    anchors = collect_anchors(boxes)
+    parsed = parse_emotion_points_from_cpp(EMOTION_SYSTEM_CPP)
+    anchors = collect_anchors(parsed)
 
     points: list[Point] = [(a.v, a.a) for a in anchors]
     triangles = bowyer_watson(points)
 
-    # Sanity: every domain-interior point should land in some triangle.
-    # Spot-check a handful.
     sample_pts = [(0.0, 0.5), (-0.5, 0.5), (0.7, 0.55), (0.7, 0.8), (-0.95, 0.5)]
     for sp in sample_pts:
         if not _point_in_any_triangle(sp, points, triangles):
             raise SystemExit(
                 f"[gen_emotion_triangulation] sample point {sp} not "
-                "covered by any triangle. Triangulation is incomplete."
+                "covered by any triangle. Triangulation may be incomplete "
+                "(collinear anchors / too few distinct points)."
             )
 
     anchor_lines = "\n".join(format_anchor(a) for a in anchors)
@@ -494,21 +365,6 @@ def main() -> int:
     print(f"[gen_emotion_triangulation] wrote {JS_OUTPUT_PATH}")
 
     return 0
-
-
-def _point_in_any_triangle(p: Point, pts: list[Point], tris: list[Triangle]) -> bool:
-    for t in tris:
-        a, b, c = pts[t[0]], pts[t[1]], pts[t[2]]
-        # Barycentric.
-        denom = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
-        if abs(denom) < EPS:
-            continue
-        l1 = ((b[1] - c[1]) * (p[0] - c[0]) + (c[0] - b[0]) * (p[1] - c[1])) / denom
-        l2 = ((c[1] - a[1]) * (p[0] - c[0]) + (a[0] - c[0]) * (p[1] - c[1])) / denom
-        l3 = 1.0 - l1 - l2
-        if l1 >= -EPS and l2 >= -EPS and l3 >= -EPS:
-            return True
-    return False
 
 
 if __name__ == "__main__":

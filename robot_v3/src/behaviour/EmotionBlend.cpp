@@ -38,6 +38,8 @@ Face::Expression expressionForNamedEmotion(EmotionSystem::NamedEmotion e) {
       return Face::Expression::Cheeky;
     case EmotionSystem::NamedEmotion::Gleeful:
       return Face::Expression::Gleeful;
+    case EmotionSystem::NamedEmotion::Frustrated:
+      return Face::Expression::Frustrated;
     case EmotionSystem::NamedEmotion::Neutral:
     default:
       return Face::Expression::Neutral;
@@ -138,6 +140,8 @@ static ArmPreset armPresetFor(Face::Expression e) {
       return {-20, -5, 1.4f, 0.45f};
     case Face::Expression::Gleeful:
       return {10, 25, 0.9f, 0.2f};
+    case Face::Expression::Frustrated:
+      return {-18, -8, 1.1f, 0.15f};
     default:
       return {-25, -15, 2.0f, 1.0f};
   }

@@ -66,11 +66,12 @@ enum class Expression : uint8_t {
   Disappointed,
   Cheeky,
   Gleeful,
+  Frustrated,
   Count
 };
 
 /// True for expressions driven by the continuous (v, a) emotion layer
-/// (Neutral … Gleeful), excluding verbs and overlays.
+/// (Neutral … Frustrated), excluding verbs and overlays.
 inline bool isEmotionExpression(Expression s) {
   return s == Expression::Neutral || s == Expression::Happy ||
          s == Expression::Excited || s == Expression::Joyful ||
@@ -78,7 +79,7 @@ inline bool isEmotionExpression(Expression s) {
          s == Expression::Distressed || s == Expression::Blissed ||
          s == Expression::Depressed || s == Expression::Shocked ||
          s == Expression::Disappointed || s == Expression::Cheeky ||
-         s == Expression::Gleeful;
+         s == Expression::Gleeful || s == Expression::Frustrated;
 }
 
 /**

@@ -54,6 +54,7 @@ static const ExprMotion kMotion[(uint8_t)Face::Expression::Count] = {
     /* Disappointed */ {NONE, 0, 0, 0, 0, 0},
     /* Cheeky */ {WAGGLE, 0, 12, 880, 0, 0},
     /* Gleeful */ {WAGGLE, 0, 15, 900, 0, 0},
+    /* Frustrated */ {OSCILLATE, 0, 6, 820, 0, 0},
 };
 
 static_assert(sizeof(kMotion) / sizeof(kMotion[0]) == (uint8_t)Face::Expression::Count,

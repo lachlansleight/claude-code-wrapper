@@ -95,8 +95,8 @@ static const FaceParams kBaseTargets[(uint8_t)Expression::Count] = {
     /* Shocked */           { 0, 30,   -34, 0,   39, 0, 3,   1, 85, 720,   0, 3, 9,
                              20, 17,  -17, 0,   8, 0, 1,    2, 49, 720,   
                              0, 0,     255, 255, 255 },
-    /* Disappointed */      {  2, 30,   +6, 0, +6, 0, 3,  0, 0, 0,   0,  3,  15,
-                              4,  +13,   -8, 0,  -8, 0, 3,  0, 0, 0,
+    /* Disappointed */      {  3, 21,   +6, 0, +6, 0, 3,  0, 0, 0,   0,  3,  8,
+                              5,  +26,   -1, 0,  -3, 0, 3,  0, 0, 0,
                               0, 0,    229, 54, 95 },
     /* Cheeky */            {  1, 30,  -31, 0, +8, 0, 3,  0, 0, 0,   0,  3,  15,
                               -25,  +15,   11, 0,  8, 0, 3,  0, 0, 0,
@@ -104,7 +104,9 @@ static const FaceParams kBaseTargets[(uint8_t)Expression::Count] = {
     /* Gleeful */           {  1, 27,  -30, 0, -2, 0, 3,  0, 0, 0,   0,  -7,  10,
                               -25,  +27,   0, -2,  20, -2, 3,  0, 0, 0,
                               0, 5,    39, 248, 78 },
-
+    /* Frustrated */        {  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
+                              0, 18,    0, 0,   0, 0, 3,  4, 100, 360,
+                              0, 0,    210, 75, 220 },
 };
 
 static constexpr uint32_t kTweenMs = 250;
@@ -339,6 +341,8 @@ static uint32_t blinkPeriodMsFor(Expression s) {
       return (uint32_t)random(2800, 4200);
     case Expression::Gleeful:
       return (uint32_t)random(2200, 3800);
+    case Expression::Frustrated:
+      return (uint32_t)random(1800, 3200);
     default:
       return 0;
   }

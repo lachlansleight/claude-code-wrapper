@@ -48,6 +48,7 @@ enum class NamedColor : uint8_t {
   EmotionDepressed,
   EmotionShocked,
   EmotionDisappointed,
+  EmotionFrustrated,
   Count            ///< Sentinel; not a valid color.
 };
 

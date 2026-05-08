@@ -12,17 +12,12 @@ static constexpr float kTauMsV = 90000.0f;
 static constexpr float kTauMsRawFollow = 50.0f;
 static constexpr float kSnapHysteresisDist = 0.05f;
 static constexpr uint32_t kSnapHysteresisHoldMs = 100;
-struct Coord {
+/// Squared-distance tolerance for tying two anchors (float noise).
+static constexpr float kDistSqTieEps = 1e-7f;
+
+struct EmotionPoint {
   float v;
   float a;
-};
-
-// Axis-aligned region in (valence, activation); corners normalized to min/max per axis.
-struct Box {
-  float minV;
-  float maxV;
-  float minA;
-  float maxA;
 };
 
 struct Driver {
@@ -39,28 +34,35 @@ NamedEmotion sCurrentSnap = NamedEmotion::Neutral;
 NamedEmotion sPendingSnap = NamedEmotion::Neutral;
 uint32_t sPendingSnapSinceMs = 0;
 
-// Bounding boxes from corner pairs {{v,a},{v,a}}; overlap ties break by kPickOrder.
-constexpr Box kBoxes[(size_t)NamedEmotion::Count] = {
-    {+0.0f, 0.0f },   // Neutral
-    {+0.6f, 0.3f },   // Happy
-    {+1.0f, 0.6f },   // Excited
-    {+1.0f, 1.0f },   // Joyful
-    {-1.0f, 0.3f },   // Sad
-    {-0.2f, 0.0f },   // Sleepy
-    {-1.0f, 1.0f },   // Distressed
-    {+1.0f, 0.0f },   // Blissed
-    {-1.0f, 0.0f },   // Depressed
-    {-0.3f, 0.0f },   // Shocked
-    {-1.0f, 0.6f },   // Disappointed
-    {+0.6f, 0.6f },   // Cheeky
-    {+0.6f, 1.0f },   // Gleeful
+// Anchor samples in (valence, activation). Used for discrete snap + triangulation
+// source (see scripts/gen_emotion_triangulation.py).
+constexpr EmotionPoint kEmotionPoints[(size_t)NamedEmotion::Count] = {
+    {+0.0f, 0.5f},    // Neutral
+    {+0.5f, 0.5f},    // Happy
+    {+1.0f, 0.6f},    // Excited
+    {+1.0f, 1.0f},    // Joyful
+    {-0.5f, 0.5f},    // Sad
+    {-0.2f, 0.0f},    // Sleepy
+    {-1.0f, 1.0f},    // Distressed
+    {+1.0f, 0.0f},    // Blissed
+    {-1.0f, 0.0f},    // Depressed
+    {-0.3f, 1.0f},    // Shocked
+    {-1.0f, 0.3f},    // Disappointed
+    {+0.5f, 0.7f},    // Cheeky
+    {+0.6f, 1.0f},    // Gleeful
+    {-0.6f, 0.8f},    // Frustrated
 };
 
+// When two anchors are equidistant, first listed here wins (matches gen script
+// anchor dedup: first emotion keeps the shared coordinate).
+// Full permutation: tie-break priority when two anchors are equidistant.
 static constexpr NamedEmotion kPickOrder[] = {
     NamedEmotion::Gleeful,
     NamedEmotion::Cheeky,
     NamedEmotion::Sleepy,
     NamedEmotion::Distressed,
+    NamedEmotion::Frustrated,
+    NamedEmotion::Disappointed,
     NamedEmotion::Blissed,
     NamedEmotion::Depressed,
     NamedEmotion::Shocked,
@@ -71,15 +73,10 @@ static constexpr NamedEmotion kPickOrder[] = {
     NamedEmotion::Sad,
 };
 
-Coord boxCenter(const Box& b) {
-  return Coord{
-      (b.minV + b.maxV) * 0.5f,
-      (b.minA + b.maxA) * 0.5f,
-  };
-}
-
-bool inBox(float v, float a, const Box& b) {
-  return v >= b.minV && v <= b.maxV && a >= b.minA && a <= b.maxA;
+float distSq(float v, float a, const EmotionPoint& p) {
+  const float dv = v - p.v;
+  const float da = a - p.a;
+  return dv * dv + da * da;
 }
 
 float clampf(float value, float lo, float hi) {
@@ -102,41 +99,22 @@ float activeTargetV() {
   return best;
 }
 
-float distSq(float v, float a, const Coord& c) {
-  const float dv = v - c.v;
-  const float da = a - c.a;
-  return dv * dv + da * da;
-}
-
-NamedEmotion nearestEmotionByCenter(float v, float a, float* outDistSq = nullptr) {
-  NamedEmotion best = NamedEmotion::Neutral;
-  float bestD = distSq(v, a, boxCenter(kBoxes[0]));
-  for (size_t i = 1; i < (size_t)NamedEmotion::Count; ++i) {
-    const float d = distSq(v, a, boxCenter(kBoxes[i]));
-    if (d < bestD) {
-      bestD = d;
-      best = (NamedEmotion)i;
-    }
-  }
-  if (outDistSq) *outDistSq = bestD;
-  return best;
-}
-
-// Pick the first region (in kPickOrder) that contains (v,a); if none, fall back to nearest box center.
+// Nearest anchor in (v, a); ties break by kPickOrder (first wins).
 NamedEmotion emotionForPoint(float v, float a, float* outBestDist = nullptr) {
+  float bestD = distSq(v, a, kEmotionPoints[0]);
+  for (size_t i = 1; i < (size_t)NamedEmotion::Count; ++i) {
+    const float d = distSq(v, a, kEmotionPoints[i]);
+    if (d < bestD) bestD = d;
+  }
   for (NamedEmotion e : kPickOrder) {
-    if (inBox(v, a, kBoxes[(size_t)e])) {
-      if (outBestDist) {
-        const Coord c = boxCenter(kBoxes[(size_t)e]);
-        *outBestDist = sqrtf(distSq(v, a, c));
-      }
+    const float d = distSq(v, a, kEmotionPoints[(size_t)e]);
+    if (d <= bestD + kDistSqTieEps) {
+      if (outBestDist) *outBestDist = sqrtf(bestD);
       return e;
     }
   }
-  float bestD = 0.0f;
-  const NamedEmotion byCenter = nearestEmotionByCenter(v, a, &bestD);
   if (outBestDist) *outBestDist = sqrtf(bestD);
-  return byCenter;
+  return NamedEmotion::Neutral;
 }
 
 }  // namespace
@@ -181,9 +159,8 @@ void tick() {
     return;
   }
 
-  const Coord currentCenter = boxCenter(kBoxes[(size_t)sCurrentSnap]);
   const float currentDist =
-      sqrtf(distSq(sRaw.valence, sRaw.activation, currentCenter));
+      sqrtf(distSq(sRaw.valence, sRaw.activation, kEmotionPoints[(size_t)sCurrentSnap]));
   if (currentDist - bestDist <= kSnapHysteresisDist) return;
 
   if (sPendingSnap != nearest) {
@@ -288,6 +265,8 @@ const char* emotionName(NamedEmotion e) {
       return "cheeky";
     case NamedEmotion::Gleeful:
       return "gleeful";
+    case NamedEmotion::Frustrated:
+      return "frustrated";
     default:
       return "?";
   }

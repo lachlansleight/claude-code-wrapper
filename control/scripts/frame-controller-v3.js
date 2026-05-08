@@ -40,6 +40,7 @@
     "Disappointed",
     "Cheeky",
     "Gleeful",
+    "Frustrated",
   ];
 
   const PARAM_FIELDS = [
@@ -111,15 +112,18 @@ Depressed:             [  0, 30,   +16, 10, +34, 11, 3,  0, 0, 0,   0,  20,  6,
 Shocked:             [ 0, 30,   -34, 0,   39, 0, 3,   1, 85, 720,   0, 3, 9,
      20, 17,  -17, 0,   8, 0, 1,    2, 49, 720,   
      0, 0,     255, 255, 255 ],
-Disappointed:             [  2, 30,   +6, 0, +6, 0, 3,  0, 0, 0,   0,  3,  15,
-      4,  +13,   -8, 0,  -8, 0, 3,  0, 0, 0,
-      0, 0,    229, 54, 95 ],
+Disappointed:             [  3, 21,   +6, 0, +6, 0, 3,  0, 0, 0,   0,  3,  8,
+  5,  +26,   -1, 0,  -3, 0, 3,  0, 0, 0,
+  0, 0,    229, 54, 95 ],
 Cheeky:            [  1, 30,  -31, 0, +8, 0, 3,  0, 0, 0,   0,  3,  15,
       -25,  +15,   11, 0,  8, 0, 3,  0, 0, 0,
       0, -3,    0, 0, 0 ],
 Gleeful:           [  1, 27,  -30, 0, -2, 0, 3,  0, 0, 0,   0,  -7,  10,
       -25,  +27,   0, -2,  20, -2, 3,  0, 0, 0,
-      0, 5,    39, 248, 78 ],      
+      0, 5,    39, 248, 78 ],
+Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
+  0, 18,    0, 0,   0, 0, 3,  4, 100, 360,
+  0, 0,    210, 75, 220 ],
   };
 
   function arrToParams(a) {
@@ -154,6 +158,7 @@ Gleeful:           [  1, 27,  -30, 0, -2, 0, 3,  0, 0, 0,   0,  -7,  10,
       case "Distressed": return 900;
       case "Cheeky": return 880;
       case "Gleeful": return 900;
+      case "Frustrated": return 820;
       default: return 0;
     }
   }
@@ -161,6 +166,7 @@ Gleeful:           [  1, 27,  -30, 0, -2, 0, 3,  0, 0, 0,   0,  -7,  10,
   const EMOTION_NAMES = new Set([
     "Neutral", "Happy", "Excited", "Joyful", "Sad", "Sleepy", "Distressed",
     "Blissed", "Depressed", "Shocked", "Disappointed", "Cheeky", "Gleeful",
+    "Frustrated",
   ]);
   function isEmotionExpression(name) {
     return EMOTION_NAMES.has(name);

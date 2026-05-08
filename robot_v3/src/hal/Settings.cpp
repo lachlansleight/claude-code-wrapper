@@ -13,7 +13,7 @@ static constexpr const char* kKeySchema = "schema";
 static constexpr const char* kKeyFaceMode = "face_mode";
 static constexpr const char* kKeyMotorsDisabled = "motors_dis";
 static constexpr const char* kColorKeyPrefix = "c";
-static constexpr uint16_t kSettingsSchemaVersion = 1;
+static constexpr uint16_t kSettingsSchemaVersion = 2;
 
 bool g_faceModeEnabled = true;
 bool g_motorsDisabled = false;
@@ -39,6 +39,7 @@ Rgb888 g_defaultColors[(size_t)NamedColor::Count] = {
     {90, 100, 120},  // EmotionDepressed
     {80, 220, 255},  // EmotionShocked
     {160, 130, 110}, // EmotionDisappointed
+    {210, 95, 55},   // EmotionFrustrated
 };
 
 Rgb888 g_colors[(size_t)NamedColor::Count];
