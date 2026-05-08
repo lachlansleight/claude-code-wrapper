@@ -41,35 +41,24 @@ uint32_t sPendingSnapSinceMs = 0;
 
 // Bounding boxes from corner pairs {{v,a},{v,a}}; overlap ties break by kPickOrder.
 constexpr Box kBoxes[(size_t)NamedEmotion::Count] = {
-    {-0.05f, +0.45f, +0.05f, +0.55f},   // Neutral
-    {+0.9f , +0.3f , +1.0f , +0.4f },   // Happy
-    {+0.9f , +0.6f , +1.0f , +0.7f },   // Excited
-    {+0.9f , +0.9f , +1.0f , +1.0f },   // Joyful
-    {-1.0f , +0.3f , -0.9f , +0.4f },   // Sad
-    {-0.05f, +0.0f , +0.05f, +0.1f },   // Sleepy
-    {-1.0f , +0.9f , -0.9f , +1.0f },   // Distressed
-    {+0.9f , +0.0f , +1.0f , +0.1f },   // Blissed
-    {-1.0f , +0.0f , -0.9f , +0.1f },   // Depressed
-    {-0.05f, +0.9f , +0.05f, +1.0f },   // Shocked
-    {-1.0f , +0.6f , -0.9f , +0.7f },   // Disappointed
+    {+0.0f, 0.0f },   // Neutral
+    {+0.6f, 0.3f },   // Happy
+    {+1.0f, 0.6f },   // Excited
+    {+1.0f, 1.0f },   // Joyful
+    {-1.0f, 0.3f },   // Sad
+    {-0.2f, 0.0f },   // Sleepy
+    {-1.0f, 1.0f },   // Distressed
+    {+1.0f, 0.0f },   // Blissed
+    {-1.0f, 0.0f },   // Depressed
+    {-0.3f, 0.0f },   // Shocked
+    {-1.0f, 0.6f },   // Disappointed
+    {+0.6f, 0.6f },   // Cheeky
+    {+0.6f, 1.0f },   // Gleeful
 };
 
-/*
-First attempt:
-{-0.1f, 0.45, 0.1f, 0.55f},   // Neutral
-{0.5f, 0.25f, 1f, 0.5f},      // Happy
-{0.5f, 0.25, 1f, 0.6f},      // Excited
-{0.85f, 0.85f, 1f, 1f},      // Joyful
-{-1.0f, 0.25f, -0.5f, 0.6f},    // Sad
-{-0.6f, 0f, 0.6f, 0.15f},    // Sleepy
-{-1f, 0.85, -0.85f, 1f},    // Distressed
-{0.85f, 0f, 1f, 0.15f},    // Blissed
-{-1f, 0f, -0.85f, 0.15f},    // Depressed
-{-0.6f, 0.85f, 0.6f, 1f},    // Shocked
-{-1f, 0.6f, -0.5f, 0.75f},  // Disappointed
-*/
-
 static constexpr NamedEmotion kPickOrder[] = {
+    NamedEmotion::Gleeful,
+    NamedEmotion::Cheeky,
     NamedEmotion::Sleepy,
     NamedEmotion::Distressed,
     NamedEmotion::Blissed,
@@ -293,6 +282,12 @@ const char* emotionName(NamedEmotion e) {
       return "depressed";
     case NamedEmotion::Shocked:
       return "shocked";
+    case NamedEmotion::Disappointed:
+      return "disappointed";
+    case NamedEmotion::Cheeky:
+      return "cheeky";
+    case NamedEmotion::Gleeful:
+      return "gleeful";
     default:
       return "?";
   }

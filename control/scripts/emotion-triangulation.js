@@ -5,8 +5,8 @@
 // changes; this file is the JS sibling of EmotionTriangulation.h and
 // must stay in lockstep.
 //
-// Anchors: 11
-// Triangles: 10
+// Anchors: 13
+// Triangles: 13
 
 window.EmotionTriangulation = {
   domain: { v: [-1.0, 1.0], a: [0.0, 1.0] },
@@ -20,19 +20,24 @@ window.EmotionTriangulation = {
     { v: -1.000000, a: +1.000000, emotion: "Distressed" },
     { v: +1.000000, a: +0.000000, emotion: "Blissed" },
     { v: -1.000000, a: +0.000000, emotion: "Depressed" },
-    { v: +0.000000, a: +1.000000, emotion: "Shocked" },
+    { v: +0.005000, a: +1.000000, emotion: "Shocked" },
     { v: -1.000000, a: +0.650000, emotion: "Disappointed" },
+    { v: +0.455000, a: +0.680000, emotion: "Cheeky" },
+    { v: +0.505000, a: +1.000000, emotion: "Gleeful" },
   ],
   triangles: [
-    [0, 1, 2],
-    [0, 1, 5],
     [0, 4, 5],
-    [1, 5, 7],
     [4, 5, 8],
-    [0, 2, 9],
-    [2, 3, 9],
     [0, 4, 10],
     [6, 9, 10],
     [0, 9, 10],
+    [1, 2, 11],
+    [0, 5, 11],
+    [5, 7, 11],
+    [1, 7, 11],
+    [0, 9, 11],
+    [2, 3, 12],
+    [2, 11, 12],
+    [9, 11, 12],
   ],
 };

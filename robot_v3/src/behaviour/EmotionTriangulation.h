@@ -4,8 +4,8 @@
 // table in EmotionSystem.cpp. Re-run that script whenever kBoxes
 // changes.
 //
-// Anchors: 11
-// Triangles: 10
+// Anchors: 13
+// Triangles: 13
 
 #pragma once
 
@@ -27,7 +27,7 @@ struct Triangle {
   uint16_t i2;
 };
 
-static constexpr size_t kAnchorCount = 11;
+static constexpr size_t kAnchorCount = 13;
 static constexpr Anchor kAnchors[kAnchorCount] = {
     { +0.000000f, +0.500000f, NamedEmotion::Neutral },
     { +1.000000f, +0.350000f, NamedEmotion::Happy },
@@ -38,22 +38,27 @@ static constexpr Anchor kAnchors[kAnchorCount] = {
     { -1.000000f, +1.000000f, NamedEmotion::Distressed },
     { +1.000000f, +0.000000f, NamedEmotion::Blissed },
     { -1.000000f, +0.000000f, NamedEmotion::Depressed },
-    { +0.000000f, +1.000000f, NamedEmotion::Shocked },
+    { +0.005000f, +1.000000f, NamedEmotion::Shocked },
     { -1.000000f, +0.650000f, NamedEmotion::Disappointed },
+    { +0.455000f, +0.680000f, NamedEmotion::Cheeky },
+    { +0.505000f, +1.000000f, NamedEmotion::Gleeful },
 };
 
-static constexpr size_t kTriangleCount = 10;
+static constexpr size_t kTriangleCount = 13;
 static constexpr Triangle kTriangles[kTriangleCount] = {
-    { 0, 1, 2 },
-    { 0, 1, 5 },
     { 0, 4, 5 },
-    { 1, 5, 7 },
     { 4, 5, 8 },
-    { 0, 2, 9 },
-    { 2, 3, 9 },
     { 0, 4, 10 },
     { 6, 9, 10 },
     { 0, 9, 10 },
+    { 1, 2, 11 },
+    { 0, 5, 11 },
+    { 5, 7, 11 },
+    { 1, 7, 11 },
+    { 0, 9, 11 },
+    { 2, 3, 12 },
+    { 2, 11, 12 },
+    { 9, 11, 12 },
 };
 
 }  // namespace EmotionSystem

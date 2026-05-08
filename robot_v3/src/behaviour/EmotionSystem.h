@@ -57,6 +57,8 @@ enum class NamedEmotion : uint8_t {
   Depressed,
   Shocked,
   Disappointed,
+  Cheeky,
+  Gleeful,
   Count
 };
 

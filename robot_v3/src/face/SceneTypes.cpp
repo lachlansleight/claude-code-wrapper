@@ -42,6 +42,10 @@ const char* expressionName(Expression e) {
       return "shocked";
     case Expression::Disappointed:
       return "disappointed";
+    case Expression::Cheeky:
+      return "cheeky";
+    case Expression::Gleeful:
+      return "gleeful";
     default:
       return "?";
   }

@@ -43,6 +43,10 @@ Face::Expression expressionForEmotion(EmotionSystem::NamedEmotion e) {
       return Face::Expression::Shocked;
     case EmotionSystem::NamedEmotion::Disappointed:
       return Face::Expression::Disappointed;
+    case EmotionSystem::NamedEmotion::Cheeky:
+      return Face::Expression::Cheeky;
+    case EmotionSystem::NamedEmotion::Gleeful:
+      return Face::Expression::Gleeful;
     case EmotionSystem::NamedEmotion::Neutral:
     default:
       return Face::Expression::Neutral;
@@ -113,6 +117,10 @@ Settings::NamedColor accentNamedColor(Face::Expression e) {
       return Settings::NamedColor::EmotionShocked;
     case Face::Expression::Disappointed:
       return Settings::NamedColor::EmotionDisappointed;
+    case Face::Expression::Cheeky:
+      return Settings::NamedColor::Happy;
+    case Face::Expression::Gleeful:
+      return Settings::NamedColor::Joyful;
     default:
       return Settings::NamedColor::Foreground;
   }

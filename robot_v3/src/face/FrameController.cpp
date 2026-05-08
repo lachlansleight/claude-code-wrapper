@@ -50,9 +50,9 @@ static const FaceParams kBaseTargets[(uint8_t)Expression::Count] = {
     /* Excited */          {  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   0,  0,  17,
                               0,  +27,   4, -2,  8, -2, 3,  0, 0, 0,
                               0, 0,    40, 255, 80 },
-    /* Joyful */           { -4, 24,   -7, 0,  -7, 0, 4,  0, 0, 0,   0,  0,  15,
-                              0, 18,    0, 0, +14, 0, 4,  0, 0, 0,
-                              0, 0,    255, 228, 38 },
+    /* Joyful */           { -5, 20,  -15, 0, -6, 0, 4,  0, 0, 0,   0,  0,  14,
+                              -11,  +37,   3, 0,  24, 0, 4,  0, 0, 0,
+                              0, -14,    255, 228, 38 },
     /* Sad */              {  4, 28,  -12, 0, +17, 0, 3,  0, 0, 0,   0,  3,  11,
                               4,  +20,   -13, -7,  -11, -8, 3,  0, 0, 0,
                               0, 6,    0, 0, 0 },
@@ -98,6 +98,12 @@ static const FaceParams kBaseTargets[(uint8_t)Expression::Count] = {
     /* Disappointed */      {  2, 30,   +6, 0, +6, 0, 3,  0, 0, 0,   0,  3,  15,
                               4,  +13,   -8, 0,  -8, 0, 3,  0, 0, 0,
                               0, 0,    229, 54, 95 },
+    /* Cheeky */            {  1, 30,  -31, 0, +8, 0, 3,  0, 0, 0,   0,  3,  15,
+                              -25,  +15,   11, 0,  8, 0, 3,  0, 0, 0,
+                              0, -3,    0, 0, 0 },
+    /* Gleeful */           {  1, 27,  -30, 0, -2, 0, 3,  0, 0, 0,   0,  -7,  10,
+                              -25,  +27,   0, -2,  20, -2, 3,  0, 0, 0,
+                              0, 5,    39, 248, 78 },
 
 };
 
@@ -329,6 +335,10 @@ static uint32_t blinkPeriodMsFor(Expression s) {
       return (uint32_t)random(2000, 4000);
     case Expression::Blissed:
       return (uint32_t)random(3500, 5500);
+    case Expression::Cheeky:
+      return (uint32_t)random(2800, 4200);
+    case Expression::Gleeful:
+      return (uint32_t)random(2200, 3800);
     default:
       return 0;
   }
@@ -537,7 +547,8 @@ void tick(const SceneContext& ctx) {
     sFadeWriteCount = 0;
   }
 
-  if (sNow != Expression::Joyful && sNow != Expression::VerbSleeping) {
+  if (sNow != Expression::Joyful && sNow != Expression::Gleeful &&
+      sNow != Expression::VerbSleeping) {
     const int16_t b = (int16_t)(breathPhase(now) * 1.5f);
     p.eye_dy = (int16_t)(p.eye_dy + b);
     p.mouth_dy = (int16_t)(p.mouth_dy + b / 2);
