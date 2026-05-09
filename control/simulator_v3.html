@@ -305,6 +305,7 @@
   <script src="scripts/face-v3.js"></script>
   <script src="scripts/emotion-triangulation.js"></script>
   <script src="scripts/emotion-blend-v3.js"></script>
+  <script src="scripts/face-config-data.js"></script>
   <script src="scripts/frame-controller-v3.js"></script>
   <script>
     const FC = window.FrameControllerV3;
@@ -464,19 +465,30 @@
     });
 
     document.getElementById("clearVerbBtn").addEventListener("click", async () => {
+      FC.requestVerb(null);
       await postRaw("/api/raw/verb/clear", {});
     });
 
-    function paintActiveExpr(name) {
-      document.getElementById("currentExpr").textContent = name;
+    function paintActiveState(snap) {
+      const parts = [snap.emotion];
+      if (snap.verb) parts.push(snap.verb);
+      if (snap.overlay) parts.push(snap.overlay);
+      document.getElementById("currentExpr").textContent = parts.join(" + ");
+      const active = new Set(parts);
       [emotionGrid, verbGrid, overlayGrid].forEach((g) => {
         g.querySelectorAll("button").forEach((b) => {
-          b.classList.toggle("active", b.dataset.expr === name);
+          b.classList.toggle("active", active.has(b.dataset.expr));
         });
       });
     }
-    FC.onExpressionChange(paintActiveExpr);
-    paintActiveExpr(FC.currentExpression());
+    if (typeof FC.onStateChange === "function") {
+      FC.onStateChange(paintActiveState);
+    }
+    paintActiveState({
+      emotion: FC.latchedEmotion(),
+      verb: FC.activeVerb(),
+      overlay: FC.activeOverlay(),
+    });
 
     // ---- Live params box ----
     setInterval(() => {
@@ -666,89 +678,21 @@
       }
     }
 
-    // kBaseTargets paste format — matches robot_v3 FrameController.cpp layout
-    // (comment column, brace column 28, 30-space continuations, apex + signs).
+    // Mirrors robot_v3/src/face/FACE_CONFIG_DATA.h::kBaseTargets layout —
+    // `/* Name */` comment line, then a 4-space-indented brace block of 28
+    // `FACE_P(N)` calls, 8 per line.
     function formatKBaseTargetsCpp(exprName, params) {
       const keys = FC.paramFields();
       const v = keys.map((k) => params[k] | 0);
-      const apexPlus = new Set([2, 4, 14, 16]);
-      function fmt(i) {
-        const n = v[i];
-        if (n > 0 && apexPlus.has(i)) return `+${n}`;
-        return String(n);
+      const cells = v.map((n) => `FACE_P(${n})`);
+      const lines = [`    /* ${exprName} */`];
+      for (let i = 0; i < cells.length; i += 8) {
+        const chunk = cells.slice(i, i + 8).join(", ");
+        const lead = i === 0 ? "    {" : "     ";
+        const tail = i + 8 >= cells.length ? "},\n" : ",\n";
+        lines.push(lead + chunk + tail);
       }
-      const head = `    /* ${exprName} */`;
-      const headPad = Math.max(1, 27 - head.length);
-      const headPart = head + " ".repeat(headPad);
-      const s0 = fmt(0);
-      const braceLead = s0.length === 1 ? "{  " : "{ ";
-      const spBefore2 = fmt(2)[0] === "+" ? ",   " : ",  ";
-      const l1 =
-        headPart +
-        braceLead +
-        s0 +
-        ", " +
-        fmt(1) +
-        spBefore2 +
-        fmt(2) +
-        ", " +
-        fmt(3) +
-        ", " +
-        fmt(4) +
-        ", " +
-        fmt(5) +
-        ", " +
-        fmt(6) +
-        ",  " +
-        fmt(7) +
-        ", " +
-        fmt(8) +
-        ", " +
-        fmt(9) +
-        ",   " +
-        fmt(10) +
-        ",  " +
-        fmt(11) +
-        ",  " +
-        fmt(12) +
-        ",\n";
-      const ind2 = " ".repeat(30);
-      const l2 =
-        ind2 +
-        fmt(13) +
-        ",  " +
-        fmt(14) +
-        ",   " +
-        fmt(15) +
-        ", " +
-        fmt(16) +
-        ",  " +
-        fmt(17) +
-        ", " +
-        fmt(18) +
-        ", " +
-        fmt(19) +
-        ",  " +
-        fmt(20) +
-        ", " +
-        fmt(21) +
-        ", " +
-        fmt(22) +
-        ",\n";
-      const ind3 = " ".repeat(30 - Math.max(0, fmt(23).length - 1));
-      const l3 =
-        ind3 +
-        fmt(23) +
-        ", " +
-        fmt(24) +
-        ",    " +
-        fmt(25) +
-        ", " +
-        fmt(26) +
-        ", " +
-        fmt(27) +
-        " },\n";
-      return l1 + l2 + l3;
+      return lines.join("");
     }
 
     function refreshCopyOutput() {

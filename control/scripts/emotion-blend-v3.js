@@ -80,23 +80,28 @@
     return FC.baseTargetForExpression(name);
   }
 
-  // Mirrors robot_v3 EmotionBlend.cpp::armPresetFor (keep in sync).
+  // Mirrors robot_v3/src/face/FACE_CONFIG_DATA.h::kArmPresets — only the
+  // emotion rows (verb/overlay arm policy comes from kMotion, not the blend).
+  // Keep in lockstep when tuning.
   const ARM_PRESETS = {
-    Neutral: { min: -25, max: -15, period_s: 5.0, interval_s: 2.0 },
-    Happy: { min: -23, max: -7, period_s: 2.0, interval_s: 1.0 },
-    Excited: { min: -15, max: -5, period_s: 1.0, interval_s: 0.0 },
-    Joyful: { min: -15, max: 15, period_s: 0.9, interval_s: 0.2 },
-    Sad: { min: -20, max: -20, period_s: 1.0, interval_s: 0.0 },
-    Sleepy: { min: -22, max: -14, period_s: 5.0, interval_s: 3.0 },
-    Distressed: { min: -6, max: 6, period_s: 0.9, interval_s: 0.15 },
-    Blissed: { min: -16, max: -4, period_s: 3.0, interval_s: 1.5 },
-    Depressed: { min: 0, max: 0, period_s: 1.0, interval_s: 0.0 },
-    Shocked: { min: 0, max: 0, period_s: 1.0, interval_s: 0.0 },
-    Disappointed: { min: -15, max: -15, period_s: 1.0, interval_s: 0.0 },
+    Neutral:      { min: -25, max: -15, period_s: 2.0, interval_s: 1.0 },
+    Happy:        { min: -23, max:  -7, period_s: 1.5, interval_s: 0.5 },
+    Excited:      { min: -15, max:  -5, period_s: 1.0, interval_s: 0.0 },
+    Joyful:       { min:  10, max:  25, period_s: 0.9, interval_s: 0.2 },
+    Sad:          { min: -25, max: -15, period_s: 2.0, interval_s: 1.0 },
+    Sleepy:       { min: -25, max: -20, period_s: 3.0, interval_s: 6.0 },
+    Distressed:   { min: -15, max:  -5, period_s: 1.0, interval_s: 0.0 },
+    Blissed:      { min: -25, max: -20, period_s: 3.0, interval_s: 6.0 },
+    Depressed:    { min: -25, max: -20, period_s: 3.0, interval_s: 6.0 },
+    Shocked:      { min: -15, max:  -5, period_s: 1.0, interval_s: 0.0 },
+    Disappointed: { min: -23, max:  -7, period_s: 1.5, interval_s: 0.5 },
+    Cheeky:       { min: -20, max:  -5, period_s: 1.4, interval_s: 0.45 },
+    Gleeful:      { min:  10, max:  25, period_s: 0.9, interval_s: 0.2 },
+    Frustrated:   { min: -18, max:  -8, period_s: 1.1, interval_s: 0.15 },
   };
 
   function armPresetForEmotion(name) {
-    return ARM_PRESETS[name] || { min: -20, max: -15, period_s: 4.0, interval_s: 2.0 };
+    return ARM_PRESETS[name] || ARM_PRESETS.Neutral;
   }
 
   function blendArmField(a, b, c, la, lb, lc) {

@@ -14,10 +14,11 @@ static inline float curveAt(int16_t apex, int16_t corner, float n) {
   return (float)corner + ((float)apex - (float)corner) * r;
 }
 
-static inline float wavePhaseRad(int16_t speed_deg_per_sec, uint32_t nowMs) {
-  // (speed * t_sec) deg → rad. Keep in float; phase wraps naturally inside sinf.
-  return (float)speed_deg_per_sec * (float)nowMs * (float)(M_PI / 180000.0);
-}
+// Wave phase is now integrated by the caller (FrameController) and passed in
+// as an argument. Computing it here from `speed * nowMs` would jitter when
+// speed is being continuously interpolated by EmotionBlend — every frame
+// would multiply a slightly different speed by a large `nowMs`, producing
+// huge phase jumps. See FrameController's wave-phase integrators.
 
 // Paint a vertical span [ly0..ly1] in shape-local coords as a single rotated
 // line in screen coords. Caller guarantees ly1 >= ly0.
@@ -94,12 +95,11 @@ static void drawEdgeStroke(TFT_eSprite& s, int16_t cx, int16_t cy,
   }
 }
 
-static void drawMouth(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy, uint32_t nowMs,
-                      float cosA, float sinA, uint16_t fg565) {
+static void drawMouth(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy,
+                      float wavePhase, float cosA, float sinA, uint16_t fg565) {
   const int16_t halfw = p.mouth_rx.value;
   if (halfw < 1) return;
 
-  const float wavePhase = wavePhaseRad(p.mouth_wave_speed.value, nowMs);
   // Scale by 1/50 so a wave_freq slider value of 50 ≈ 1 cycle across the shape.
   const float waveFreq = (float)p.mouth_wave_freq.value * 0.02f;
   const float waveAmp = (float)p.mouth_wave_amp.value;
@@ -129,7 +129,7 @@ static void drawMouth(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t c
 }
 
 static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy, float blinkAmt,
-                    int16_t gdx, int16_t gdy, uint32_t nowMs, float cosA, float sinA,
+                    int16_t gdx, int16_t gdy, float wavePhase, float cosA, float sinA,
                     uint16_t fg565, uint16_t bg565) {
   const int16_t halfw = p.eye_rx.value;
   if (halfw < 1) return;
@@ -138,7 +138,6 @@ static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy,
   const float blink = clamp01(blinkAmt);
   const float blinkScale = 1.0f - blink;
 
-  const float wavePhase = wavePhaseRad(p.eye_wave_speed.value, nowMs);
   const float waveFreq = (float)p.eye_wave_freq.value * 0.02f;
   const float waveAmp = (float)p.eye_wave_amp.value;
 
@@ -234,7 +233,8 @@ static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy,
 }
 
 void drawFace(TFT_eSprite& s, const FaceParams& p, float blinkAmt, int16_t gdx, int16_t gdy,
-              Expression /*expr*/, uint32_t nowMs, uint16_t fg565, uint16_t bg565) {
+              Expression /*expr*/, float eyeWavePhaseRad, float mouthWavePhaseRad,
+              uint16_t fg565, uint16_t bg565) {
   const float angleRad = (float)p.face_rot.value * (float)M_PI / 180.0f;
   const float cosA = cosf(angleRad);
   const float sinA = sinf(angleRad);
@@ -265,9 +265,9 @@ void drawFace(TFT_eSprite& s, const FaceParams& p, float blinkAmt, int16_t gdx, 
   rotated(kEyeRX, compress(kEyeY + p.eye_dy.value), rex, rey);
   rotated(kCx, compress(kMouthY + p.mouth_dy.value), mx, my);
 
-  drawEye(s, p, lex, ley, blinkAmt, gdx, gdy, nowMs, cosA, sinA, fg565, bg565);
-  drawEye(s, p, rex, rey, blinkAmt, gdx, gdy, nowMs, cosA, sinA, fg565, bg565);
-  drawMouth(s, p, mx, my, nowMs, cosA, sinA, fg565);
+  drawEye(s, p, lex, ley, blinkAmt, gdx, gdy, eyeWavePhaseRad, cosA, sinA, fg565, bg565);
+  drawEye(s, p, rex, rey, blinkAmt, gdx, gdy, eyeWavePhaseRad, cosA, sinA, fg565, bg565);
+  drawMouth(s, p, mx, my, mouthWavePhaseRad, cosA, sinA, fg565);
 }
 
 }  // namespace Face

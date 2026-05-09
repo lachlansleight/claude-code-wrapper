@@ -124,6 +124,94 @@ namespace VerbSystem {
 | `permission.requested`         | Hold emotion driver `PendingPermission` at `v = -0.6`                 |
 | `permission.resolved`          | Release `PendingPermission` driver                                    |
 
+## Verb cross-fade
+
+Verb changes do **not** snap on. The verb timeline sampler in
+`face/VerbTimeline.{h,cpp}` cross-fades over **500 ms**
+(`kVerbTransitionDurMs`) between the previous effective sample and the
+new target's sparse-override sample. This applies to every transition:
+
+- **None → verb** — strength of every overridden field ramps from 0 → 1.
+- **verb → None** — strength of every overridden field ramps from 1 → 0.
+- **verb A → verb B** — per-field rules (see below).
+- **mid-transition retarget** — at the moment the verb changes, the
+  current in-flight effective sample is **snapshotted** as the new
+  `from` side, and the fade restarts toward the new `to`. So a burst of
+  rapid retargets like `Read → Write → Read` glides smoothly without
+  popping back through partial intermediate states.
+
+### Per-field blend rules
+
+For each of the 28 `FaceParams` fields, with `t ∈ [0, 1]` the
+transition fraction:
+
+- Both `from` and `to` override the field → lerp value AND strength by
+  `t`.
+- Only `from` overrides → keep value, scale strength by `(1 - t)`.
+- Only `to` overrides → keep value, scale strength by `t`.
+- A field whose blended strength rounds to 0 is dropped (`hasField`
+  becomes false), so it falls through to the underlying emotion in the
+  combine pass.
+
+Because the [emotion+verb combine](FRAME_CONTROLLER.md) treats verb
+strength as the lerp `t` against the emotion baseline, scaling strength
+toward 0 *is* the ramp-out — no separate "verb intensity" knob is
+needed.
+
+### Modification-pass cross-fade
+
+Several per-frame outputs in `FrameController` are keyed by the active
+expression and would otherwise snap on a verb change:
+
+- **Body bob amplitude** (`bodyBobAmpFor` is a pure function of the
+  effective expression / context).
+- **Gaze offset** (different verbs use IdleRandom / Orbit / ScanX
+  patterns).
+
+Both are cross-faded over the same 500 ms window using
+`Face::verbTransitionT(now)`. At the verb-change edge,
+`FrameController` snapshots last frame's rendered bob amplitude and
+gaze offset; over the next 500 ms each value is lerped from that
+snapshot toward the new live value. The integrated body-bob phase
+keeps running so the oscillation is continuous across the fade.
+
+Two pieces are intentionally **not** cross-faded:
+
+- **Servo arm motion** lives in `MotionBehaviors` / `Motion`, which
+  already eases the physical servo via `playJog` and the emotion-arm
+  sine integrator. Adding a face-side cross-fade would fight the
+  servo's own slew. The simulator approximates the arm visually so it
+  *does* cross-fade there for parity.
+- **Blink close/open durations** read per-expression config but are
+  only consulted at blink schedule time; an in-flight blink completes
+  on its existing schedule, and the next is scheduled with the new
+  expression's period. No mid-blink jump occurs.
+
+### Public API
+
+```cpp
+namespace Face {
+    constexpr uint32_t kVerbTransitionDurMs = 500;
+
+    void sampleVerbTimeline(Expression verb, uint32_t time_in_verb_ms,
+                            bool* hasField, ParamI16* fieldVals);
+
+    void sampleEffectiveVerb(Expression currentVerbExpression, uint32_t nowMs,
+                             uint32_t timeInVerbMs,
+                             bool* hasField, ParamI16* fieldVals);
+
+    void resetVerbTransition();
+    float verbTransitionT(uint32_t nowMs);   // 0..1 over the active fade
+}
+```
+
+`sampleEffectiveVerb` is the per-frame entry point used by
+`FrameController`. It is the **only** path that should sample the verb
+timeline once a frame loop is running — calling `sampleVerbTimeline`
+directly bypasses the cross-fade. Pass any non-verb `Expression` (an
+emotion, an overlay, or `Expression::Count`) as `currentVerbExpression`
+to ramp the verb out toward an empty sample.
+
 ## Verb timeline (face geometry overrides)
 
 Each verb can override face geometry on top of whatever the emotion

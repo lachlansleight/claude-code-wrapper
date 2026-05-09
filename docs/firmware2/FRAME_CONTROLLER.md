@@ -56,12 +56,14 @@ namespace Face {
    has to absorb the verb-driven snap to a different preset family, not
    the per-frame jitter from the raw emotion point.
 
-6. **Verb timeline sampling.** If the effective expression is one of the
-   verb expressions, call `sampleVerbTimeline(verb, time_in_verb_ms,
-   hasField[], fieldVals[])`. The current timeline format is "sparse
-   override" — it ignores the `time_in_verb_ms` argument and just yields
-   the static field overrides for the active verb. The signature already
-   accepts time so keyframe support can be added without touching callers.
+6. **Verb timeline sampling.** Call `sampleEffectiveVerb(effective_expr,
+   now, time_in_verb_ms, hasField[], fieldVals[])` every frame
+   regardless of whether the current expression is a verb. The sampler
+   internally cross-fades over 500 ms when the effective verb changes
+   (or when transitioning to/from a non-verb state) — see
+   [`VERB_SYSTEM.md`](VERB_SYSTEM.md#verb-cross-fade) for the per-field
+   blend rules and snapshot-on-retarget behavior. The unconditional call
+   is required for the ramp-out to play after a verb is cleared.
 
 7. **Combine emotion and verb.** `combineEmotionVerbFace()` walks all 28
    `FaceParams` fields and for each runs `combineEmotionVerbField()`:
@@ -110,6 +112,22 @@ namespace Face {
     - `Orbit` — slow circular orbit.
     - `ScanX` — back-and-forth horizontal scan.
     - `Off` — pinned forward.
+
+    The live `(gdx, gdy)` is then cross-faded against the snapshot
+    captured at the last verb-change edge, using
+    `Face::verbTransitionT(now)`. Same fade applies to the bob
+    amplitude inside `bodyBobFor`. See
+    [`VERB_SYSTEM.md`](VERB_SYSTEM.md#modification-pass-cross-fade) for
+    the full picture and what's *not* faded (servo arm, blink).
+
+    **Phase is integrated, not derived.** Gaze Orbit / ScanX use a
+    shared `sGazePhaseRad` that advances by `2π * dt / period` each
+    frame. Computing `(now % period) / period` from a period that is
+    being continuously interpolated by `EmotionBlend::blendedIdleAnim`
+    produces high-frequency jitter (small period drift becomes large
+    modulo jumps). Same pattern is used for `bodyBob`, the eye/mouth
+    wave phases, and the emotion-arm sine — every periodic value whose
+    rate can vary mid-frame keeps its own integrator.
 
 12. **Render mode dispatch.** `Scene::renderScene(...)` for face mode,
     `TextScene::renderTextScene(...)` for text or debug mode. Then

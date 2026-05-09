@@ -75,6 +75,8 @@ struct SceneRenderState {
   uint16_t fg565;                    ///< Resolved RGB565 foreground.
   uint16_t bg565;                    ///< Resolved RGB565 background.
   uint16_t divider565;               ///< Hairline colour for the text/face divider.
+  float eye_wave_phase_rad;          ///< Pre-integrated phase for eye wave modulation.
+  float mouth_wave_phase_rad;        ///< Pre-integrated phase for mouth wave modulation.
 };
 
 /**

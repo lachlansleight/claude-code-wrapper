@@ -113,7 +113,14 @@ The eye is drawn as:
 
 `wave_freq`, `wave_amp`, `wave_speed` add a sinusoidal wobble to the
 top edge for the spaced-out look used by `Distressed`, `Blissed`, etc.
-The phase is `nowMs * wave_speed * π / 180000` (radians) which wraps
+The phase is **integrated** by `FrameController` (`phase += wave_speed *
+dt_ms * π / 180000`) and passed into `drawFace` via
+`SceneRenderState.eye_wave_phase_rad` / `mouth_wave_phase_rad`. The
+renderer never recomputes phase from `nowMs * wave_speed` because that
+would jitter when `EmotionBlend` is continuously interpolating
+`wave_speed` as V/A drifts — multiplying a moving speed by a large
+`nowMs` magnifies tiny per-frame speed changes into huge phase jumps.
+The phase wraps
 naturally inside `sinf`. Setting any of these to zero disables the
 effect on that field.
 

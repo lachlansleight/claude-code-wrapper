@@ -1,140 +1,282 @@
 // Port of robot_v3/src/face/FrameController.cpp — drives the v3 face animation.
-// Tweens between per-Expression FaceParams targets, with blink, body-bob,
-// gaze and the thinking-tilt flip. Static mode bypasses everything for
-// hand-tuning via sliders.
+// Tables and tunables come from face-config-data.js (`window.FaceConfigData`).
+//
+// Emotion + verb composition: emotion presets carry full FaceParams (with
+// implicit strength 100). Verbs are sparse-override timelines that combine
+// on top of the underlying emotion via combineEmotionVerbField (mirrors
+// robot_v3/src/face/SceneTypes.cpp).
+//
+// State model:
+//   sLatchedEmotion — current emotion (one of 14 NamedEmotion). Tweened.
+//   sActiveVerb     — current verb (or null). Sparse override on top.
+//   sActiveOverlay  — short transient overlay (currently rendered straight
+//                     from BASE_TARGETS preset; firmware uses EffectsRenderer
+//                     rim, not geometry — simulator approximation).
+//   sCurrentExpr    — derived "effective" expression for grids/labels.
 //
 // Public API:
 //   FrameControllerV3.start(canvas)
 //   FrameControllerV3.stop()
-//   FrameControllerV3.requestExpression(name)
-//   FrameControllerV3.currentExpression()
+//   FrameControllerV3.requestExpression(name)         // dispatcher
+//   FrameControllerV3.requestEmotion(name)
+//   FrameControllerV3.requestVerb(name | null)
+//   FrameControllerV3.requestOverlay(name | null)
+//   FrameControllerV3.latchedEmotion()
+//   FrameControllerV3.activeVerb()
+//   FrameControllerV3.activeOverlay()
+//   FrameControllerV3.currentExpression()             // derived
 //   FrameControllerV3.expressions()
-//   FrameControllerV3.params()              -> live FaceParams (for debug box)
-//   FrameControllerV3.paramFields()         -> ordered list of FaceParams keys
-//   FrameControllerV3.baseTargetForExpression(name) -> FaceParams snapshot
+//   FrameControllerV3.emotions() / verbs() / overlays()
+//   FrameControllerV3.params()                        -> live FaceParams
+//   FrameControllerV3.paramFields()
+//   FrameControllerV3.baseTargetForExpression(name)   // synthesizes verbs
 //   FrameControllerV3.setStaticMode(on)
 //   FrameControllerV3.setStaticOverride({ params?, blinkAmt?, gdx?, gdy?, expression? })
 //   FrameControllerV3.staticOverride()
-//   FrameControllerV3.armOffsetDeg()   -> live servo offset (deg) for rim viz
+//   FrameControllerV3.setBlendMode(on) / isBlend() / setBlendVA / blendVA / lastBlendTriangle
+//   FrameControllerV3.armOffsetDeg()
 
 (function () {
-  const EXPRESSIONS = [
-    "Neutral",
-    "Happy",
-    "Excited",
-    "Joyful",
-    "Sad",
-    "VerbThinking",
-    "VerbReading",
-    "VerbWriting",
-    "VerbExecuting",
-    "VerbStraining",
-    "VerbSleeping",
-    "OverlayWaking",
-    "OverlayAttention",
-    "Sleepy",
-    "Distressed",
-    "Blissed",
-    "Depressed",
-    "Shocked",
-    "Disappointed",
-    "Cheeky",
-    "Gleeful",
-    "Frustrated",
-  ];
+  const D = window.FaceConfigData;
+  if (!D) {
+    console.error("frame-controller-v3.js: load face-config-data.js before this script");
+    return;
+  }
 
-  const PARAM_FIELDS = [
-    "eye_dy", "eye_rx",
-    "eye_top_apex", "eye_top_corner", "eye_bot_apex", "eye_bot_corner", "eye_thick",
-    "eye_wave_amp", "eye_wave_freq", "eye_wave_speed",
-    "pupil_dx", "pupil_dy", "pupil_r",
-    "mouth_dy", "mouth_rx",
-    "mouth_top_apex", "mouth_top_corner", "mouth_bot_apex", "mouth_bot_corner", "mouth_thick",
-    "mouth_wave_amp", "mouth_wave_freq", "mouth_wave_speed",
-    "face_rot", "face_y",
-    "ring_r", "ring_g", "ring_b",
-  ];
+  // Order MUST match Face::FieldIndex in robot_v3/src/face/FaceEnums.h.
+  const PARAM_FIELDS = D.PARAM_FIELDS;
+  const FIELD_COUNT = PARAM_FIELDS.length;
+  const FIELD_INDEX = {};
+  PARAM_FIELDS.forEach((k, i) => (FIELD_INDEX[k] = i));
 
-  // Mirrors robot_v3 FrameController.cpp::kBaseTargets. Field order matches
-  // FaceParams declaration; keep in lockstep when tuning.
-  const BASE_TARGETS = {
-      Neutral:             [  2, 30,  -26, 0, +26, 0, 3,  0, 0, 0,   0,  3, 15,
-                              0, 15,   +2, 0,  +2, 0, 3,  0, 0, 0,
-                              0, 0,    0, 0, 0 ],
-Happy:             [  0, 30,  -16, 0, +30, 0, 3,  0, 0, 0,   0,  5,  16,
-      0,  +24,   3, 0,  3, 0, 3,  0, 0, 0,
-      0, 5,    0, 0, 0 ],
-Excited:             [  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   0,  0,  17,
-      0,  +27,   4, -2,  8, -2, 3,  0, 0, 0,
-      0, 0,    40, 255, 80 ],
-Joyful:             [ -5, 20,  -15, 0, -6, 0, 4,  0, 0, 0,   0,  0,  14,
-  -11,  +37,   3, 0,  24, 0, 4,  0, 0, 0,
-  0, -14,    255, 228, 38 ],
-Sad:             [  4, 28,  -12, 0, +17, 0, 3,  0, 0, 0,   0,  3,  11,
-      4,  +20,   -13, -7,  -11, -8, 3,  0, 0, 0,
-      0, 6,    0, 0, 0 ],
-VerbThinking:             [  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   7, -9, 15,
-      0, 11,   +3, 0,  +3, 0, 3,  0, 0, 0,
-    -10, 0,    36, 56, 120 ],
-VerbReading:             [  0, 28,  -26, 0, +26, 0, 3,  0, 0, 0,   0,  8, 12,
-      0,  9,   +3, 0,  +3, 0, 3,  0, 0, 0,
-      0, 12,   78, 146, 210 ],
-VerbWriting:             [  0, 30,  -26, 0, +26, 0, 3,  0, 0, 0,   0, -8, 15,
-      0, 15,    0, 0, +14, 0, 3,  0, 0, 0,
-      0, 0,    104, 118, 228 ],
-VerbExecuting:             [  0, 30,  -16, 0, +16, 0, 3,  0, 0, 0,   0, -4, 10,
-      0,  9,   +2, 0,  +2, 0, 3,  0, 0, 0,
-      0, 0,    156, 64, 216 ],
-VerbStraining:             [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
-      0, 18,    0, 0,   0, 0, 3,  4, 100, 360,
-      0, 0,    210, 75, 220 ],
-VerbSleeping:             [  8, 26,   -2, 0,  +2, 0, 3,  0, 0, 0,   0,  0,  15,
-      0,  9,    0, 0,   0, 0, 3,  0, 0, 0,
-      0, 0,    0, 0, 0 ],
-OverlayWaking:             [ -2, 34,  -34, 0, +34, 0, 3,  0, 0, 0,   0,  0, 18,
-      0,  7,   -9, 0,  +9, 0, 3,  0, 0, 0,
-      0, 0,    128, 128, 128 ],
-OverlayAttention:             [ -2, 34,  -34, 0, +34, 0, 3,  0, 0, 0,   0,  0, 18,
-      0,  7,   -9, 0,  +9, 0, 3,  0, 0, 0,
-      0, 0,    255, 20, 40 ],
-Sleepy:             [  0, 28,  0, 10, +34, 10, 3,  0, 0, 0,   0,  0,  15,
-      0,  +13,   0, 0,  3, 0, 3,  0, 17, 90,
-      0, 9,    0, 0, 0 ],
-Distressed:             [  2, 30,  -26, 0, +33, 0, 3,  0, 0, 0,   0,  7,  10,
-      4,  +24,   -19, -7,  -7, 0, 3,  0, 0, 0,
-      0, -15,    255, 48, 24 ],
-Blissed:             [  1, 20,   +3, 0, +1, 0, 3,  0, 0, 0,   0,  0,  15,
-      1,  +26,   3, 0,  13, 0, 3,  0, 0, 0,
-      0, 5,    0, 0, 0 ],
-Depressed:             [  0, 30,   +16, 10, +34, 11, 3,  0, 0, 0,   0,  20,  6,
-      0,  +13,   0, +6,  3, 4, 3,  0, 17, 90,
-      0, 9,    0, 0, 0 ],
-Shocked:             [ 0, 30,   -34, 0,   39, 0, 3,   1, 85, 720,   0, 3, 9,
-     20, 17,  -17, 0,   8, 0, 1,    2, 49, 720,   
-     0, 0,     255, 255, 255 ],
-Disappointed:             [  3, 21,   +6, 0, +6, 0, 3,  0, 0, 0,   0,  3,  8,
-  5,  +26,   -1, 0,  -3, 0, 3,  0, 0, 0,
-  0, 0,    229, 54, 95 ],
-Cheeky:            [  1, 30,  -31, 0, +8, 0, 3,  0, 0, 0,   0,  3,  15,
-      -25,  +15,   11, 0,  8, 0, 3,  0, 0, 0,
-      0, -3,    0, 0, 0 ],
-Gleeful:           [  1, 27,  -30, 0, -2, 0, 3,  0, 0, 0,   0,  -7,  10,
-      -25,  +27,   0, -2,  20, -2, 3,  0, 0, 0,
-      0, 5,    39, 248, 78 ],
-Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
-  0, 18,    0, 0,   0, 0, 3,  4, 100, 360,
-  0, 0,    210, 75, 220 ],
-  };
+  const EMOTIONS = D.EMOTIONS;
+  const VERBS = D.VERBS;
+  const OVERLAYS = D.OVERLAYS;
+  const EXPRESSIONS = D.EXPRESSIONS;
 
+  const EMOTION_SET = new Set(EMOTIONS);
+  const VERB_SET = new Set(VERBS);
+  const OVERLAY_SET = new Set(OVERLAYS);
+
+  function isEmotion(name) { return EMOTION_SET.has(name); }
+  function isVerb(name) { return VERB_SET.has(name); }
+  function isOverlay(name) { return OVERLAY_SET.has(name); }
+
+  // Emotion presets + simulator overlay scalars (see face-config-data.js).
+  const BASE_TARGETS = { ...D.baseTargets, ...D.overlayPresets };
+
+  // Verb sparse overrides: numeric field indices for the hot path.
+  const VERB_TIMELINES = {};
+  for (const v of VERBS) {
+    const list = D.verbTimelines[v];
+    VERB_TIMELINES[v] = (list || []).map((o) => ({
+      field: FIELD_INDEX[o.field],
+      value: o.value,
+      strength: o.strength,
+    }));
+  }
+
+  const frameAnim = D.frameAnim;
+  const motionTable = D.motion;
+  const idleAnimTable = D.idleAnim;
+
+  // Expand a verb's sparse list into parallel hasField/value/strength arrays.
+  // Returns an empty sample for null / unknown / non-verb names.
+  function sampleVerbTimeline(verb) {
+    const has = new Array(FIELD_COUNT).fill(false);
+    const val = new Array(FIELD_COUNT).fill(0);
+    const str = new Array(FIELD_COUNT).fill(0);
+    const list = verb ? VERB_TIMELINES[verb] : null;
+    if (!list) return { has, val, str };
+    for (const o of list) {
+      has[o.field] = true;
+      val[o.field] = o.value;
+      str[o.field] = o.strength;
+    }
+    return { has, val, str };
+  }
+
+  // ---- Verb cross-fade ---------------------------------------------------
+  // Mirrors robot_v3/src/face/VerbTimeline.cpp. On change of the active verb,
+  // snapshot the in-flight effective sample and cross-fade over verb_transition_ms
+  // toward the new target's sparse-override sample. Per-field rules:
+  //   * both override → lerp value AND strength by t
+  //   * only `from` overrides → keep value, scale strength by (1 - t)
+  //   * only `to` overrides → keep value, scale strength by t
+  const kVerbTransitionMs = frameAnim.verb_transition_ms;
+
+  function emptySample() {
+    return {
+      has: new Array(FIELD_COUNT).fill(false),
+      val: new Array(FIELD_COUNT).fill(0),
+      str: new Array(FIELD_COUNT).fill(0),
+    };
+  }
+
+  let sFromVerbSample = emptySample();
+  let sToVerb = null;             // verb name or null = "no verb / empty target"
+  let sVerbTransitionStartMs = 0;
+  let sFromVerbInitialised = false;
+
+  // Last-rendered values of the per-frame "modification pass" outputs that
+  // depend on the active expression (bob amplitude, gaze offset, arm angle).
+  // Captured into sFrom* on verb change and lerped toward live values during
+  // the 500ms window so they don't snap.
+  let sLastBobAmp = 0;
+  let sLastGdx = 0;
+  let sLastGdy = 0;
+  // sCurrentArmDeg already serves as the last-rendered arm.
+
+  let sFromBobAmp = 0;
+  let sFromGdx = 0;
+  let sFromGdy = 0;
+  let sFromArmDeg = 0;
+
+  function transitionT(now) {
+    if (!sFromVerbInitialised) return 1;
+    return Math.min(1, Math.max(0, (now - sVerbTransitionStartMs) / kVerbTransitionMs));
+  }
+
+  function evaluateVerbAt(now) {
+    const toSample = sampleVerbTimeline(sToVerb);
+    const t = transitionT(now);
+    if (!sFromVerbInitialised || t >= 1) return toSample;
+
+    const out = emptySample();
+    const oneMinus = 1 - t;
+    for (let i = 0; i < FIELD_COUNT; ++i) {
+      const fromHas = sFromVerbSample.has[i];
+      const nextHas = toSample.has[i];
+      if (fromHas && nextHas) {
+        out.has[i] = true;
+        out.val[i] = Math.round(sFromVerbSample.val[i] * oneMinus + toSample.val[i] * t);
+        out.str[i] = Math.round(sFromVerbSample.str[i] * oneMinus + toSample.str[i] * t);
+      } else if (fromHas) {
+        const s = Math.round(sFromVerbSample.str[i] * oneMinus);
+        out.has[i] = s > 0;
+        out.val[i] = sFromVerbSample.val[i];
+        out.str[i] = Math.max(0, s);
+      } else if (nextHas) {
+        const s = Math.round(toSample.str[i] * t);
+        out.has[i] = s > 0;
+        out.val[i] = toSample.val[i];
+        out.str[i] = Math.max(0, s);
+      }
+    }
+    return out;
+  }
+
+  // Capture all transition snapshots (verb sample + mod outputs) and retarget.
+  // Tick calls this when sActiveVerb changes; sampleEffectiveVerb is then a
+  // pure read of the new state.
+  function noteVerbChange(now, newVerb) {
+    sFromVerbSample = evaluateVerbAt(now);
+    sFromVerbInitialised = true;
+    sToVerb = newVerb;
+    sVerbTransitionStartMs = now;
+
+    sFromBobAmp = sLastBobAmp;
+    sFromGdx = sLastGdx;
+    sFromGdy = sLastGdy;
+    sFromArmDeg = sCurrentArmDeg;
+  }
+
+  function sampleEffectiveVerb(now) {
+    return evaluateVerbAt(now);
+  }
+
+  function resetVerbTransition() {
+    sFromVerbSample = emptySample();
+    sToVerb = null;
+    sVerbTransitionStartMs = 0;
+    sFromVerbInitialised = false;
+    sFromBobAmp = 0;
+    sFromGdx = 0;
+    sFromGdy = 0;
+    sFromArmDeg = 0;
+    sLastBobAmp = 0;
+    sLastGdx = 0;
+    sLastGdy = 0;
+  }
+
+  // ---- Combine: emotion ⊕ verb (mirrors SceneTypes.cpp) ------------------
+  // Lerp from emotion value to verb value where verb strength is the lerp t,
+  // and emotion strength shapes the curve power.
+  //   es = 50  → linear
+  //   es < 50  → ease-out:  factor = 1 - (1 - t)^p
+  //   es > 50  → ease-in:   factor = t^p
+  // Power scales linearly from 1 (at es=50) to kMaxPower (at es=0 or es=100).
+  const COMBINE_MAX_POWER = 5.0;
+
+  function combineEmotionVerbValue(eValue, eStrength, vHas, vValue, vStrength) {
+    if (!vHas) return { value: eValue, strength: eStrength };
+    const se = eStrength | 0;
+    const sv = vStrength | 0;
+    if (se === 0 && sv === 0) return { value: 0, strength: 0 };
+    if (sv === 0) return { value: eValue, strength: se };
+    if (se === 0) return { value: vValue, strength: sv };
+
+    const t = sv / 100.0;
+    let factor;
+    if (se === 50) {
+      factor = t;
+    } else if (se < 50) {
+      const power = 1.0 + (50.0 - se) / 50.0 * (COMBINE_MAX_POWER - 1.0);
+      factor = 1.0 - Math.pow(1.0 - t, power);
+    } else {
+      const power = 1.0 + (se - 50.0) / 50.0 * (COMBINE_MAX_POWER - 1.0);
+      factor = Math.pow(t, power);
+    }
+
+    return {
+      value: Math.round(eValue + (vValue - eValue) * factor),
+      strength: Math.min(100, Math.max(se, sv)),
+    };
+  }
+
+  // Apply verb sparse overrides on top of an emotion FaceParams (plain values
+  // with implicit strength 100). Returns plain-value FaceParams.
+  function combineEmotionVerbFace(emotionParams, verbSample) {
+    const out = {};
+    for (let i = 0; i < FIELD_COUNT; ++i) {
+      const k = PARAM_FIELDS[i];
+      const r = combineEmotionVerbValue(
+        emotionParams[k] | 0, 100,
+        verbSample.has[i], verbSample.val[i], verbSample.str[i],
+      );
+      out[k] = r.value;
+    }
+    return out;
+  }
+
+  // ---- Helpers -----------------------------------------------------------
   function arrToParams(a) {
     const o = {};
-    PARAM_FIELDS.forEach((k, i) => (o[k] = a[i]));
+    PARAM_FIELDS.forEach((k, i) => (o[k] = a[i] | 0));
     return o;
   }
 
-  function targetForExpression(name) {
+  function emotionPreset(name) {
     const a = BASE_TARGETS[name] || BASE_TARGETS.Neutral;
     return arrToParams(a);
+  }
+
+  function overlayPreset(name) {
+    const a = BASE_TARGETS[name];
+    return a ? arrToParams(a) : emotionPreset("Neutral");
+  }
+
+  // Synthesised "what would this verb look like on a Neutral underlay?"
+  // Used by the Static-mode preset picker so verbs are previewable.
+  function verbPresetOnNeutral(verb) {
+    const base = emotionPreset("Neutral");
+    return combineEmotionVerbFace(base, sampleVerbTimeline(verb));
+  }
+
+  function targetForExpression(name) {
+    if (isVerb(name)) return verbPresetOnNeutral(name);
+    if (isOverlay(name)) return overlayPreset(name);
+    return emotionPreset(name);
   }
 
   function lerpi(a, b, t) { return Math.round(a + (b - a) * t); }
@@ -144,35 +286,13 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
     return r;
   }
 
-  // Mirrors MotionBehaviors::periodMsFor for verb/overlay expressions.
+  // Mirrors MotionBehaviors::periodMsFor — values from face-config-data motion table.
   function motorPeriodMsFor(name) {
-    switch (name) {
-      case "VerbThinking": return 2000;
-      case "VerbWriting": return 840;
-      case "VerbExecuting": return 1000;
-      case "VerbStraining": return 750;
-      case "Joyful": return 900;
-      case "Excited": return 1000;
-      case "VerbSleeping": return 8000;
-      case "Sleepy": return 5000;
-      case "Distressed": return 900;
-      case "Cheeky": return 880;
-      case "Gleeful": return 900;
-      case "Frustrated": return 820;
-      default: return 0;
-    }
+    const m = motionTable[name];
+    return m ? (m.period_ms | 0) : 0;
   }
 
-  const EMOTION_NAMES = new Set([
-    "Neutral", "Happy", "Excited", "Joyful", "Sad", "Sleepy", "Distressed",
-    "Blissed", "Depressed", "Shocked", "Disappointed", "Cheeky", "Gleeful",
-    "Frustrated",
-  ]);
-  function isEmotionExpression(name) {
-    return EMOTION_NAMES.has(name);
-  }
-
-  function vaForExpression(name) {
+  function vaForEmotion(name) {
     const tab = window.EmotionTriangulation;
     if (!tab || !Array.isArray(tab.anchors)) return { v: 0, a: 0.5 };
     const an = tab.anchors.find((x) => x.emotion === name);
@@ -188,14 +308,42 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
         return Math.round(Math.max(0.05, m.waggle_period_s + m.waggle_interval_s) * 1000);
       }
     }
-    if (isEmotionExpression(expr) && EB && EB.ready()) {
-      const va = vaForExpression(expr);
+    if (isEmotion(expr) && EB && EB.ready()) {
+      const va = vaForEmotion(expr);
       const m = EB.blendedEmotionArmMotion(va.v, va.a);
       if (m) {
         return Math.round(Math.max(0.05, m.waggle_period_s + m.waggle_interval_s) * 1000);
       }
     }
     return motorPeriodMsFor(expr);
+  }
+
+  // Pure: bob amplitude (px) for the given expression. Snapshotted into
+  // sFromBobAmp at verb change so the cross-fade can ramp it.
+  function bodyBobAmpFor(expr, blendMode, blendV, blendA) {
+    if (blendMode && window.EmotionBlendV3 && window.EmotionBlendV3.ready()) {
+      const m = window.EmotionBlendV3.blendedEmotionArmMotion(blendV, blendA);
+      return (m && m.min_offset_deg !== m.max_offset_deg)
+        ? frameAnim.emotion_bob_amp_follow_arm
+        : 0;
+    }
+    if (isEmotion(expr) && window.EmotionBlendV3 && window.EmotionBlendV3.ready()) {
+      const va = vaForEmotion(expr);
+      const m = window.EmotionBlendV3.blendedEmotionArmMotion(va.v, va.a);
+      return (m && m.min_offset_deg !== m.max_offset_deg)
+        ? frameAnim.emotion_bob_amp_follow_arm
+        : 0;
+    }
+    switch (expr) {
+      case "VerbSleeping": return 10;
+      case "VerbExecuting":
+      case "VerbStraining":
+      case "Excited": return 5;
+      case "Joyful": return 7;
+      case "Sleepy": return 4;
+      case "Distressed": return 6;
+      default: return 0;
+    }
   }
 
   function bodyBobFor(expr, now, blendMode, blendV, blendA) {
@@ -205,29 +353,21 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
       return 0;
     }
 
-    let amp = 0;
+    const liveAmp = bodyBobAmpFor(expr, blendMode, blendV, blendA);
+    const tt = transitionT(now);
+    const amp = tt >= 1 ? liveAmp : sFromBobAmp + (liveAmp - sFromBobAmp) * tt;
+    sLastBobAmp = amp;
+
     let integrate = false;
     if (blendMode && window.EmotionBlendV3 && window.EmotionBlendV3.ready()) {
-      const m = window.EmotionBlendV3.blendedEmotionArmMotion(blendV, blendA);
       integrate = true;
-      if (m && m.min_offset_deg !== m.max_offset_deg) amp = 3;
-    } else if (isEmotionExpression(expr) && window.EmotionBlendV3 && window.EmotionBlendV3.ready()) {
-      const va = vaForExpression(expr);
-      const m = window.EmotionBlendV3.blendedEmotionArmMotion(va.v, va.a);
+    } else if (isEmotion(expr) && window.EmotionBlendV3 && window.EmotionBlendV3.ready()) {
       integrate = true;
-      if (m && m.min_offset_deg !== m.max_offset_deg) amp = 3;
     } else {
-      switch (expr) {
-        case "VerbSleeping": amp = 10; break;
-        case "VerbExecuting":
-        case "VerbStraining":
-        case "Excited": amp = 5; break;
-        case "Joyful": amp = 7; break;
-        case "Sleepy": amp = 4; break;
-        case "Distressed": amp = 6; break;
-        default: amp = 0; break;
-      }
-      integrate = amp !== 0;
+      // Verb / overlay branch — integrate whenever there's a real bob amp on
+      // either side of the transition (so the phase keeps moving while we
+      // fade in/out).
+      integrate = liveAmp !== 0 || sFromBobAmp !== 0;
     }
 
     const twoPi = 2 * Math.PI;
@@ -246,26 +386,34 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
   }
 
   function breathPhase(t) {
-    const u = (t % 4000) / 4000;
+    const bp = frameAnim.breath_period_ms;
+    const u = (t % bp) / bp;
     return Math.sin(u * 2 * Math.PI);
   }
 
-  // ---- Tunables ----------------------------------------------------------
-  const kTweenMs = 250;
-  const kTickIntervalMs = 33;
-  const kBlinkCloseMs = 80;
-  const kBlinkOpenMs = 130;
-  const kThinkingFlipDurMs = 600;
-  const kThinkingFlipMinMs = 3000;
-  const kThinkingFlipMaxMs = 6000;
-  const kIdleGlanceTweenMs = 200;
+  // ---- Tunables (from face-config-data frameAnim) ------------------------
+  const kTweenMs = frameAnim.emotion_geometry_smooth_tau_ms;
+  const kTickIntervalMs = frameAnim.tick_interval_ms;
+  const kBlinkCloseMs = frameAnim.default_blink_close_ms;
+  const kBlinkOpenMs = frameAnim.default_blink_open_ms;
+  const kThinkingFlipDurMs = frameAnim.thinking_flip_dur_ms;
+  const kThinkingFlipMinMs = frameAnim.thinking_flip_min_ms;
+  const kThinkingFlipMaxMs = frameAnim.thinking_flip_max_ms;
+  const kIdleGlanceTweenMs = frameAnim.default_gaze_move_ms;
 
   // ---- Running state -----------------------------------------------------
-  let sCurrentExpr = "Neutral";
-  let sFrom = targetForExpression("Neutral");
-  let sTo = sFrom;
+  let sLatchedEmotion = "Neutral";
+  let sActiveVerb = null;       // null or one of VERBS
+  let sActiveOverlay = null;    // null or one of OVERLAYS
+  let sCurrentExpr = "Neutral"; // derived: overlay > verb > emotion
+
+  // Tween state operates on the underlying emotion preset only. Verb sparse
+  // overrides combine on top each frame; overlays bypass tween entirely.
+  let sFromEmotion = emotionPreset("Neutral");
+  let sToEmotion = sFromEmotion;
   let sTweenStartMs = 0;
-  let sLastExpr = null;
+  let sLastEmotionTweened = "Neutral";
+  let sLastExprForChangeEdge = "Neutral";
 
   let sNextBlinkMs = 0;
   let sBlinkStartMs = 0;
@@ -284,29 +432,44 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
   let sNextIdleGlanceMs = 0;
 
   let sStartedAtMs = 0;
-  let sCurrentParams = sFrom;
+  let sCurrentParams = sFromEmotion;
   let sLastSettingsVersion = 0;
 
   let sStaticMode = false;
   let sStaticOverride = {
-    params: arrToParams(BASE_TARGETS.Neutral),
+    params: emotionPreset("Neutral"),
     blinkAmt: 0,
     gdx: 0,
     gdy: 0,
     expression: "Neutral",
   };
 
-  // Blend mode: feeds (v, a) every tick through EmotionBlendV3 and
-  // renders the resulting params (no animation, no static sliders).
   let sBlendMode = false;
   let sBlendV = 0.0;
   let sBlendA = 0.0;
-  let sBlendLastParams = arrToParams(BASE_TARGETS.Neutral);
-  let sBlendLastTri = null;  // { indices, weights } for canvas viz.
+  let sBlendLastParams = emotionPreset("Neutral");
+  let sBlendLastTri = null;
 
   /** Integrated body-bob phase (rad); avoids jitter when waggle period changes every frame. */
   let sBodyBobPhaseRad = 0;
   let sBodyBobPhaseLastMs = 0;
+
+  // Integrated phases for periodic outputs whose period/speed can vary
+  // continuously per frame (EmotionBlendV3 smoothly interpolates FaceParams
+  // and idle anim as V/A drifts). Computing phase from `now % period` or
+  // `speed * now` would re-derive an absolute angle from a moving denominator,
+  // producing high-frequency jitter — accumulate `phase += dPhase * dt` instead.
+  let sEyeWavePhaseRad = 0;
+  let sMouthWavePhaseRad = 0;
+  let sWavePhaseLastMs = 0;
+  let sGazePhaseRad = 0;
+  let sGazePhaseLastMs = 0;
+
+  // Period (ms) for Orbit / ScanX-style gaze — from face-config-data idleAnim.
+  function gazePeriodMsFor(name) {
+    const ia = idleAnimTable[name];
+    return ia ? (ia.gaze_scan_period_ms | 0) : 0;
+  }
 
   /** Servo offset (deg) for rim hands; emotion uses firmware-style sine + dwell. */
   let sCurrentArmDeg = 0;
@@ -357,35 +520,24 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
   }
 
   function verbArmOffset(name, t) {
-    switch (name) {
-      case "VerbReading": return -8;
-      case "OverlayWaking": return 18;
-      case "VerbThinking": {
-        const T = 2000;
-        const u = (t % T) / T;
-        return -15 + 5 * Math.sin(u * 2 * Math.PI);
-      }
-      case "VerbWriting":
-        return 5 + 4 * Math.sin((t % 840) / 840 * 2 * Math.PI);
-      case "VerbExecuting":
-        return -5 + 5 * Math.sin((t % 1000) / 1000 * 2 * Math.PI);
-      case "VerbStraining":
-        return 5 * Math.sin((t % 750) / 750 * 2 * Math.PI);
-      case "VerbSleeping":
-        return -20 + 5 * Math.sin((t % 8000) / 8000 * 2 * Math.PI);
-      case "OverlayAttention":
-        return 15 * Math.sin((t % 900) / 900 * 2 * Math.PI);
-      default:
-        return 0;
-    }
+    const m = motionTable[name];
+    if (!m) return 0;
+    if (m.mode === "Static") return m.center;
+    const T = Math.max(1, m.period_ms | 0);
+    const u = (t % T) / T;
+    return m.center + m.amplitude * Math.sin(u * 2 * Math.PI);
   }
 
-  function updateArmOffset(t, expr) {
+  // Compute the "live" arm angle for the given expression at time t. Mutates
+  // the emotion-arm sine integrator state when relevant. The cross-fade
+  // toward this value happens in the call site so that verb→verb and
+  // emotion→verb transitions glide instead of snapping.
+  function computeLiveArmDeg(t, expr) {
     const EB = window.EmotionBlendV3;
     const dt = sArmLogicLastMs === 0 ? 0 : Math.min(0.5, (t - sArmLogicLastMs) / 1000);
     sArmLogicLastMs = t;
 
-    const armDriverEmotion = sBlendMode || isEmotionExpression(expr);
+    const armDriverEmotion = sBlendMode || isEmotion(expr);
     if (armDriverEmotion && !sPrevArmDriverEmotion) {
       resetEmotionArmPhase();
     }
@@ -393,34 +545,31 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
 
     if (sBlendMode && EB && EB.ready()) {
       const arm = EB.blendedEmotionArmMotion(sBlendV, sBlendA);
-      sCurrentArmDeg = arm ? tickEmotionArm(dt, arm) : 0;
-      return;
+      return arm ? tickEmotionArm(dt, arm) : 0;
     }
 
-    if (isEmotionExpression(expr) && EB && EB.ready()) {
-      const va = vaForExpression(expr);
+    if (isEmotion(expr) && EB && EB.ready()) {
+      const va = vaForEmotion(expr);
       const arm = EB.blendedEmotionArmMotion(va.v, va.a);
-      sCurrentArmDeg = arm ? tickEmotionArm(dt, arm) : 0;
-      return;
+      return arm ? tickEmotionArm(dt, arm) : 0;
     }
 
     resetEmotionArmPhase();
-    sCurrentArmDeg = verbArmOffset(expr, t);
+    return verbArmOffset(expr, t);
   }
 
-  /**
-   * Rim markers orbit the centre: offset 0° → 3 and 9 o'clock; e.g. -30° →
-   * ~4 and ~8 (both shift by the same servo angle). Canvas polar: 0 = +x
-   * = 3 o'clock. No extra local spin — only position follows offsetDeg.
-   */
+  function updateArmOffset(t, expr) {
+    const live = computeLiveArmDeg(t, expr);
+    const tt = transitionT(t);
+    sCurrentArmDeg = tt >= 1 ? live : sFromArmDeg + (live - sFromArmDeg) * tt;
+  }
+
   function drawArmOverlay(octx, w, h, offsetDeg) {
     const cx = w * 0.5;
     const cy = h * 0.5;
     const R = Math.min(w, h) * 0.5 - 14;
     const offsetRad = (offsetDeg * Math.PI) / 180;
     const thetaRight = -offsetRad;
-    // Y-axis mirror of the right rim point (like meshed gears: same vertical motion,
-    // opposite horizontal). Not π − offset — that was 180° rigid rotation of both.
     const thetaLeft = Math.PI - thetaRight;
 
     function palmAtOrbital(thetaRad) {
@@ -455,23 +604,15 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
     palmAtOrbital(thetaLeft);
   }
 
-  // ---- Helpers -----------------------------------------------------------
   function now() { return performance.now() - sStartedAtMs; }
   function randRange(lo, hi) { return lo + Math.random() * (hi - lo); }
   function randInt(lo, hi) { return Math.floor(randRange(lo, hi)); }
 
   function blinkPeriodMsFor(name) {
-    switch (name) {
-      case "Neutral": return randInt(4000, 6500);
-      case "VerbThinking": return randInt(2000, 3500);
-      case "VerbReading": return randInt(4000, 6000);
-      case "VerbWriting": return randInt(3500, 5500);
-      case "VerbExecuting":
-      case "VerbStraining": return randInt(4500, 7000);
-      case "Excited": return randInt(2500, 4000);
-      case "Happy": return randInt(3000, 4500);
-      default: return 0;
-    }
+    const ia = idleAnimTable[name];
+    if (!ia) return 0;
+    if (ia.blink_period_min_ms === 0 && ia.blink_period_max_ms === 0) return 0;
+    return randInt(ia.blink_period_min_ms, ia.blink_period_max_ms + 1);
   }
   function scheduleNextBlink(name, from) {
     const p = blinkPeriodMsFor(name);
@@ -508,9 +649,26 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
   }
 
   function gazeFor(name, t) {
+    // Advance the shared gaze phase regardless of which expression is active.
+    // Period is read live so a future change to gazePeriodMsFor can vary it
+    // without re-deriving an absolute angle.
+    const per = gazePeriodMsFor(name);
+    if (per !== 0) {
+      const dtMs = sGazePhaseLastMs === 0 ? 0 : t - sGazePhaseLastMs;
+      sGazePhaseRad += (2 * Math.PI / per) * dtMs;
+      sGazePhaseRad = sGazePhaseRad % (2 * Math.PI);
+      if (sGazePhaseRad < 0) sGazePhaseRad += 2 * Math.PI;
+    }
+    sGazePhaseLastMs = t;
+
     let gdx = 0, gdy = 0;
     switch (name) {
       case "Neutral": {
+        const iaN = idleAnimTable.Neutral;
+        const spanX = iaN ? (iaN.gaze_rand_span_x | 0) : 15;
+        const spanY = iaN ? (iaN.gaze_rand_span_y | 0) : 10;
+        const rerollLo = iaN ? (iaN.gaze_reroll_min_ms | 0) : 1000;
+        const rerollHi = iaN ? (iaN.gaze_reroll_max_ms | 0) : 10000;
         if (sIdleGlanceStartMs !== 0) {
           const u = window.RobotFaceV3.smoothstep01((t - sIdleGlanceStartMs) / kIdleGlanceTweenMs);
           gdx = lerpi(sIdleGlanceFromDx, sIdleGlanceDx, u);
@@ -521,44 +679,52 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
         if (sNextIdleGlanceMs === 0 || t >= sNextIdleGlanceMs) {
           sIdleGlanceFromDx = gdx;
           sIdleGlanceFromDy = gdy;
-          sIdleGlanceDx = randInt(-15, 16);
-          sIdleGlanceDy = randInt(-10, 11);
+          sIdleGlanceDx = randInt(-spanX, spanX + 1);
+          sIdleGlanceDy = randInt(-spanY, spanY + 1);
           sIdleGlanceStartMs = t;
-          sNextIdleGlanceMs = t + randInt(1000, 10001);
+          sNextIdleGlanceMs = t + randInt(rerollLo, rerollHi + 1);
         }
         break;
       }
       case "VerbThinking": {
-        const u = (t % 900) / 900;
-        gdx = Math.round(Math.sin(u * 2 * Math.PI) * 2);
-        gdy = Math.round(Math.cos(u * 2 * Math.PI) * 2);
+        const ia = idleAnimTable.VerbThinking;
+        const ax = ia ? (ia.gaze_amp_x | 0) : 2;
+        const ay = ia ? (ia.gaze_amp_y | 0) : 2;
+        gdx = Math.round(Math.sin(sGazePhaseRad) * ax);
+        gdy = Math.round(Math.cos(sGazePhaseRad) * ay);
         break;
       }
       case "VerbReading": {
-        const u = (t % 1300) / 1300;
-        gdx = Math.round(Math.sin(u * 2 * Math.PI) * 6);
+        const ia = idleAnimTable.VerbReading;
+        const ax = ia ? (ia.gaze_amp_x | 0) : 6;
+        gdx = Math.round(Math.sin(sGazePhaseRad) * ax);
         break;
       }
       case "VerbWriting": {
-        const u = (t % 2200) / 2200;
-        gdx = Math.round(Math.sin(u * 2 * Math.PI) * 2);
+        const ia = idleAnimTable.VerbWriting;
+        const ax = ia ? (ia.gaze_amp_x | 0) : 2;
+        gdx = Math.round(Math.sin(sGazePhaseRad) * ax);
         break;
       }
       case "VerbExecuting":
       case "VerbStraining": {
-        const u = (t % 2500) / 2500;
-        gdx = Math.round(Math.sin(u * 2 * Math.PI) * 1);
+        const ia = idleAnimTable.VerbExecuting;
+        const ax = ia ? (ia.gaze_amp_x | 0) : 1;
+        gdx = Math.round(Math.sin(sGazePhaseRad) * ax);
         break;
       }
       case "Excited": {
-        const u = (t % 3500) / 3500;
-        gdx = Math.round(Math.sin(u * 2 * Math.PI) * 3);
-        gdy = Math.round(Math.cos(u * 2 * Math.PI) * 2);
+        const ia = idleAnimTable.Excited;
+        const ax = ia ? (ia.gaze_amp_x | 0) : 3;
+        const ay = ia ? (ia.gaze_amp_y | 0) : 2;
+        gdx = Math.round(Math.sin(sGazePhaseRad) * ax);
+        gdy = Math.round(Math.cos(sGazePhaseRad) * ay);
         break;
       }
       case "Happy": {
-        const u = (t % 5500) / 5500;
-        gdx = Math.round(Math.sin(u * 2 * Math.PI) * 2);
+        const ia = idleAnimTable.Happy;
+        const ax = ia ? (ia.gaze_amp_x | 0) : 2;
+        gdx = Math.round(Math.sin(sGazePhaseRad) * ax);
         break;
       }
       default: break;
@@ -566,18 +732,31 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
     return [gdx, gdy];
   }
 
-  function onExpressionChange(newExpr, t) {
-    const u = (t - sTweenStartMs) / kTweenMs;
-    const cur = lerpParams(sFrom, sTo, window.RobotFaceV3.smoothstep01(u));
-    if (sLastExpr === "VerbThinking" && newExpr !== "VerbThinking") {
-      const sign = currentThinkSign(t);
-      cur.face_rot = Math.round(cur.face_rot * sign);
-      cur.pupil_dx = Math.round(cur.pupil_dx * sign);
-    }
-    sFrom = cur;
-    sTo = targetForExpression(newExpr);
+  function effectiveExpression() {
+    if (sActiveOverlay) return sActiveOverlay;
+    if (sActiveVerb) return sActiveVerb;
+    return sLatchedEmotion;
+  }
+
+  // Begin a tween from current rendered emotion to the new latched emotion.
+  function startEmotionTween(t) {
+    sFromEmotion = lerpParams(
+      sFromEmotion, sToEmotion,
+      window.RobotFaceV3.smoothstep01((t - sTweenStartMs) / kTweenMs),
+    );
+    sToEmotion = emotionPreset(sLatchedEmotion);
     sTweenStartMs = t;
-    sLastExpr = newExpr;
+    sLastEmotionTweened = sLatchedEmotion;
+  }
+
+  function onExpressionChange(newExpr, t) {
+    if (sLastExprForChangeEdge === "VerbThinking" && newExpr !== "VerbThinking") {
+      const sign = currentThinkSign(t);
+      // Snap so leaving Thinking doesn't pop. Mirrors firmware behaviour.
+      sToEmotion.face_rot = Math.round(sToEmotion.face_rot * sign);
+      sToEmotion.pupil_dx = Math.round(sToEmotion.pupil_dx * sign);
+    }
+    sLastExprForChangeEdge = newExpr;
     sBlinkActive = false;
     scheduleNextBlink(newExpr, t);
     if (newExpr === "VerbThinking") resetThinkTilt(t);
@@ -598,10 +777,19 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
   let sprite = null;
   let outputCanvas = null;
   let lastTickMs = 0;
-  const listeners = [];
+  const exprListeners = [];
+  const stateListeners = [];
 
   function notifyExpression() {
-    for (const fn of listeners) fn(sCurrentExpr);
+    sCurrentExpr = effectiveExpression();
+    for (const fn of exprListeners) fn(sCurrentExpr);
+    const snap = {
+      emotion: sLatchedEmotion,
+      verb: sActiveVerb,
+      overlay: sActiveOverlay,
+      effective: sCurrentExpr,
+    };
+    for (const fn of stateListeners) fn(snap);
   }
 
   function pushSpriteToCanvas() {
@@ -620,12 +808,12 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
 
   function tick() {
     const t = now();
-    const expr = sCurrentExpr;
+    const expr = effectiveExpression();
 
     const settingsVersion = window.RobotSettings.version();
     if (settingsVersion !== sLastSettingsVersion) {
       sLastSettingsVersion = settingsVersion;
-      sTo = targetForExpression(expr);
+      sToEmotion = emotionPreset(sLatchedEmotion);
     }
 
     if (sStaticMode) {
@@ -633,40 +821,12 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
         lastTickMs = t;
         sCurrentArmDeg = 0;
         const o = sStaticOverride;
-        window.RobotFaceV3.renderScene(sprite, o.params, o.blinkAmt, o.gdx, o.gdy, t);
+        advanceWavePhases(t, o.params);
+        window.RobotFaceV3.renderScene(
+          sprite, o.params, o.blinkAmt, o.gdx, o.gdy,
+          sEyeWavePhaseRad, sMouthWavePhaseRad,
+        );
         sCurrentParams = o.params;
-        pushSpriteToCanvas();
-      }
-      rafHandle = requestAnimationFrame(tick);
-      return;
-    }
-
-    if (sBlendMode) {
-      if (t - lastTickMs >= kTickIntervalMs) {
-        lastTickMs = t;
-        const blender = window.EmotionBlendV3;
-        let p = sBlendLastParams;
-        if (blender && blender.ready()) {
-          const blended = blender.blendedFaceParams(sBlendV, sBlendA);
-          if (blended) p = blended;
-          sBlendLastTri = blender.findTriangle(sBlendV, sBlendA);
-        }
-        sBlendLastParams = p;
-
-        updateArmOffset(t, sCurrentExpr);
-
-        if (sCurrentExpr !== "Joyful" && sCurrentExpr !== "Gleeful" &&
-            sCurrentExpr !== "VerbSleeping") {
-          const b = breathPhase(t) * 1.5;
-          p = { ...p, eye_dy: Math.round(p.eye_dy + b), mouth_dy: Math.round(p.mouth_dy + b / 2) };
-        }
-        p = {
-          ...p,
-          face_y: Math.round(p.face_y + bodyBobFor(sCurrentExpr, t, true, sBlendV, sBlendA)),
-        };
-
-        window.RobotFaceV3.renderScene(sprite, p, 0, 0, 0, t);
-        sCurrentParams = p;
         pushSpriteToCanvas();
       }
       rafHandle = requestAnimationFrame(tick);
@@ -676,21 +836,57 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
     if (t - lastTickMs >= kTickIntervalMs) {
       lastTickMs = t;
 
-      if (expr !== sLastExpr) onExpressionChange(expr, t);
+      // Edge: latched emotion changed → start tween.
+      if (sLatchedEmotion !== sLastEmotionTweened) {
+        startEmotionTween(t);
+      }
+      // Edge: active verb changed → snapshot verb sample + mods, restart
+      // 500ms cross-fade. Must run before sampleEffectiveVerb / bob / gaze /
+      // arm so the snapshots capture last frame's rendered values.
+      if (sActiveVerb !== sToVerb) noteVerbChange(t, sActiveVerb);
+      // Edge: effective expression changed → blink/think/glance reset.
+      if (expr !== sLastExprForChangeEdge) onExpressionChange(expr, t);
 
-      const u = (t - sTweenStartMs) / kTweenMs;
-      const te = window.RobotFaceV3.smoothstep01(u);
-      let p = lerpParams(sFrom, sTo, te);
+      // Underlying emotion params: blend mode → V/A; otherwise tween.
+      let emotionParams;
+      if (sBlendMode) {
+        const blender = window.EmotionBlendV3;
+        if (blender && blender.ready()) {
+          const blended = blender.blendedFaceParams(sBlendV, sBlendA);
+          if (blended) {
+            sBlendLastParams = blended;
+            sBlendLastTri = blender.findTriangle(sBlendV, sBlendA);
+          }
+        }
+        emotionParams = { ...sBlendLastParams };
+      } else {
+        const u = (t - sTweenStartMs) / kTweenMs;
+        emotionParams = lerpParams(
+          sFromEmotion, sToEmotion,
+          window.RobotFaceV3.smoothstep01(u),
+        );
+      }
 
+      // Composition: overlay > verb-on-emotion > emotion.
+      // Sample every frame (even when sActiveVerb is null) so that a
+      // ramp-out still runs after the verb is cleared.
+      let p;
+      if (sActiveOverlay) {
+        p = overlayPreset(sActiveOverlay);
+      } else {
+        const verbSample = sampleEffectiveVerb(t);
+        p = combineEmotionVerbFace(emotionParams, verbSample);
+      }
+
+      // Breath modulation. Skipped for high-energy / sleeping states.
       if (expr !== "Joyful" && expr !== "Gleeful" && expr !== "VerbSleeping") {
-        const b = breathPhase(t) * 1.5;
+        const b = breathPhase(t) * frameAnim.breath_eye_amp_px;
         p.eye_dy = Math.round(p.eye_dy + b);
-        p.mouth_dy = Math.round(p.mouth_dy + b / 2);
+        p.mouth_dy = Math.round(p.mouth_dy + b * frameAnim.breath_mouth_scale);
       }
 
       updateArmOffset(t, expr);
-
-      p.face_y = Math.round(p.face_y + bodyBobFor(expr, t, false, 0, 0));
+      p.face_y = Math.round(p.face_y + bodyBobFor(expr, t, sBlendMode, sBlendV, sBlendA));
 
       if (expr === "VerbThinking") {
         maybeFlipThinkTilt(t);
@@ -710,9 +906,22 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
       const blinkAmt = currentBlinkAmount(t);
       if (!sBlinkActive && sNextBlinkMs === 0) scheduleNextBlink(expr, t);
 
-      const [gdx, gdy] = gazeFor(expr, t);
+      const [liveGdx, liveGdy] = gazeFor(expr, t);
+      const ttGaze = transitionT(t);
+      const gdx = ttGaze >= 1
+        ? liveGdx
+        : Math.round(sFromGdx + (liveGdx - sFromGdx) * ttGaze);
+      const gdy = ttGaze >= 1
+        ? liveGdy
+        : Math.round(sFromGdy + (liveGdy - sFromGdy) * ttGaze);
+      sLastGdx = gdx;
+      sLastGdy = gdy;
 
-      window.RobotFaceV3.renderScene(sprite, p, blinkAmt, gdx, gdy, t);
+      advanceWavePhases(t, p);
+      window.RobotFaceV3.renderScene(
+        sprite, p, blinkAmt, gdx, gdy,
+        sEyeWavePhaseRad, sMouthWavePhaseRad,
+      );
       sCurrentParams = p;
       pushSpriteToCanvas();
     }
@@ -720,17 +929,41 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
     rafHandle = requestAnimationFrame(tick);
   }
 
+  // Advance integrated wave phases using the resolved (smoothed) wave_speed
+  // values from the params we're about to render. Done after composition so
+  // the speed is whatever EmotionBlend produced for this frame.
+  function advanceWavePhases(now, params) {
+    const dtMs = sWavePhaseLastMs === 0 ? 0 : now - sWavePhaseLastMs;
+    sWavePhaseLastMs = now;
+    const k = Math.PI / 180000;  // deg/sec * ms → rad
+    sEyeWavePhaseRad += (params.eye_wave_speed | 0) * dtMs * k;
+    sMouthWavePhaseRad += (params.mouth_wave_speed | 0) * dtMs * k;
+    const twoPi = 2 * Math.PI;
+    sEyeWavePhaseRad = sEyeWavePhaseRad % twoPi;
+    if (sEyeWavePhaseRad < 0) sEyeWavePhaseRad += twoPi;
+    sMouthWavePhaseRad = sMouthWavePhaseRad % twoPi;
+    if (sMouthWavePhaseRad < 0) sMouthWavePhaseRad += twoPi;
+  }
+
   function start(canvas) {
     if (rafHandle) return;
     sStartedAtMs = performance.now();
     sprite = new TFT.Sprite(240, 240);
     outputCanvas = canvas;
-    sFrom = targetForExpression(sCurrentExpr);
-    sTo = sFrom;
-    sLastExpr = sCurrentExpr;
+    sFromEmotion = emotionPreset(sLatchedEmotion);
+    sToEmotion = sFromEmotion;
+    sLastEmotionTweened = sLatchedEmotion;
+    sLastExprForChangeEdge = effectiveExpression();
+    sCurrentExpr = sLastExprForChangeEdge;
     sTweenStartMs = 0;
     sLastSettingsVersion = window.RobotSettings.version();
+    resetVerbTransition();
     resetEmotionArmPhase();
+    sEyeWavePhaseRad = 0;
+    sMouthWavePhaseRad = 0;
+    sWavePhaseLastMs = 0;
+    sGazePhaseRad = 0;
+    sGazePhaseLastMs = 0;
     sPrevArmDriverEmotion = false;
     sCurrentArmDeg = 0;
     rafHandle = requestAnimationFrame(tick);
@@ -741,33 +974,87 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
     rafHandle = null;
   }
 
-  function requestExpression(name) {
-    if (!BASE_TARGETS[name]) return;
-    if (name === sCurrentExpr) return;
-    sCurrentExpr = name;
+  // ---- Setters -----------------------------------------------------------
+  function requestEmotion(name) {
+    if (!isEmotion(name)) return;
+    if (sLatchedEmotion === name && !sActiveVerb && !sActiveOverlay) return;
+    sLatchedEmotion = name;
     notifyExpression();
+  }
+
+  function requestVerb(name) {
+    if (name !== null && !isVerb(name)) return;
+    if (sActiveVerb === name) return;
+    sActiveVerb = name;
+    notifyExpression();
+  }
+
+  function requestOverlay(name) {
+    if (name !== null && !isOverlay(name)) return;
+    if (sActiveOverlay === name) return;
+    sActiveOverlay = name;
+    notifyExpression();
+  }
+
+  /**
+   * Backwards-compatible single-button entry point. Dispatches by category.
+   * Picking an emotion clears any active verb/overlay (matches "click an
+   * emotion to see it alone"); picking a verb leaves the latched emotion in
+   * place so you can preview verb-on-emotion combine.
+   */
+  function requestExpression(name) {
+    if (isEmotion(name)) {
+      sActiveVerb = null;
+      sActiveOverlay = null;
+      requestEmotion(name);
+    } else if (isVerb(name)) {
+      sActiveOverlay = null;
+      requestVerb(name);
+    } else if (isOverlay(name)) {
+      requestOverlay(name);
+    }
   }
 
   window.FrameControllerV3 = {
     start,
     stop,
     requestExpression,
+    requestEmotion,
+    requestVerb,
+    requestOverlay,
+    latchedEmotion() { return sLatchedEmotion; },
+    activeVerb() { return sActiveVerb; },
+    activeOverlay() { return sActiveOverlay; },
     currentExpression() { return sCurrentExpr; },
     expressions() { return EXPRESSIONS.slice(); },
-    onExpressionChange(fn) { listeners.push(fn); },
+    emotions() { return EMOTIONS.slice(); },
+    verbs() { return VERBS.slice(); },
+    overlays() { return OVERLAYS.slice(); },
+    onExpressionChange(fn) { exprListeners.push(fn); },
+    onStateChange(fn) { stateListeners.push(fn); },
     params() { return sCurrentParams; },
     paramFields() { return PARAM_FIELDS.slice(); },
-    baseTargetForExpression(name) { return arrToParams(BASE_TARGETS[name] || BASE_TARGETS.Neutral); },
+    fieldIndex() { return { ...FIELD_INDEX }; },
+    baseTargetForExpression(name) { return targetForExpression(name); },
+    verbTimeline(name) {
+      const list = VERB_TIMELINES[name];
+      return list ? list.map((o) => ({ ...o })) : null;
+    },
+    combineEmotionVerbValue,
+    combineEmotionVerbFace,
+    sampleVerbTimeline,
+
     setStaticMode(on) {
       sStaticMode = !!on;
       if (sStaticMode) {
         sBlendMode = false;
         sStaticOverride.params = { ...sCurrentParams };
       } else {
-        sFrom = { ...sCurrentParams };
-        sTo = targetForExpression(sCurrentExpr);
+        sFromEmotion = { ...sCurrentParams };
+        sToEmotion = emotionPreset(sLatchedEmotion);
         sTweenStartMs = now();
-        sLastExpr = sCurrentExpr;
+        sLastEmotionTweened = sLatchedEmotion;
+        sLastExprForChangeEdge = effectiveExpression();
         sBlinkActive = false;
         sNextBlinkMs = 0;
       }
@@ -778,14 +1065,14 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
       sBlendMode = !!on;
       if (sBlendMode) {
         sStaticMode = false;
-        // If already on an emotion expression, keep arm phase across blend toggle.
-        sPrevArmDriverEmotion = isEmotionExpression(sCurrentExpr);
+        sPrevArmDriverEmotion = isEmotion(effectiveExpression());
       } else {
-        sPrevArmDriverEmotion = isEmotionExpression(sCurrentExpr);
-        sFrom = { ...sCurrentParams };
-        sTo = targetForExpression(sCurrentExpr);
+        sPrevArmDriverEmotion = isEmotion(effectiveExpression());
+        sFromEmotion = { ...sCurrentParams };
+        sToEmotion = emotionPreset(sLatchedEmotion);
         sTweenStartMs = now();
-        sLastExpr = sCurrentExpr;
+        sLastEmotionTweened = sLatchedEmotion;
+        sLastExprForChangeEdge = effectiveExpression();
         sBlinkActive = false;
         sNextBlinkMs = 0;
       }
@@ -815,9 +1102,6 @@ Frustrated:        [  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
       };
     },
 
-    /** Centre-relative servo offset (deg) used for rim hands + debug. */
-    armOffsetDeg() {
-      return sCurrentArmDeg;
-    },
+    armOffsetDeg() { return sCurrentArmDeg; },
   };
 })();

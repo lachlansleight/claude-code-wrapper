@@ -22,6 +22,9 @@ static FaceParams sSmoothedEmotion;
 static FaceParams sLastRendered;
 static uint32_t sLastEmotionSmoothMs = 0;
 
+// Verb-vs-non-verb is decided inside `sampleEffectiveVerb`; the helper here
+// is retained only because other call-sites query "is this expression a verb"
+// for non-sampling reasons.
 static bool verbUsesTimeline(Expression s) {
   switch (s) {
     case Expression::VerbThinking:
@@ -70,6 +73,29 @@ static uint32_t sNextIdleGlanceMs = 0;
 static float sBodyBobPhaseRad = 0.0f;
 static uint32_t sBodyBobPhaseLastMs = 0;
 
+// Last-rendered values + snapshots for cross-fading the modification pass
+// across verb transitions. Captured into sFrom* on verb change and lerped
+// toward live values via `Face::verbTransitionT(now)`.
+static int16_t sLastBobAmp = 0;
+static int16_t sLastGdx = 0;
+static int16_t sLastGdy = 0;
+static int16_t sFromBobAmp = 0;
+static int16_t sFromGdx = 0;
+static int16_t sFromGdy = 0;
+static Expression sLastVerbForXfade = Expression::Count;
+
+// Integrated phases for periodic outputs whose period/speed can change
+// continuously per frame (EmotionBlend smoothly interpolates idle anim and
+// FaceParams as V/A drifts). Computing phase as `now % period` or
+// `speed * now` would re-derive an absolute angle from a moving denominator
+// each frame, producing high-frequency jitter — instead we accumulate
+// `phase += dPhase * dt` so phase stays continuous across the drift.
+static float sGazePhaseRad = 0.0f;
+static uint32_t sGazePhaseLastMs = 0;
+static float sEyeWavePhaseRad = 0.0f;
+static float sMouthWavePhaseRad = 0.0f;
+static uint32_t sWavePhaseLastMs = 0;
+
 static int16_t lerpi(int16_t a, int16_t b, float t) { return (int16_t)(a + (b - a) * t); }
 
 static FaceConfig::IdleAnimRow idleFor(const SceneContext& ctx, Expression s) {
@@ -87,29 +113,40 @@ static float breathPhase(uint32_t now) {
   return sinf(t * 2.0f * (float)PI);
 }
 
+// Pure: live bob amplitude (px) for the given expression / context. Snapshotted
+// into sFromBobAmp at verb change so the cross-fade ramps it.
+static int16_t bodyBobAmpFor(const SceneContext& ctx,
+                             const FaceConfig::IdleAnimRow& idle) {
+  if (idle.bob_amplitude_px == FaceConfig::kBobAmpFollowEmotionArm) {
+    if (Face::isEmotionExpression(ctx.effective_expression) &&
+        ctx.base_emotion_arm.min_offset_deg != ctx.base_emotion_arm.max_offset_deg) {
+      return animCfg().emotion_bob_amp_follow_arm;
+    }
+    return 0;
+  }
+  return idle.bob_amplitude_px;
+}
+
 static int16_t bodyBobFor(const SceneContext& ctx, const FaceConfig::IdleAnimRow& idle,
                           uint32_t now) {
-  const Expression s = ctx.effective_expression;
   const uint16_t period = MotionBehaviors::periodMsForContext(ctx);
   if (period == 0) {
     sBodyBobPhaseLastMs = now;
+    sLastBobAmp = 0;
     return 0;
   }
 
-  int16_t amp = 0;
-  bool integrate = false;
-  if (idle.bob_amplitude_px == FaceConfig::kBobAmpFollowEmotionArm) {
-    integrate = true;
-    if (Face::isEmotionExpression(s) &&
-        ctx.base_emotion_arm.min_offset_deg != ctx.base_emotion_arm.max_offset_deg) {
-      amp = animCfg().emotion_bob_amp_follow_arm;
-    } else {
-      amp = 0;
-    }
-  } else {
-    amp = idle.bob_amplitude_px;
-    integrate = (amp != 0);
-  }
+  const int16_t liveAmp = bodyBobAmpFor(ctx, idle);
+  const float tt = verbTransitionT(now);
+  const float effAmpF = (tt >= 1.0f)
+      ? (float)liveAmp
+      : (float)sFromBobAmp + ((float)liveAmp - (float)sFromBobAmp) * tt;
+  const int16_t amp = (int16_t)lroundf(effAmpF);
+  sLastBobAmp = amp;
+
+  // Phase keeps integrating whenever either side of the cross-fade has any bob,
+  // so the oscillation runs continuously across the transition.
+  const bool integrate = (liveAmp != 0) || (sFromBobAmp != 0);
 
   constexpr float kTwoPi = 2.0f * (float)PI;
   if (integrate) {
@@ -131,6 +168,21 @@ static void gazeFor(const FaceConfig::IdleAnimRow& idle, uint32_t now, int16_t& 
                     int16_t& gdy) {
   gdx = 0;
   gdy = 0;
+
+  // Advance the gaze phase regardless of style so switching from
+  // Off/IdleRandom into Orbit/ScanX has a sensible starting phase. Period
+  // is read live (interpolated by EmotionBlend); integrating dt keeps the
+  // result continuous across V/A drift.
+  const uint32_t per = idle.gaze_scan_period_ms;
+  if (per != 0) {
+    const float dtMs =
+        (sGazePhaseLastMs == 0) ? 0.0f : (float)(now - sGazePhaseLastMs);
+    sGazePhaseRad += (2.0f * (float)PI / (float)per) * dtMs;
+    sGazePhaseRad = fmodf(sGazePhaseRad, 2.0f * (float)PI);
+    if (sGazePhaseRad < 0.0f) sGazePhaseRad += 2.0f * (float)PI;
+  }
+  sGazePhaseLastMs = now;
+
   switch (idle.gaze_style) {
     case FaceConfig::GazeStyle::IdleRandom: {
       const uint32_t moveMs =
@@ -163,18 +215,14 @@ static void gazeFor(const FaceConfig::IdleAnimRow& idle, uint32_t now, int16_t& 
       break;
     }
     case FaceConfig::GazeStyle::Orbit: {
-      const uint32_t per = idle.gaze_scan_period_ms;
       if (per == 0) break;
-      const float t = (float)(now % per) / (float)per;
-      gdx = (int16_t)(sinf(t * 2.0f * (float)PI) * (float)idle.gaze_amp_x);
-      gdy = (int16_t)(cosf(t * 2.0f * (float)PI) * (float)idle.gaze_amp_y);
+      gdx = (int16_t)(sinf(sGazePhaseRad) * (float)idle.gaze_amp_x);
+      gdy = (int16_t)(cosf(sGazePhaseRad) * (float)idle.gaze_amp_y);
       break;
     }
     case FaceConfig::GazeStyle::ScanX: {
-      const uint32_t per = idle.gaze_scan_period_ms;
       if (per == 0) break;
-      const float t = (float)(now % per) / (float)per;
-      gdx = (int16_t)(sinf(t * 2.0f * (float)PI) * (float)idle.gaze_amp_x);
+      gdx = (int16_t)(sinf(sGazePhaseRad) * (float)idle.gaze_amp_x);
       break;
     }
     case FaceConfig::GazeStyle::Off:
@@ -241,6 +289,19 @@ static void maybeFlipThinkTilt(uint32_t now) {
 void begin() {
   randomSeed(esp_random());
 
+  resetVerbTransition();
+  sLastBobAmp = 0;
+  sLastGdx = 0;
+  sLastGdy = 0;
+  sFromBobAmp = 0;
+  sFromGdx = 0;
+  sFromGdy = 0;
+  sLastVerbForXfade = Expression::Count;
+  sGazePhaseRad = 0.0f;
+  sGazePhaseLastMs = 0;
+  sEyeWavePhaseRad = 0.0f;
+  sMouthWavePhaseRad = 0.0f;
+  sWavePhaseLastMs = 0;
   sLastExprIdx = -1;
   sSmoothedEmotion = baseTargetFor(Expression::Neutral);
   sLastRendered = sSmoothedEmotion;
@@ -380,12 +441,25 @@ void tick(const SceneContext& ctx) {
       1.0f - expf(-(float)emoDt / animCfg().emotion_geometry_smooth_tau_ms);
   smoothFaceValuesToward(sSmoothedEmotion, ctx.base_face_params, emoAlpha);
 
+  // Detect verb-edge BEFORE sampleEffectiveVerb so we can snapshot last
+  // frame's bob amplitude and gaze offset. sampleEffectiveVerb does the
+  // same comparison internally and (re)starts the transition timer with the
+  // same `now`, so the timeline blend and the mod blend stay synchronised.
+  if (sNow != sLastVerbForXfade) {
+    sFromBobAmp = sLastBobAmp;
+    sFromGdx = sLastGdx;
+    sFromGdy = sLastGdy;
+    sLastVerbForXfade = sNow;
+  }
+
+  // Verb sparse overrides with cross-fade. `sampleEffectiveVerb` is called
+  // every frame regardless of whether the current expression is a verb so
+  // that ramp-out works when transitioning verb → emotion. Pass the
+  // effective expression directly; non-verb values (incl. `Expression::Count`)
+  // ramp the verb influence out toward an empty sample.
   bool verbHas[(size_t)FieldIndex::Count];
   ParamI16 verbVals[(size_t)FieldIndex::Count];
-  memset(verbHas, 0, sizeof(verbHas));
-  if (verbUsesTimeline(sNow)) {
-    sampleVerbTimeline(sNow, ctx.verb_time_in_current_ms, verbHas, verbVals);
-  }
+  sampleEffectiveVerb(sNow, now, ctx.verb_time_in_current_ms, verbHas, verbVals);
 
   FaceParams p = combineEmotionVerbFace(sSmoothedEmotion, verbHas, verbVals);
 
@@ -426,14 +500,48 @@ void tick(const SceneContext& ctx) {
     scheduleNextBlink(idle, now);
   }
 
-  int16_t gdx = 0, gdy = 0;
-  gazeFor(idle, now, gdx, gdy);
+  int16_t liveGdx = 0, liveGdy = 0;
+  gazeFor(idle, now, liveGdx, liveGdy);
+  // Cross-fade gaze across the verb transition window so picking up a new
+  // verb's gaze pattern (Orbit / ScanX / IdleRandom) doesn't snap.
+  const float ttGaze = verbTransitionT(now);
+  int16_t gdx, gdy;
+  if (ttGaze >= 1.0f) {
+    gdx = liveGdx;
+    gdy = liveGdy;
+  } else {
+    gdx = (int16_t)lroundf((float)sFromGdx + ((float)liveGdx - (float)sFromGdx) * ttGaze);
+    gdy = (int16_t)lroundf((float)sFromGdy + ((float)liveGdy - (float)sFromGdy) * ttGaze);
+  }
+  sLastGdx = gdx;
+  sLastGdy = gdy;
 
   const uint16_t fg565 = rgb888To565(ctx.fg_r, ctx.fg_g, ctx.fg_b);
   const uint16_t bg565 = rgb888To565(ctx.bg_r, ctx.bg_g, ctx.bg_b);
   const uint16_t divider565 = Settings::color565Scaled(Settings::NamedColor::Foreground, 96);
 
   TFT_eSprite& spr = Display::sprite();
+  // Integrate wave phases from the resolved (smoothed) speeds. Doing this
+  // here — *after* the emotion / verb blend has already produced final
+  // FaceParams for the frame — means that even when speed is being
+  // continuously interpolated by EmotionBlend, the phase stays continuous.
+  // Computing `phase = speed * nowMs * π/180000` inside the renderer would
+  // multiply a moving speed by a large nowMs and produce huge per-frame
+  // phase jumps.
+  {
+    const float waveDtMs =
+        (sWavePhaseLastMs == 0) ? 0.0f : (float)(now - sWavePhaseLastMs);
+    sWavePhaseLastMs = now;
+    constexpr float kPiOver180000 = (float)(M_PI / 180000.0);
+    sEyeWavePhaseRad += (float)p.eye_wave_speed.value * waveDtMs * kPiOver180000;
+    sMouthWavePhaseRad += (float)p.mouth_wave_speed.value * waveDtMs * kPiOver180000;
+    constexpr float kTwoPi = 2.0f * (float)M_PI;
+    sEyeWavePhaseRad = fmodf(sEyeWavePhaseRad, kTwoPi);
+    if (sEyeWavePhaseRad < 0.0f) sEyeWavePhaseRad += kTwoPi;
+    sMouthWavePhaseRad = fmodf(sMouthWavePhaseRad, kTwoPi);
+    if (sMouthWavePhaseRad < 0.0f) sMouthWavePhaseRad += kTwoPi;
+  }
+
   SceneRenderState renderState = {sNow,
                                   sMoodR,
                                   sMoodG,
@@ -445,7 +553,9 @@ void tick(const SceneContext& ctx) {
                                   sFadeWriteCount,
                                   fg565,
                                   bg565,
-                                  divider565};
+                                  divider565,
+                                  sEyeWavePhaseRad,
+                                  sMouthWavePhaseRad};
 
   if (ctx.render_mode == (uint8_t)RenderMode::Face) {
     renderScene(spr, p, blinkAmt, gdx, gdy, renderState, ctx, now);

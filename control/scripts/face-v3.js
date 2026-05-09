@@ -38,9 +38,11 @@
     return corner + (apex - corner) * r;
   }
 
-  function wavePhaseRad(speedDegPerSec, nowMs) {
-    return speedDegPerSec * nowMs * (Math.PI / 180000);
-  }
+  // Wave phase is integrated by the caller (FrameControllerV3) and passed in.
+  // Computing `phase = speed * nowMs * π/180000` here would jitter when speed
+  // is being continuously interpolated by EmotionBlendV3 — every frame would
+  // multiply a slightly different speed by a large nowMs, producing huge
+  // phase jumps. The integrator lives in frame-controller-v3.js.
 
   // Paint one local-coord vertical span [ly0, ly1] as a single rotated line.
   function paintLocalSpan(s, cx, cy, fx, ly0, ly1, cosA, sinA, color) {
@@ -102,10 +104,9 @@
     }
   }
 
-  function drawMouth(s, p, cx, cy, nowMs, cosA, sinA, fg) {
+  function drawMouth(s, p, cx, cy, wavePhase, cosA, sinA, fg) {
     const halfw = p.mouth_rx | 0;
     if (halfw < 1) return;
-    const wavePhase = wavePhaseRad(p.mouth_wave_speed, nowMs);
     // Slider value / 50 → ~1 full cycle across the shape at value=50.
     const waveFreq = p.mouth_wave_freq * 0.02;
     const waveAmp = p.mouth_wave_amp;
@@ -129,14 +130,12 @@
     }
   }
 
-  function drawEye(s, p, cx, cy, blinkAmt, gdx, gdy, nowMs, cosA, sinA, fg, bg) {
+  function drawEye(s, p, cx, cy, blinkAmt, gdx, gdy, wavePhase, cosA, sinA, fg, bg) {
     const halfw = p.eye_rx | 0;
     if (halfw < 1) return;
 
     const blink = clamp01(blinkAmt);
     const blinkScale = 1 - blink;
-
-    const wavePhase = wavePhaseRad(p.eye_wave_speed, nowMs);
     const waveFreq = p.eye_wave_freq * 0.02;
     const waveAmp = p.eye_wave_amp;
 
@@ -221,7 +220,7 @@
                    waveAmp, waveFreq, wavePhase, cosA, sinA, fg);
   }
 
-  function drawFace(s, p, blinkAmt, gdx, gdy, nowMs) {
+  function drawFace(s, p, blinkAmt, gdx, gdy, eyeWavePhaseRad, mouthWavePhaseRad) {
     const fg = fg565();
     const bg = bg565();
     const angleRad = (p.face_rot * Math.PI) / 180;
@@ -254,9 +253,9 @@
     const [rex, rey] = rotated(kEyeRX, compress(kEyeY + p.eye_dy));
     const [mx, my] = rotated(kCx, compress(kMouthY + p.mouth_dy));
 
-    drawEye(s, p, lex, ley, blinkAmt, gdx, gdy, nowMs, cosA, sinA, fg, bg);
-    drawEye(s, p, rex, rey, blinkAmt, gdx, gdy, nowMs, cosA, sinA, fg, bg);
-    drawMouth(s, p, mx, my, nowMs, cosA, sinA, fg);
+    drawEye(s, p, lex, ley, blinkAmt, gdx, gdy, eyeWavePhaseRad, cosA, sinA, fg, bg);
+    drawEye(s, p, rex, rey, blinkAmt, gdx, gdy, eyeWavePhaseRad, cosA, sinA, fg, bg);
+    drawMouth(s, p, mx, my, mouthWavePhaseRad, cosA, sinA, fg);
   }
 
   /**
@@ -285,9 +284,9 @@
     }
   }
 
-  function renderScene(s, p, blinkAmt, gdx, gdy, nowMs) {
+  function renderScene(s, p, blinkAmt, gdx, gdy, eyeWavePhaseRad, mouthWavePhaseRad) {
     s.fillSprite(bg565());
-    drawFace(s, p, blinkAmt, gdx, gdy, nowMs);
+    drawFace(s, p, blinkAmt, gdx, gdy, eyeWavePhaseRad, mouthWavePhaseRad);
     drawMoodRing(s, p.ring_r, p.ring_g, p.ring_b);
   }
 

@@ -40,15 +40,19 @@ namespace Face {
  * Draw the face into @p s. Caller is responsible for clearing the
  * sprite first; this only paints over the eye/mouth regions.
  *
- * @param p         Geometry (already mood-ring-baked is fine; ring_* is ignored here).
- * @param blinkAmt  0 = open, 1 = fully closed; squeezes the eye envelope vertically.
- * @param gdx,gdy   Gaze offset added to `pupil_dx,dy` in eye-local frame.
- * @param expr      Currently unused (kept for ABI symmetry / future per-expression hooks).
- * @param nowMs     Wall time in ms; drives wave-modulation phase.
- * @param fg565     Foreground (eyes outline / pupil / mouth fill).
- * @param bg565     Background (eye-iris cutout fill).
+ * @param p                    Geometry (already mood-ring-baked is fine; ring_* is ignored here).
+ * @param blinkAmt             0 = open, 1 = fully closed; squeezes the eye envelope vertically.
+ * @param gdx,gdy              Gaze offset added to `pupil_dx,dy` in eye-local frame.
+ * @param expr                 Currently unused (kept for ABI symmetry / future hooks).
+ * @param eyeWavePhaseRad      Pre-integrated wave phase for the eyes (radians).
+ *                             Caller integrates `phase += eye_wave_speed * dt_s * π/180`
+ *                             so the phase stays continuous across V/A drift.
+ * @param mouthWavePhaseRad    Same for the mouth.
+ * @param fg565                Foreground (eyes outline / pupil / mouth fill).
+ * @param bg565                Background (eye-iris cutout fill).
  */
 void drawFace(TFT_eSprite& s, const FaceParams& p, float blinkAmt, int16_t gdx, int16_t gdy,
-              Expression expr, uint32_t nowMs, uint16_t fg565, uint16_t bg565);
+              Expression expr, float eyeWavePhaseRad, float mouthWavePhaseRad,
+              uint16_t fg565, uint16_t bg565);
 
 }  // namespace Face
