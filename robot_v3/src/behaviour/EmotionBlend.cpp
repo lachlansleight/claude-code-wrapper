@@ -141,6 +141,73 @@ Face::FaceParams blendThree(const Face::FaceParams& A, const Face::FaceParams& B
   return r;
 }
 
+static FaceConfig::GazeStyle winningGazeStyle(FaceConfig::GazeStyle ga, FaceConfig::GazeStyle gb,
+                                              FaceConfig::GazeStyle gc, float la, float lb,
+                                              float lc) {
+  if (la >= lb && la >= lc) return ga;
+  if (lb >= lc) return gb;
+  return gc;
+}
+
+static FaceConfig::IdleAnimRow blendIdleThree(const FaceConfig::IdleAnimRow& A,
+                                              const FaceConfig::IdleAnimRow& B,
+                                              const FaceConfig::IdleAnimRow& C, float la,
+                                              float lb, float lc) {
+  FaceConfig::IdleAnimRow r{};
+  r.blink_period_min_ms = (uint16_t)lroundf(blendFloat((float)A.blink_period_min_ms,
+                                                       (float)B.blink_period_min_ms,
+                                                       (float)C.blink_period_min_ms, la, lb, lc));
+  r.blink_period_max_ms = (uint16_t)lroundf(blendFloat((float)A.blink_period_max_ms,
+                                                       (float)B.blink_period_max_ms,
+                                                       (float)C.blink_period_max_ms, la, lb, lc));
+  r.blink_close_ms = (uint16_t)lroundf(
+      blendFloat((float)A.blink_close_ms, (float)B.blink_close_ms, (float)C.blink_close_ms, la, lb,
+                 lc));
+  r.blink_open_ms = (uint16_t)lroundf(
+      blendFloat((float)A.blink_open_ms, (float)B.blink_open_ms, (float)C.blink_open_ms, la, lb,
+                 lc));
+  const bool allBobHeur = (A.bob_amplitude_px == FaceConfig::kBobAmpFollowEmotionArm &&
+                           B.bob_amplitude_px == FaceConfig::kBobAmpFollowEmotionArm &&
+                           C.bob_amplitude_px == FaceConfig::kBobAmpFollowEmotionArm);
+  if (allBobHeur) {
+    r.bob_amplitude_px = FaceConfig::kBobAmpFollowEmotionArm;
+  } else {
+    auto nz = [](int16_t x) -> float {
+      return (x == FaceConfig::kBobAmpFollowEmotionArm) ? 0.0f : (float)x;
+    };
+    r.bob_amplitude_px =
+        (int16_t)lroundf(blendFloat(nz(A.bob_amplitude_px), nz(B.bob_amplitude_px),
+                                    nz(C.bob_amplitude_px), la, lb, lc));
+  }
+  r.gaze_style = winningGazeStyle(A.gaze_style, B.gaze_style, C.gaze_style, la, lb, lc);
+  r.gaze_move_ms = (uint16_t)lroundf(
+      blendFloat((float)A.gaze_move_ms, (float)B.gaze_move_ms, (float)C.gaze_move_ms, la, lb, lc));
+  r.gaze_rand_span_x =
+      (int16_t)lroundf(blendFloat((float)A.gaze_rand_span_x, (float)B.gaze_rand_span_x,
+                                  (float)C.gaze_rand_span_x, la, lb, lc));
+  r.gaze_rand_span_y =
+      (int16_t)lroundf(blendFloat((float)A.gaze_rand_span_y, (float)B.gaze_rand_span_y,
+                                  (float)C.gaze_rand_span_y, la, lb, lc));
+  r.gaze_reroll_min_ms = (uint32_t)lroundf(blendFloat((float)A.gaze_reroll_min_ms,
+                                                      (float)B.gaze_reroll_min_ms,
+                                                      (float)C.gaze_reroll_min_ms, la, lb, lc));
+  r.gaze_reroll_max_ms = (uint32_t)lroundf(blendFloat((float)A.gaze_reroll_max_ms,
+                                                      (float)B.gaze_reroll_max_ms,
+                                                      (float)C.gaze_reroll_max_ms, la, lb, lc));
+  r.gaze_scan_period_ms = (uint32_t)lroundf(blendFloat((float)A.gaze_scan_period_ms,
+                                                       (float)B.gaze_scan_period_ms,
+                                                       (float)C.gaze_scan_period_ms, la, lb, lc));
+  r.gaze_amp_x =
+      (int16_t)lroundf(blendFloat((float)A.gaze_amp_x, (float)B.gaze_amp_x, (float)C.gaze_amp_x,
+                                  la, lb, lc));
+  r.gaze_amp_y =
+      (int16_t)lroundf(blendFloat((float)A.gaze_amp_y, (float)B.gaze_amp_y, (float)C.gaze_amp_y,
+                                  la, lb, lc));
+  if (r.blink_period_max_ms < r.blink_period_min_ms)
+    r.blink_period_max_ms = r.blink_period_min_ms;
+  return r;
+}
+
 }  // namespace
 
 Face::FaceParams blendedFaceParams(float v, float a) {
@@ -230,6 +297,41 @@ Face::EmotionArmMotion blendedEmotionArmMotion(float v, float a) {
   if (r.waggle_period_s < 0.05f) r.waggle_period_s = 0.05f;
   if (r.waggle_interval_s < 0.0f) r.waggle_interval_s = 0.0f;
   return r;
+}
+
+FaceConfig::IdleAnimRow blendedIdleAnim(float v, float a) {
+  v = clampf(v, -1.0f, 1.0f);
+  a = clampf(a, 0.0f, 1.0f);
+
+  uint16_t i0 = 0, i1 = 0, i2 = 0;
+  float l0 = 0.0f, l1 = 0.0f, l2 = 0.0f;
+  if (!findTriangle(v, a, i0, i1, i2, l0, l1, l2)) {
+    float best = INFINITY;
+    uint16_t bestIdx = 0;
+    for (size_t i = 0; i < EmotionSystem::kAnchorCount; ++i) {
+      const EmotionSystem::Anchor& an = EmotionSystem::kAnchors[i];
+      const float dv = v - an.v;
+      const float da = a - an.a;
+      const float d = dv * dv + da * da;
+      if (d < best) {
+        best = d;
+        bestIdx = (uint16_t)i;
+      }
+    }
+    const Face::Expression ex =
+        FaceConfig::expressionForNamedEmotion(EmotionSystem::kAnchors[bestIdx].emotion);
+    return FaceConfig::kIdleAnim[(uint8_t)ex];
+  }
+
+  const Face::Expression eA =
+      FaceConfig::expressionForNamedEmotion(EmotionSystem::kAnchors[i0].emotion);
+  const Face::Expression eB =
+      FaceConfig::expressionForNamedEmotion(EmotionSystem::kAnchors[i1].emotion);
+  const Face::Expression eC =
+      FaceConfig::expressionForNamedEmotion(EmotionSystem::kAnchors[i2].emotion);
+
+  return blendIdleThree(FaceConfig::kIdleAnim[(uint8_t)eA], FaceConfig::kIdleAnim[(uint8_t)eB],
+                        FaceConfig::kIdleAnim[(uint8_t)eC], l0, l1, l2);
 }
 
 }  // namespace EmotionBlend

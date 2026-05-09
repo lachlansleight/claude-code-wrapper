@@ -5,6 +5,7 @@
 
 #include "FACE_CONFIG.h"
 #include "VerbTimeline.h"
+#include "../behaviour/EmotionBlend.h"
 #include "../hal/Display.h"
 #include "../hal/MotionBehaviors.h"
 #include "../hal/Settings.h"
@@ -20,9 +21,6 @@ static constexpr float kEmotionGeometrySmoothTauMs = 250.0f;
 
 static constexpr uint32_t kTickIntervalMs = 33;
 static constexpr uint32_t kTickIntervalStreamMs = 16;
-
-static constexpr uint32_t kBlinkCloseMs = 80;
-static constexpr uint32_t kBlinkOpenMs = 130;
 
 static constexpr uint32_t kThinkingFlipDurMs = 600;
 static constexpr uint32_t kThinkingFlipMinMs = 3000;
@@ -76,7 +74,6 @@ static int16_t sIdleGlanceFromDx = 0;
 static int16_t sIdleGlanceFromDy = 0;
 static uint32_t sIdleGlanceStartMs = 0;
 static uint32_t sNextIdleGlanceMs = 0;
-static constexpr uint32_t kIdleGlanceTweenMs = 200;
 
 // Body vertical bob: integrate phase so a changing waggle period (blended
 // emotion) does not re-phase from wall-clock % period (which jitters).
@@ -85,12 +82,20 @@ static uint32_t sBodyBobPhaseLastMs = 0;
 
 static int16_t lerpi(int16_t a, int16_t b, float t) { return (int16_t)(a + (b - a) * t); }
 
+static FaceConfig::IdleAnimRow idleFor(const SceneContext& ctx, Expression s) {
+  if (Face::isEmotionExpression(s)) {
+    return EmotionBlend::blendedIdleAnim(ctx.mood_v, ctx.mood_a);
+  }
+  return FaceConfig::kIdleAnim[(uint8_t)s];
+}
+
 static float breathPhase(uint32_t now) {
   const float t = (float)(now % 4000) / 4000.0f;
   return sinf(t * 2.0f * (float)PI);
 }
 
-static int16_t bodyBobFor(const SceneContext& ctx, uint32_t now) {
+static int16_t bodyBobFor(const SceneContext& ctx, const FaceConfig::IdleAnimRow& idle,
+                          uint32_t now) {
   const Expression s = ctx.effective_expression;
   const uint16_t period = MotionBehaviors::periodMsForContext(ctx);
   if (period == 0) {
@@ -100,26 +105,16 @@ static int16_t bodyBobFor(const SceneContext& ctx, uint32_t now) {
 
   int16_t amp = 0;
   bool integrate = false;
-  if (Face::isEmotionExpression(s)) {
+  if (idle.bob_amplitude_px == FaceConfig::kBobAmpFollowEmotionArm) {
     integrate = true;
-    if (ctx.base_emotion_arm.min_offset_deg != ctx.base_emotion_arm.max_offset_deg) amp = 3;
-  } else {
-    switch (s) {
-      case Expression::VerbSleeping:
-        amp = 10;
-        break;
-      case Expression::VerbExecuting:
-      case Expression::VerbStraining:
-      case Expression::Excited:
-        amp = 5;
-        break;
-      case Expression::Joyful:
-        amp = 7;
-        break;
-      default:
-        amp = 0;
-        break;
+    if (Face::isEmotionExpression(s) &&
+        ctx.base_emotion_arm.min_offset_deg != ctx.base_emotion_arm.max_offset_deg) {
+      amp = 3;
+    } else {
+      amp = 0;
     }
+  } else {
+    amp = idle.bob_amplitude_px;
     integrate = (amp != 0);
   }
 
@@ -139,14 +134,15 @@ static int16_t bodyBobFor(const SceneContext& ctx, uint32_t now) {
   return (int16_t)(-sinf(sBodyBobPhaseRad) * (float)amp);
 }
 
-static void gazeFor(Expression s, uint32_t now, int16_t& gdx, int16_t& gdy) {
+static void gazeFor(const FaceConfig::IdleAnimRow& idle, uint32_t now, int16_t& gdx,
+                    int16_t& gdy) {
   gdx = 0;
   gdy = 0;
-  switch (s) {
-    case Expression::Neutral:
+  switch (idle.gaze_style) {
+    case FaceConfig::GazeStyle::IdleRandom: {
+      const uint32_t moveMs = idle.gaze_move_ms ? idle.gaze_move_ms : 200u;
       if (sIdleGlanceStartMs != 0) {
-        const float t =
-            smoothstep01((float)(now - sIdleGlanceStartMs) / (float)kIdleGlanceTweenMs);
+        const float t = smoothstep01((float)(now - sIdleGlanceStartMs) / (float)moveMs);
         gdx = lerpi(sIdleGlanceFromDx, sIdleGlanceDx, t);
         gdy = lerpi(sIdleGlanceFromDy, sIdleGlanceDy, t);
       } else {
@@ -157,101 +153,67 @@ static void gazeFor(Expression s, uint32_t now, int16_t& gdx, int16_t& gdy) {
       if (sNextIdleGlanceMs == 0 || now >= sNextIdleGlanceMs) {
         sIdleGlanceFromDx = gdx;
         sIdleGlanceFromDy = gdy;
-        sIdleGlanceDx = (int16_t)random(-15, 16);
-        sIdleGlanceDy = (int16_t)random(-10, 11);
+        const int32_t sx = idle.gaze_rand_span_x > 0 ? (int32_t)idle.gaze_rand_span_x : 0;
+        const int32_t sy = idle.gaze_rand_span_y > 0 ? (int32_t)idle.gaze_rand_span_y : 0;
+        sIdleGlanceDx = (int16_t)random(-sx, sx + 1);
+        sIdleGlanceDy = (int16_t)random(-sy, sy + 1);
         sIdleGlanceStartMs = now;
-        sNextIdleGlanceMs = now + (uint32_t)random(1000, 10001);
+        if (idle.gaze_reroll_max_ms >= idle.gaze_reroll_min_ms) {
+          sNextIdleGlanceMs =
+              now + (uint32_t)random((long)idle.gaze_reroll_min_ms,
+                                     (long)idle.gaze_reroll_max_ms + 1);
+        } else {
+          sNextIdleGlanceMs = now + 1000u;
+        }
       }
       break;
-    case Expression::VerbThinking: {
-      const float t = (float)(now % 900) / 900.0f;
-      gdx = (int16_t)(sinf(t * 2 * (float)PI) * 2);
-      gdy = (int16_t)(cosf(t * 2 * (float)PI) * 2);
+    }
+    case FaceConfig::GazeStyle::Orbit: {
+      const uint32_t per = idle.gaze_scan_period_ms;
+      if (per == 0) break;
+      const float t = (float)(now % per) / (float)per;
+      gdx = (int16_t)(sinf(t * 2.0f * (float)PI) * (float)idle.gaze_amp_x);
+      gdy = (int16_t)(cosf(t * 2.0f * (float)PI) * (float)idle.gaze_amp_y);
       break;
     }
-    case Expression::VerbReading: {
-      const float t = (float)(now % 1300) / 1300.0f;
-      gdx = (int16_t)(sinf(t * 2 * (float)PI) * 6);
+    case FaceConfig::GazeStyle::ScanX: {
+      const uint32_t per = idle.gaze_scan_period_ms;
+      if (per == 0) break;
+      const float t = (float)(now % per) / (float)per;
+      gdx = (int16_t)(sinf(t * 2.0f * (float)PI) * (float)idle.gaze_amp_x);
       break;
     }
-    case Expression::VerbWriting: {
-      const float t = (float)(now % 2200) / 2200.0f;
-      gdx = (int16_t)(sinf(t * 2 * (float)PI) * 2);
-      break;
-    }
-    case Expression::VerbExecuting:
-    case Expression::VerbStraining: {
-      const float t = (float)(now % 2500) / 2500.0f;
-      gdx = (int16_t)(sinf(t * 2 * (float)PI) * 1);
-      break;
-    }
-    case Expression::Excited: {
-      const float t = (float)(now % 3500) / 3500.0f;
-      gdx = (int16_t)(sinf(t * 2 * (float)PI) * 3);
-      gdy = (int16_t)(cosf(t * 2 * (float)PI) * 2);
-      break;
-    }
-    case Expression::Happy: {
-      const float t = (float)(now % 5500) / 5500.0f;
-      gdx = (int16_t)(sinf(t * 2 * (float)PI) * 2);
-      break;
-    }
+    case FaceConfig::GazeStyle::Off:
     default:
       break;
   }
 }
 
-static uint32_t blinkPeriodMsFor(Expression s) {
-  switch (s) {
-    case Expression::Neutral:
-      return (uint32_t)random(4000, 6500);
-    case Expression::VerbThinking:
-      return (uint32_t)random(2000, 3500);
-    case Expression::VerbReading:
-      return (uint32_t)random(4000, 6000);
-    case Expression::VerbWriting:
-      return (uint32_t)random(3500, 5500);
-    case Expression::VerbExecuting:
-    case Expression::VerbStraining:
-      return (uint32_t)random(4500, 7000);
-    case Expression::Excited:
-      return (uint32_t)random(2500, 4000);
-    case Expression::Happy:
-      return (uint32_t)random(3000, 4500);
-    case Expression::Sleepy:
-      return (uint32_t)random(5000, 8000);
-    case Expression::Distressed:
-    case Expression::Depressed:
-    case Expression::Shocked:
-    case Expression::Disappointed:
-      return (uint32_t)random(2000, 4000);
-    case Expression::Blissed:
-      return (uint32_t)random(3500, 5500);
-    case Expression::Cheeky:
-      return (uint32_t)random(2800, 4200);
-    case Expression::Gleeful:
-      return (uint32_t)random(2200, 3800);
-    case Expression::Frustrated:
-      return (uint32_t)random(1800, 3200);
-    default:
-      return 0;
+static void scheduleNextBlink(const FaceConfig::IdleAnimRow& idle, uint32_t from) {
+  if (idle.blink_period_min_ms == 0 && idle.blink_period_max_ms == 0) {
+    sNextBlinkMs = 0;
+    return;
   }
+  if (idle.blink_period_max_ms < idle.blink_period_min_ms) {
+    sNextBlinkMs = 0;
+    return;
+  }
+  const uint32_t p = (uint32_t)random((long)idle.blink_period_min_ms,
+                                      (long)idle.blink_period_max_ms + 1);
+  sNextBlinkMs = from + p;
 }
 
-static void scheduleNextBlink(Expression s, uint32_t from) {
-  const uint32_t p = blinkPeriodMsFor(s);
-  sNextBlinkMs = (p == 0) ? 0 : from + p;
-}
-
-static float currentBlinkAmount(uint32_t now) {
+static float currentBlinkAmount(uint32_t now, const FaceConfig::IdleAnimRow& idle) {
   if (!sBlinkActive) return 0.0f;
+  const uint32_t closeMs = idle.blink_close_ms ? idle.blink_close_ms : 80u;
+  const uint32_t openMs = idle.blink_open_ms ? idle.blink_open_ms : 130u;
   const uint32_t d = now - sBlinkStartMs;
-  if (d < kBlinkCloseMs) {
-    return (float)d / (float)kBlinkCloseMs;
+  if (d < closeMs) {
+    return (float)d / (float)closeMs;
   }
-  const uint32_t d2 = d - kBlinkCloseMs;
-  if (d2 < kBlinkOpenMs) {
-    return 1.0f - (float)d2 / (float)kBlinkOpenMs;
+  const uint32_t d2 = d - closeMs;
+  if (d2 < openMs) {
+    return 1.0f - (float)d2 / (float)openMs;
   }
   sBlinkActive = false;
   return 0.0f;
@@ -327,7 +289,6 @@ const FaceParams& baseTargetFor(Expression e) {
 }
 
 static void onExpressionChange(Expression newExpr, uint32_t now, const SceneContext& ctx) {
-  (void)ctx;
   FaceParams currentFrame = sLastRendered;
 
   const bool hadOld = (sLastExprIdx >= 0);
@@ -352,13 +313,14 @@ static void onExpressionChange(Expression newExpr, uint32_t now, const SceneCont
   sLastExprIdx = (int16_t)(uint8_t)newExpr;
 
   sBlinkActive = false;
-  scheduleNextBlink(newExpr, now);
+  const FaceConfig::IdleAnimRow idleNew = idleFor(ctx, newExpr);
+  scheduleNextBlink(idleNew, now);
 
   if (newExpr == Expression::VerbThinking) {
     resetThinkTilt(now);
   }
 
-  if (newExpr == Expression::Neutral) {
+  if (idleNew.gaze_style == FaceConfig::GazeStyle::IdleRandom) {
     sIdleGlanceFromDx = sIdleGlanceDx;
     sIdleGlanceFromDy = sIdleGlanceDy;
     sIdleGlanceStartMs = now;
@@ -402,6 +364,8 @@ void tick(const SceneContext& ctx) {
     onExpressionChange(sNow, now, ctx);
   }
 
+  const FaceConfig::IdleAnimRow idle = idleFor(ctx, sNow);
+
   const uint32_t effectsDt = (sLastEffectsMs == 0) ? 0 : (now - sLastEffectsMs);
   const float effectsA = 1.0f - expf(-(float)effectsDt / (float)kEffectsFadeMs);
   const float readTarget = (sNow == Expression::VerbReading) ? 1.0f : 0.0f;
@@ -444,7 +408,7 @@ void tick(const SceneContext& ctx) {
     p.mouth_dy.value = (int16_t)(p.mouth_dy.value + b / 2);
   }
 
-  p.face_y.value = (int16_t)(p.face_y.value + bodyBobFor(ctx, now));
+  p.face_y.value = (int16_t)(p.face_y.value + bodyBobFor(ctx, idle, now));
 
   if (sNow == Expression::VerbThinking) {
     maybeFlipThinkTilt(now);
@@ -455,20 +419,20 @@ void tick(const SceneContext& ctx) {
 
   if (!sBlinkActive) {
     if (sNextBlinkMs == 0) {
-      scheduleNextBlink(sNow, now);
+      scheduleNextBlink(idle, now);
     } else if (now >= sNextBlinkMs) {
       sBlinkActive = true;
       sBlinkStartMs = now;
       sNextBlinkMs = 0;
     }
   }
-  const float blinkAmt = currentBlinkAmount(now);
+  const float blinkAmt = currentBlinkAmount(now, idle);
   if (!sBlinkActive && sNextBlinkMs == 0) {
-    scheduleNextBlink(sNow, now);
+    scheduleNextBlink(idle, now);
   }
 
   int16_t gdx = 0, gdy = 0;
-  gazeFor(sNow, now, gdx, gdy);
+  gazeFor(idle, now, gdx, gdy);
 
   const uint16_t fg565 = rgb888To565(ctx.fg_r, ctx.fg_g, ctx.fg_b);
   const uint16_t bg565 = rgb888To565(ctx.bg_r, ctx.bg_g, ctx.bg_b);

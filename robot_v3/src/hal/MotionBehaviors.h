@@ -11,10 +11,9 @@
  * MotionBehaviors maps a `Face::Expression` to a motion *mode* (static
  * pose, random drift, oscillation, waggle, thinking sine, or none) and
  * a set of parameters (centre offset, amplitude, period, slew, jitter).
- * The mapping lives in a single static table indexed by the
- * `Face::Expression` enum order — adding/removing expressions there
- * requires updating that table (a `static_assert` in the .cpp enforces
- * matching size).
+ * The mapping lives in `FaceConfig::kMotion` (`FACE_CONFIG_DATA.h`),
+ * indexed by `Face::Expression` order (`static_assert` there enforces
+ * row count).
  *
  * On each tick(ctx):
  *  - Emotion expressions (Neutral … Disappointed) drive the continuous
@@ -46,7 +45,7 @@ void tick(const Face::SceneContext& ctx);
  * Period in ms for the arm motion attached to @p expression, or 0 if
  * the motion mode is aperiodic (NONE, STATIC, RANDOM_DRIFT). Read by
  * FrameController to body-bob the face in lockstep with the arm —
- * change a state's `periodMs` in the kMotion[] table and the face
+ * change a state's `period_ms` in `FaceConfig::kMotion` and the face
  * auto-resyncs.
  */
 uint16_t periodMsFor(Face::Expression expression);

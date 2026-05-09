@@ -3,6 +3,7 @@
 #include <math.h>
 
 #include "../core/DebugLog.h"
+#include "../face/FACE_CONFIG.h"
 #include "Motion.h"
 
 namespace MotionBehaviors {
@@ -12,53 +13,6 @@ static constexpr int8_t kSafeMax = 45;
 
 static constexpr uint16_t kDefaultStaticSlewMs = 250;
 static constexpr uint16_t kDefaultDriftSlewMs = 500;
-
-enum MotionMode : uint8_t {
-  NONE = 0,
-  STATIC,
-  RANDOM_DRIFT,
-  OSCILLATE,
-  WAGGLE,
-  THINKING,
-};
-
-struct ExprMotion {
-  MotionMode mode;
-  int8_t center;
-  uint8_t amplitude;
-  uint16_t periodMs;
-  uint16_t periodJitterMs;
-  uint16_t slewMs;
-};
-
-// Rows follow Face::Expression enum order (0 .. Count-1).
-static const ExprMotion kMotion[(uint8_t)Face::Expression::Count] = {
-    /* Neutral */ {RANDOM_DRIFT, -20, 5, 5000, 5000, 500},
-    /* Happy */ {RANDOM_DRIFT, -15, 8, 2000, 1000, 500},
-    /* Excited */ {OSCILLATE, -10, 5, 1000, 0, 0},
-    /* Joyful */ {WAGGLE, 0, 15, 900, 0, 0},
-    /* Sad */ {NONE, 0, 0, 0, 0, 0},
-    /* VerbThinking */ {THINKING, -15, 5, 2000, 0, 0},
-    /* VerbReading */ {STATIC, -8, 0, 0, 0, 0},
-    /* VerbWriting */ {OSCILLATE, 5, 4, 840, 0, 250},
-    /* VerbExecuting */ {OSCILLATE, -5, 5, 1000, 0, 0},
-    /* VerbStraining */ {OSCILLATE, 0, 5, 750, 0, 0},
-    /* VerbSleeping */ {OSCILLATE, -20, 5, 8000, 0, 0},
-    /* OverlayWaking */ {STATIC, 18, 0, 0, 0, 0},
-    /* OverlayAttention */ {WAGGLE, 0, 15, 900, 0, 0},
-    /* Sleepy */ {OSCILLATE, -18, 4, 5000, 0, 0},
-    /* Distressed */ {OSCILLATE, 0, 6, 900, 0, 0},
-    /* Blissed */ {RANDOM_DRIFT, -10, 6, 3000, 1500, 500},
-    /* Depressed */ {NONE, 0, 0, 0, 0, 0},
-    /* Shocked */ {STATIC, 0, 0, 0, 0, 0},
-    /* Disappointed */ {NONE, 0, 0, 0, 0, 0},
-    /* Cheeky */ {WAGGLE, 0, 12, 880, 0, 0},
-    /* Gleeful */ {WAGGLE, 0, 15, 900, 0, 0},
-    /* Frustrated */ {OSCILLATE, 0, 6, 820, 0, 0},
-};
-
-static_assert(sizeof(kMotion) / sizeof(kMotion[0]) == (uint8_t)Face::Expression::Count,
-              "kMotion rows must match Face::Expression::Count");
 
 static int16_t sLastExprIdx = -1;
 static uint32_t sNextTimedMs = 0;
@@ -79,7 +33,7 @@ static uint32_t randRange(uint32_t lo, uint32_t hi) {
   return lo + (uint32_t)random((long)(hi - lo + 1));
 }
 
-static int8_t driftPick(const ExprMotion& m) {
+static int8_t driftPick(const FaceConfig::ExprMotionRow& m) {
   return randInRange((int8_t)((int)m.center - (int)m.amplitude),
                      (int8_t)((int)m.center + (int)m.amplitude));
 }
@@ -87,44 +41,44 @@ static int8_t driftPick(const ExprMotion& m) {
 static void onEnter(Face::Expression s) {
   const uint8_t idx = (uint8_t)s;
   if (idx >= (uint8_t)Face::Expression::Count) return;
-  const ExprMotion& m = kMotion[idx];
+  const FaceConfig::ExprMotionRow& m = FaceConfig::kMotion[idx];
   const uint32_t now = millis();
 
-  if (m.mode != THINKING) Motion::setThinkingMode(false);
+  if (m.mode != FaceConfig::MotionMode::Thinking) Motion::setThinkingMode(false);
 
   switch (m.mode) {
-    case NONE:
+    case FaceConfig::MotionMode::None:
       Motion::cancelAll();
       sNextTimedMs = 0;
       break;
 
-    case STATIC:
-      Motion::playJog(m.center, m.slewMs ? m.slewMs : kDefaultStaticSlewMs);
+    case FaceConfig::MotionMode::Static:
+      Motion::playJog(m.center, m.slew_ms ? m.slew_ms : kDefaultStaticSlewMs);
       sNextTimedMs = 0;
       break;
 
-    case RANDOM_DRIFT:
-      Motion::playJog(driftPick(m), m.slewMs ? m.slewMs : kDefaultDriftSlewMs);
-      sNextTimedMs = now + randRange(m.periodMs, (uint32_t)m.periodMs + m.periodJitterMs);
+    case FaceConfig::MotionMode::RandomDrift:
+      Motion::playJog(driftPick(m), m.slew_ms ? m.slew_ms : kDefaultDriftSlewMs);
+      sNextTimedMs = now + randRange(m.period_ms, (uint32_t)m.period_ms + m.period_jitter_ms);
       break;
 
-    case OSCILLATE:
+    case FaceConfig::MotionMode::Oscillate:
       sOscAtLow = true;
       {
-        const uint16_t halfMs = (uint16_t)(m.periodMs / 2);
-        const uint16_t slew = m.slewMs ? m.slewMs : halfMs;
+        const uint16_t halfMs = (uint16_t)(m.period_ms / 2);
+        const uint16_t slew = m.slew_ms ? m.slew_ms : halfMs;
         Motion::playJog((int8_t)((int)m.center - (int)m.amplitude), slew);
         sNextTimedMs = now + halfMs;
       }
       break;
 
-    case WAGGLE:
-      Motion::playWaggle(m.center, m.amplitude, m.periodMs);
-      sNextTimedMs = now + m.periodMs;
+    case FaceConfig::MotionMode::Waggle:
+      Motion::playWaggle(m.center, m.amplitude, m.period_ms);
+      sNextTimedMs = now + m.period_ms;
       break;
 
-    case THINKING:
-      Motion::setThinkingMode(true, m.center, m.amplitude, m.periodMs);
+    case FaceConfig::MotionMode::Thinking:
+      Motion::setThinkingMode(true, m.center, m.amplitude, m.period_ms);
       sNextTimedMs = 0;
       break;
   }
@@ -137,34 +91,34 @@ static void onDuring(Face::Expression s) {
 
   const uint8_t idx = (uint8_t)s;
   if (idx >= (uint8_t)Face::Expression::Count) return;
-  const ExprMotion& m = kMotion[idx];
+  const FaceConfig::ExprMotionRow& m = FaceConfig::kMotion[idx];
 
   switch (m.mode) {
-    case RANDOM_DRIFT:
-      Motion::playJog(driftPick(m), m.slewMs ? m.slewMs : kDefaultDriftSlewMs);
-      sNextTimedMs = now + randRange(m.periodMs, (uint32_t)m.periodMs + m.periodJitterMs);
+    case FaceConfig::MotionMode::RandomDrift:
+      Motion::playJog(driftPick(m), m.slew_ms ? m.slew_ms : kDefaultDriftSlewMs);
+      sNextTimedMs = now + randRange(m.period_ms, (uint32_t)m.period_ms + m.period_jitter_ms);
       break;
 
-    case OSCILLATE:
+    case FaceConfig::MotionMode::Oscillate:
       sOscAtLow = !sOscAtLow;
       {
         const int8_t off = sOscAtLow ? (int8_t)((int)m.center - (int)m.amplitude)
                                      : (int8_t)((int)m.center + (int)m.amplitude);
-        const uint16_t halfMs = (uint16_t)(m.periodMs / 2);
-        const uint16_t slew = m.slewMs ? m.slewMs : halfMs;
+        const uint16_t halfMs = (uint16_t)(m.period_ms / 2);
+        const uint16_t slew = m.slew_ms ? m.slew_ms : halfMs;
         Motion::playJog(off, slew);
         sNextTimedMs = now + halfMs;
       }
       break;
 
-    case WAGGLE:
-      Motion::playWaggle(m.center, m.amplitude, m.periodMs);
-      sNextTimedMs = now + m.periodMs;
+    case FaceConfig::MotionMode::Waggle:
+      Motion::playWaggle(m.center, m.amplitude, m.period_ms);
+      sNextTimedMs = now + m.period_ms;
       break;
 
-    case NONE:
-    case STATIC:
-    case THINKING:
+    case FaceConfig::MotionMode::None:
+    case FaceConfig::MotionMode::Static:
+    case FaceConfig::MotionMode::Thinking:
       sNextTimedMs = 0;
       break;
   }
@@ -173,15 +127,15 @@ static void onDuring(Face::Expression s) {
 uint16_t periodMsFor(Face::Expression s) {
   const uint8_t idx = (uint8_t)s;
   if (idx >= (uint8_t)Face::Expression::Count) return 0;
-  const ExprMotion& m = kMotion[idx];
+  const FaceConfig::ExprMotionRow& m = FaceConfig::kMotion[idx];
   switch (m.mode) {
-    case OSCILLATE:
-    case WAGGLE:
-    case THINKING:
-      return m.periodMs;
-    case NONE:
-    case STATIC:
-    case RANDOM_DRIFT:
+    case FaceConfig::MotionMode::Oscillate:
+    case FaceConfig::MotionMode::Waggle:
+    case FaceConfig::MotionMode::Thinking:
+      return m.period_ms;
+    case FaceConfig::MotionMode::None:
+    case FaceConfig::MotionMode::Static:
+    case FaceConfig::MotionMode::RandomDrift:
     default:
       return 0;
   }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../face/FACE_CONFIG.h"
 #include "../face/SceneTypes.h"
 
 /**
@@ -38,5 +39,11 @@ Face::FaceParams blendedFaceParams(float v, float a);
  * triangulation as blendedFaceParams.
  */
 Face::EmotionArmMotion blendedEmotionArmMotion(float v, float a);
+
+/**
+ * Barycentric blend of per-expression idle animation rows (blink / gaze / bob)
+ * at (v, a), same triangulation as blendedFaceParams.
+ */
+FaceConfig::IdleAnimRow blendedIdleAnim(float v, float a);
 
 }  // namespace EmotionBlend
