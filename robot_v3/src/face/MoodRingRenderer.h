@@ -9,7 +9,7 @@
  * @brief Optional thin coloured ring around the face perimeter.
  *
  * Colour comes from FrameController's smoothed tween of `FaceParams::ring_*`
- * (kBaseTargets literals and emotion blend), not from Settings.
+ * (`FaceConfig::kBaseTargets` literals and emotion blend), not from Settings.
  *
  * **Emotion** expressions (Neutral … Disappointed) always run the draw
  * path (`drawMoodRing` no-ops when RGB is black). **Verb / overlay**

@@ -5,6 +5,7 @@
 #include "../agents/AgentEvents.h"
 #include "../behaviour/EmotionBlend.h"
 #include "../behaviour/EmotionSystem.h"
+#include "../face/FACE_CONFIG.h"
 #include "../behaviour/VerbSystem.h"
 #include "../core/AsciiCopy.h"
 #include "../hal/Settings.h"
@@ -22,37 +23,7 @@ void copyBody(char* dst, size_t cap, const char* src) {
 }
 
 Face::Expression expressionForEmotion(EmotionSystem::NamedEmotion e) {
-  switch (e) {
-    case EmotionSystem::NamedEmotion::Happy:
-      return Face::Expression::Happy;
-    case EmotionSystem::NamedEmotion::Excited:
-      return Face::Expression::Excited;
-    case EmotionSystem::NamedEmotion::Joyful:
-      return Face::Expression::Joyful;
-    case EmotionSystem::NamedEmotion::Sad:
-      return Face::Expression::Sad;
-    case EmotionSystem::NamedEmotion::Sleepy:
-      return Face::Expression::Sleepy;
-    case EmotionSystem::NamedEmotion::Distressed:
-      return Face::Expression::Distressed;
-    case EmotionSystem::NamedEmotion::Blissed:
-      return Face::Expression::Blissed;
-    case EmotionSystem::NamedEmotion::Depressed:
-      return Face::Expression::Depressed;
-    case EmotionSystem::NamedEmotion::Shocked:
-      return Face::Expression::Shocked;
-    case EmotionSystem::NamedEmotion::Disappointed:
-      return Face::Expression::Disappointed;
-    case EmotionSystem::NamedEmotion::Cheeky:
-      return Face::Expression::Cheeky;
-    case EmotionSystem::NamedEmotion::Gleeful:
-      return Face::Expression::Gleeful;
-    case EmotionSystem::NamedEmotion::Frustrated:
-      return Face::Expression::Frustrated;
-    case EmotionSystem::NamedEmotion::Neutral:
-    default:
-      return Face::Expression::Neutral;
-  }
+  return FaceConfig::expressionForNamedEmotion(e);
 }
 
 Face::Expression expressionForVerb(VerbSystem::Verb v) {

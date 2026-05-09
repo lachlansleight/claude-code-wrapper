@@ -8,7 +8,7 @@
  * @file FrameController.h
  * @brief Per-frame face-rendering orchestrator: tweening, blinks, gaze, body bob.
  *
- * FrameController is the glue between the static `kBaseTargets[]`
+ * FrameController is the glue between `FaceConfig::kBaseTargets[]`
  * geometry table (one FaceParams per Expression) and the actual
  * rendered scene. It owns all the *animation* state — the systems
  * below it are stateless renderers, the system above it
@@ -30,7 +30,7 @@
  *  - Smooth the mood-ring colour (200 ms τ low-pass toward tweened
  *    `FaceParams::ring_*`) and the read/write stream-effect alphas (100 ms τ).
  *  - Detect Settings::settingsVersion() changes and refresh tween targets
- *    (geometry + ring literals from kBaseTargets / emotion blend).
+ *    (geometry + ring literals from FaceConfig / emotion blend).
  *  - Finally call Scene::renderScene or TextScene::renderTextScene
  *    and Display::pushFrame.
  *
@@ -63,9 +63,9 @@ void tick(const SceneContext& ctx);
 void invalidate();
 
 /**
- * Read-only access to the per-Expression preset table. Indexed by
- * `Expression`; emotion rows (Neutral through Disappointed) supply the
- * presets blended by EmotionBlend from `EmotionTriangulation`.
+ * Read-only access to the per-Expression preset table (`FaceConfig::kBaseTargets`).
+ * Indexed by `Expression`; emotion rows supply the presets blended by
+ * EmotionBlend from `EmotionTriangulation`.
  */
 const FaceParams& baseTargetFor(Expression e);
 

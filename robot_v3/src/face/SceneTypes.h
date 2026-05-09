@@ -6,6 +6,8 @@
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 
+#include "FaceEnums.h"
+
 /**
  * @file SceneTypes.h
  * @brief Pure data types and helpers shared by every face/text renderer.
@@ -29,58 +31,14 @@
  */
 namespace Face {
 
+// `Expression` and `isEmotionExpression` live in FaceEnums.h (included above).
+
 /// Top-level rendering style. Mirrors AgentEvents::RenderMode and BridgeControl::DisplayMode.
 enum class RenderMode : uint8_t {
   Face = 0,   ///< Procedural face.
   Text,       ///< Text status display.
   Debug,      ///< Verbose diagnostic overlay.
 };
-
-/**
- * Effective expression chosen by the composition layer from
- * (verb, emotion, overlay). Order **matters** — many tables
- * (`MotionBehaviors::kMotion`, `FrameController::kBaseTargets`,
- * `SceneContextFill::accentNamedColor`, …) are indexed by this enum and rely on the
- * exact ordering. Add new entries before `Count` and update every
- * indexed table.
- */
-enum class Expression : uint8_t {
-  Neutral = 0,        ///< Idle, post-turn.
-  Happy,              ///< Positive emotion, low arousal.
-  Excited,            ///< Positive + high arousal.
-  Joyful,             ///< Top-right of valence/arousal plane.
-  Sad,                ///< Negative valence.
-  VerbThinking,
-  VerbReading,
-  VerbWriting,
-  VerbExecuting,
-  VerbStraining,      ///< Long-running execution.
-  VerbSleeping,
-  OverlayWaking,      ///< Transient: one-shot wake animation.
-  OverlayAttention,   ///< Transient: attention pulse for permission requests.
-  Sleepy,
-  Distressed,
-  Blissed,
-  Depressed,
-  Shocked,
-  Disappointed,
-  Cheeky,
-  Gleeful,
-  Frustrated,
-  Count
-};
-
-/// True for expressions driven by the continuous (v, a) emotion layer
-/// (Neutral … Frustrated), excluding verbs and overlays.
-inline bool isEmotionExpression(Expression s) {
-  return s == Expression::Neutral || s == Expression::Happy ||
-         s == Expression::Excited || s == Expression::Joyful ||
-         s == Expression::Sad || s == Expression::Sleepy ||
-         s == Expression::Distressed || s == Expression::Blissed ||
-         s == Expression::Depressed || s == Expression::Shocked ||
-         s == Expression::Disappointed || s == Expression::Cheeky ||
-         s == Expression::Gleeful || s == Expression::Frustrated;
-}
 
 /**
  * Blended base-layer arm motion (offsets from centre, degrees).
@@ -99,7 +57,7 @@ struct EmotionArmMotion {
  * Per-expression face geometry target. FrameController tweens between
  * these. All fields except rotation/speed are integer pixel offsets
  * (positive = down/right, expression-relative). `ring_*` is mood-ring
- * RGB888 from kBaseTargets / emotion blend (not Settings).
+ * RGB888 from FaceConfig / emotion blend (not Settings).
  *
  * Both eye and mouth are described as a top edge curve and a bottom
  * edge curve, each as a semicircular interpolation between an apex
@@ -213,7 +171,7 @@ struct SceneContext {
    * current (mood_v, mood_a). Consumed by FrameController as the base
    * tween target when `effective_expression` is an emotion (Neutral
    * through Disappointed). Verb/overlay expressions ignore this and use the
-   * `kBaseTargets[expression]` row directly. The `ring_*` fields are
+   * `FaceConfig::kBaseTargets[expression]` row directly. The `ring_*` fields are
    * part of the same blend as the rest of the preset geometry.
    */
   FaceParams base_face_params;

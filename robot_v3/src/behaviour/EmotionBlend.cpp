@@ -2,6 +2,7 @@
 
 #include <math.h>
 
+#include "../face/FACE_CONFIG.h"
 #include "../face/FrameController.h"
 #include "EmotionSystem.h"
 #include "EmotionTriangulation.h"
@@ -11,40 +12,6 @@ namespace EmotionBlend {
 namespace {
 
 constexpr float kBaryEps = 1e-5f;
-
-Face::Expression expressionForNamedEmotion(EmotionSystem::NamedEmotion e) {
-  switch (e) {
-    case EmotionSystem::NamedEmotion::Happy:
-      return Face::Expression::Happy;
-    case EmotionSystem::NamedEmotion::Excited:
-      return Face::Expression::Excited;
-    case EmotionSystem::NamedEmotion::Joyful:
-      return Face::Expression::Joyful;
-    case EmotionSystem::NamedEmotion::Sad:
-      return Face::Expression::Sad;
-    case EmotionSystem::NamedEmotion::Sleepy:
-      return Face::Expression::Sleepy;
-    case EmotionSystem::NamedEmotion::Distressed:
-      return Face::Expression::Distressed;
-    case EmotionSystem::NamedEmotion::Blissed:
-      return Face::Expression::Blissed;
-    case EmotionSystem::NamedEmotion::Depressed:
-      return Face::Expression::Depressed;
-    case EmotionSystem::NamedEmotion::Shocked:
-      return Face::Expression::Shocked;
-    case EmotionSystem::NamedEmotion::Disappointed:
-      return Face::Expression::Disappointed;
-    case EmotionSystem::NamedEmotion::Cheeky:
-      return Face::Expression::Cheeky;
-    case EmotionSystem::NamedEmotion::Gleeful:
-      return Face::Expression::Gleeful;
-    case EmotionSystem::NamedEmotion::Frustrated:
-      return Face::Expression::Frustrated;
-    case EmotionSystem::NamedEmotion::Neutral:
-    default:
-      return Face::Expression::Neutral;
-  }
-}
 
 float clampf(float x, float lo, float hi) {
   if (x < lo) return lo;
@@ -105,54 +72,12 @@ int16_t blendField(int16_t a, int16_t b, int16_t c, float la, float lb, float lc
   return (int16_t)lroundf(v);
 }
 
-struct ArmPreset {
-  int16_t min_deg;
-  int16_t max_deg;
-  float period_s;
-  float interval_s;
-};
-
-static ArmPreset armPresetFor(Face::Expression e) {
-  switch (e) {
-    case Face::Expression::Neutral:
-      return {-25, -15, 2.0f, 1.0f};
-    case Face::Expression::Happy:
-      return {-23, -7, 1.5f, 0.5f};
-    case Face::Expression::Excited:
-      return {-15, -5, 1.0f, 0.0f};
-    case Face::Expression::Joyful:
-      return {10, 25, 0.9f, 0.2f};
-    case Face::Expression::Sad:
-      return {-25, -15, 2.0f, 1.0f};
-    case Face::Expression::Sleepy:
-      return {-25, -20, 3.0f, 6.0f};
-    case Face::Expression::Distressed:
-      return {-15, -5, 1.0f, 0.0f};
-    case Face::Expression::Blissed:
-      return {-25, -20, 3.0f, 6.0f};
-    case Face::Expression::Depressed:
-      return {-25, -20, 3.0f, 6.0f};
-    case Face::Expression::Shocked:
-      return {-15, -5, 1.0f, 0.0f};
-    case Face::Expression::Disappointed:
-      return {-23, -7, 1.5f, 0.5f};
-    case Face::Expression::Cheeky:
-      return {-20, -5, 1.4f, 0.45f};
-    case Face::Expression::Gleeful:
-      return {10, 25, 0.9f, 0.2f};
-    case Face::Expression::Frustrated:
-      return {-18, -8, 1.1f, 0.15f};
-    default:
-      return {-25, -15, 2.0f, 1.0f};
-  }
-}
-
 static float blendFloat(float a, float b, float c, float la, float lb, float lc) {
   return a * la + b * lb + c * lc;
 }
 
-static Face::EmotionArmMotion blendArmThree(const ArmPreset& A, const ArmPreset& B,
-                                            const ArmPreset& C, float la, float lb, float lc) {
+static Face::EmotionArmMotion blendArmThree(const FaceConfig::ArmPreset& A, const FaceConfig::ArmPreset& B,
+                                            const FaceConfig::ArmPreset& C, float la, float lb, float lc) {
   Face::EmotionArmMotion r;
   r.min_offset_deg = blendField(A.min_deg, B.min_deg, C.min_deg, la, lb, lc);
   r.max_offset_deg = blendField(A.max_deg, B.max_deg, C.max_deg, la, lb, lc);
@@ -222,15 +147,15 @@ Face::FaceParams blendedFaceParams(float v, float a) {
       }
     }
     return Face::baseTargetFor(
-        expressionForNamedEmotion(EmotionSystem::kAnchors[bestIdx].emotion));
+        FaceConfig::expressionForNamedEmotion(EmotionSystem::kAnchors[bestIdx].emotion));
   }
 
   const Face::Expression eA =
-      expressionForNamedEmotion(EmotionSystem::kAnchors[i0].emotion);
+      FaceConfig::expressionForNamedEmotion(EmotionSystem::kAnchors[i0].emotion);
   const Face::Expression eB =
-      expressionForNamedEmotion(EmotionSystem::kAnchors[i1].emotion);
+      FaceConfig::expressionForNamedEmotion(EmotionSystem::kAnchors[i1].emotion);
   const Face::Expression eC =
-      expressionForNamedEmotion(EmotionSystem::kAnchors[i2].emotion);
+      FaceConfig::expressionForNamedEmotion(EmotionSystem::kAnchors[i2].emotion);
 
   return blendThree(Face::baseTargetFor(eA), Face::baseTargetFor(eB),
                     Face::baseTargetFor(eC), l0, l1, l2);
@@ -256,8 +181,8 @@ Face::EmotionArmMotion blendedEmotionArmMotion(float v, float a) {
       }
     }
     const Face::Expression ex =
-        expressionForNamedEmotion(EmotionSystem::kAnchors[bestIdx].emotion);
-    const ArmPreset p = armPresetFor(ex);
+        FaceConfig::expressionForNamedEmotion(EmotionSystem::kAnchors[bestIdx].emotion);
+    const FaceConfig::ArmPreset p = FaceConfig::armPresetFor(ex);
     Face::EmotionArmMotion one;
     one.min_offset_deg = p.min_deg;
     one.max_offset_deg = p.max_deg;
@@ -272,14 +197,14 @@ Face::EmotionArmMotion blendedEmotionArmMotion(float v, float a) {
   }
 
   const Face::Expression eA =
-      expressionForNamedEmotion(EmotionSystem::kAnchors[i0].emotion);
+      FaceConfig::expressionForNamedEmotion(EmotionSystem::kAnchors[i0].emotion);
   const Face::Expression eB =
-      expressionForNamedEmotion(EmotionSystem::kAnchors[i1].emotion);
+      FaceConfig::expressionForNamedEmotion(EmotionSystem::kAnchors[i1].emotion);
   const Face::Expression eC =
-      expressionForNamedEmotion(EmotionSystem::kAnchors[i2].emotion);
+      FaceConfig::expressionForNamedEmotion(EmotionSystem::kAnchors[i2].emotion);
 
-  Face::EmotionArmMotion r =
-      blendArmThree(armPresetFor(eA), armPresetFor(eB), armPresetFor(eC), l0, l1, l2);
+  Face::EmotionArmMotion r = blendArmThree(FaceConfig::armPresetFor(eA), FaceConfig::armPresetFor(eB),
+                                            FaceConfig::armPresetFor(eC), l0, l1, l2);
   if (r.min_offset_deg > r.max_offset_deg) {
     const int16_t t = r.min_offset_deg;
     r.min_offset_deg = r.max_offset_deg;

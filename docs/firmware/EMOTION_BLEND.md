@@ -7,9 +7,11 @@ lookup.
 
 ## How it works
 
-1. `EmotionSystem::kEmotionPoints` lists one `(valence, activation)`
-   **anchor** per `NamedEmotion`. Discrete snap uses nearest-anchor
-   distance (ties: `kPickOrder`). Blend triangulation uses the same
+1. `FaceConfig::kEmotionPoints` in
+   [`FACE_CONFIG.h`](../../robot_v3/src/face/FACE_CONFIG.h) lists one
+   `(valence, activation)` **anchor** per `NamedEmotion`. Discrete snap uses
+   nearest-anchor distance (ties: `FaceConfig::kPickOrder`). Blend
+   triangulation uses the same
    coordinates: each anchor is where that emotion's `FaceParams` preset
    applies fully.
 2. The anchor cloud is Delaunay-triangulated **offline** by a Python
@@ -25,7 +27,7 @@ lookup.
 `SceneContextFill::fill` puts the result on `SceneContext.base_face_params`.
 `FrameController` uses it as the tween target whenever
 `effective_expression` is an emotion (`Neutral`..`Sad`); verbs and
-overlays continue to read directly from `kBaseTargets[expression]`.
+overlays continue to read directly from `FaceConfig::kBaseTargets[expression]`.
 
 ## Snap is still alive (for colour & debug)
 
@@ -42,8 +44,8 @@ sparse, triangulation can leave gaps — the script aborts with an error.
 ## Regenerating after a `kEmotionPoints` change
 
 Edit
-[`robot_v3/src/behaviour/EmotionSystem.cpp`](../../robot_v3/src/behaviour/EmotionSystem.cpp)'s
-`kEmotionPoints` table only (the Python script parses it directly). Then run:
+[`robot_v3/src/face/FACE_CONFIG.h`](../../robot_v3/src/face/FACE_CONFIG.h)'s
+`FaceConfig::kEmotionPoints` table (the Python script parses it directly). Then run:
 
 ```
 python scripts/gen_emotion_triangulation.py

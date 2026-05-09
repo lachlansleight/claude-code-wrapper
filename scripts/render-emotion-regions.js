@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /**
- * ASCII plot of EmotionSystem.cpp kEmotionPoints (nearest-anchor / Voronoi-style
- * regions). Resolution matches firmware: nearest point in (v,a); ties break by
- * kPickOrder (first listed wins).
+ * ASCII plot of FaceConfig::kEmotionPoints in FACE_CONFIG.h (nearest-anchor /
+ * Voronoi-style regions). Resolution matches firmware: nearest point in (v,a);
+ * ties break by kPickOrder (first listed wins).
  *
  * Grid: same number of characters per 0.05 on v and on a (square in (v,a) space).
  *   v ∈ [-1, 1] → 40 steps × 4 = 160 columns
  *   a ∈ [0, 1] → 20 steps × 4 = 80 rows (top row = high arousal)
  *
  * Usage:
- *   node scripts/render-emotion-regions.js [path/to/EmotionSystem.cpp]
+ *   node scripts/render-emotion-regions.js [path/to/FACE_CONFIG.h]
  * Options:
  *   --compact    80×40 grid (2 chars per 0.05 on each axis)
  *   --rows N     override row count (columns stay at 160 unless --compact)
@@ -31,7 +31,7 @@ const DIST_SQ_TIE_EPS = 1e-7;
 
 function usage() {
   console.error(
-    `Usage: node ${path.basename(process.argv[1])} [EmotionSystem.cpp] [--compact] [--rows N]`,
+    `Usage: node ${path.basename(process.argv[1])} [FACE_CONFIG.h] [--compact] [--rows N]`,
   );
   process.exit(1);
 }
@@ -65,7 +65,7 @@ function parseArgs(argv) {
   return {
     file:
       file ||
-      path.join(__dirname, "..", "robot_v3", "src", "behaviour", "EmotionSystem.cpp"),
+      path.join(__dirname, "..", "robot_v3", "src", "face", "FACE_CONFIG.h"),
     cols,
     rows,
     charsPer005V: cv,
@@ -74,8 +74,8 @@ function parseArgs(argv) {
 }
 
 function parseEmotionPoints(src) {
-  const i = src.indexOf("constexpr EmotionPoint kEmotionPoints");
-  if (i < 0) throw new Error("constexpr EmotionPoint kEmotionPoints not found");
+  const i = src.indexOf("EmotionPoint kEmotionPoints");
+  if (i < 0) throw new Error("EmotionPoint kEmotionPoints not found");
   const slice = src.slice(i);
   const o = slice.indexOf("{");
   const c = slice.indexOf("};");
@@ -111,7 +111,11 @@ function parseEmotionPoints(src) {
 }
 
 function parsePickOrder(src) {
-  const i = src.indexOf("static constexpr NamedEmotion kPickOrder");
+  const needle =
+    src.indexOf("static constexpr EmotionSystem::NamedEmotion kPickOrder") >= 0
+      ? "static constexpr EmotionSystem::NamedEmotion kPickOrder"
+      : "static constexpr NamedEmotion kPickOrder";
+  const i = src.indexOf(needle);
   if (i < 0) throw new Error("kPickOrder not found");
   const slice = src.slice(i);
   const o = slice.indexOf("{");

@@ -1,39 +1,12 @@
 #include "MoodRingRenderer.h"
 
+#include "FACE_CONFIG.h"
+
 namespace Face {
-
-namespace {
-
-bool moodRingEnabledForVerbOrOverlay(Expression expr) {
-  switch (expr) {
-    case Expression::VerbThinking:
-    case Expression::VerbReading:
-    case Expression::VerbWriting:
-    case Expression::VerbExecuting:
-    case Expression::VerbStraining:
-    case Expression::Joyful:
-    case Expression::Excited:
-    case Expression::Sad:
-    case Expression::Distressed:
-    case Expression::Depressed:
-    case Expression::Shocked:
-    case Expression::Disappointed:
-    case Expression::OverlayAttention:
-      return true;
-    case Expression::Neutral:
-    case Expression::Happy:
-    case Expression::OverlayWaking:
-    case Expression::VerbSleeping:
-    default:
-      return false;
-  }
-}
-
-}  // namespace
 
 bool moodRingShouldDraw(Expression expr) {
   if (isEmotionExpression(expr)) return true;
-  return moodRingEnabledForVerbOrOverlay(expr);
+  return FaceConfig::moodRingEnabledVerbOrOverlay(expr);
 }
 
 void drawMoodRing(TFT_eSprite& s, uint8_t r, uint8_t g, uint8_t b) {

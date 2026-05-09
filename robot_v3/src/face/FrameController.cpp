@@ -3,6 +3,7 @@
 #include <esp_random.h>
 #include <math.h>
 
+#include "FACE_CONFIG.h"
 #include "../hal/Display.h"
 #include "../hal/MotionBehaviors.h"
 #include "../hal/Settings.h"
@@ -21,93 +22,13 @@ static FaceParams targetForExpression(Expression s, const FaceParams* baseTarget
 
 // Resolve the live tween target. For emotion expressions the base
 // FaceParams (including ring_*) come from the continuous (v,a) blend in
-// SceneContextFill; for verbs and overlays it's the static kBaseTargets row.
+// SceneContextFill; for verbs and overlays it's the static FaceConfig::kBaseTargets row.
 static FaceParams targetForContext(const SceneContext& ctx, const FaceParams* baseTargets) {
   if (Face::isEmotionExpression(ctx.effective_expression)) {
     return ctx.base_face_params;
   }
   return targetForExpression(ctx.effective_expression, baseTargets);
 }
-
-// Row order matches Face::Expression (see SceneTypes.h).
-// Field order matches FaceParams declaration:
-//   eye_dy, eye_rx,
-//   eye_top_apex, eye_top_corner, eye_bot_apex, eye_bot_corner, eye_thick,
-//   eye_wave_amp, eye_wave_freq, eye_wave_speed,
-//   pupil_dx, pupil_dy, pupil_r,
-//   mouth_dy, mouth_rx,
-//   mouth_top_apex, mouth_top_corner, mouth_bot_apex, mouth_bot_corner, mouth_thick,
-//   mouth_wave_amp, mouth_wave_freq, mouth_wave_speed,
-//   face_rot, face_y,
-//   ring_r, ring_g, ring_b
-static const FaceParams kBaseTargets[(uint8_t)Expression::Count] = {
-    /* Neutral */          {  2, 30,  -26, 0, +26, 0, 3,  0, 0, 0,   0,  3, 15,
-                              0, 15,   +2, 0,  +2, 0, 3,  0, 0, 0,
-                              0, 0,    0, 0, 0 },
-    /* Happy */            {  0, 30,  -16, 0, +30, 0, 3,  0, 0, 0,   0,  5,  16,
-                              0,  +24,   3, 0,  3, 0, 3,  0, 0, 0,
-                              0, 5,    0, 0, 0 },
-    /* Excited */          {  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   0,  0,  17,
-                              0,  +27,   4, -2,  8, -2, 3,  0, 0, 0,
-                              0, 0,    40, 255, 80 },
-    /* Joyful */           { -5, 20,  -15, 0, -6, 0, 4,  0, 0, 0,   0,  0,  14,
-                              -11,  +37,   3, 0,  24, 0, 4,  0, 0, 0,
-                              0, -14,    255, 228, 38 },
-    /* Sad */              {  4, 28,  -12, 0, +17, 0, 3,  0, 0, 0,   0,  3,  11,
-                              4,  +20,   -13, -7,  -11, -8, 3,  0, 0, 0,
-                              0, 6,    0, 0, 0 },
-    /* VerbThinking */     {  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   7, -9, 15,
-                              0, 11,   +3, 0,  +3, 0, 3,  0, 0, 0,
-                            -10, 0,    36, 56, 120 },
-    /* VerbReading */      {  0, 28,  -26, 0, +26, 0, 3,  0, 0, 0,   0,  8, 12,
-                              0,  9,   +3, 0,  +3, 0, 3,  0, 0, 0,
-                              0, 12,   78, 146, 210 },
-    /* VerbWriting */      {  0, 30,  -26, 0, +26, 0, 3,  0, 0, 0,   0, -8, 15,
-                              0, 15,    0, 0, +14, 0, 3,  0, 0, 0,
-                              0, 0,    104, 118, 228 },
-    /* VerbExecuting */    {  0, 30,  -16, 0, +16, 0, 3,  0, 0, 0,   0, -4, 10,
-                              0,  9,   +2, 0,  +2, 0, 3,  0, 0, 0,
-                              0, 0,    156, 64, 216 },
-    /* VerbStraining */    {  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
-                              0, 18,    0, 0,   0, 0, 3,  4, 100, 360,
-                              0, 0,    210, 75, 220 },
-    /* VerbSleeping */     {  8, 26,   -2, 0,  +2, 0, 3,  0, 0, 0,   0,  0,  15,
-                              0,  9,    0, 0,   0, 0, 3,  0, 0, 0,
-                              0, 0,    0, 0, 0 },
-    /* OverlayWaking */    { -2, 34,  -34, 0, +34, 0, 3,  0, 0, 0,   0,  0, 18,
-                              0,  7,   -9, 0,  +9, 0, 3,  0, 0, 0,
-                              0, 0,    128, 128, 128 },
-    /* OverlayAttention */ { -2, 34,  -34, 0, +34, 0, 3,  0, 0, 0,   0,  0, 18,
-                              0,  7,   -9, 0,  +9, 0, 3,  0, 0, 0,
-                              0, 0,    255, 20, 40 },
-    /* Sleepy */           {  0, 28,  0, 10, +34, 10, 3,  0, 0, 0,   0,  0,  15,
-                              0,  +13,   0, 0,  3, 0, 3,  0, 17, 90,
-                              0, 9,    0, 0, 0 },
-    /* Distressed */       {  2, 30,  -26, 0, +33, 0, 3,  0, 0, 0,   0,  7,  10,
-                              4,  +24,   -19, -7,  -7, 0, 3,  0, 0, 0,
-                              0, -15,    255, 48, 24 },
-    /* Blissed */          {  1, 20,   +3, 0, +1, 0, 3,  0, 0, 0,   0,  0,  15,
-                              1,  +26,   3, 0,  13, 0, 3,  0, 0, 0,
-                              0, 5,    0, 0, 0 },
-    /* Depressed */        {  0, 30,   +16, 10, +34, 11, 3,  0, 0, 0,   0,  20,  6,
-                              0,  +13,   0, +6,  3, 4, 3,  0, 17, 90,
-                              0, 9,    0, 0, 0 },
-    /* Shocked */           { 0, 30,   -34, 0,   39, 0, 3,   1, 85, 720,   0, 3, 9,
-                             20, 17,  -17, 0,   8, 0, 1,    2, 49, 720,   
-                             0, 0,     255, 255, 255 },
-    /* Disappointed */      {  3, 21,   +6, 0, +6, 0, 3,  0, 0, 0,   0,  3,  8,
-                              5,  +26,   -1, 0,  -3, 0, 3,  0, 0, 0,
-                              0, 0,    229, 54, 95 },
-    /* Cheeky */            {  1, 30,  -31, 0, +8, 0, 3,  0, 0, 0,   0,  3,  15,
-                              -25,  +15,   11, 0,  8, 0, 3,  0, 0, 0,
-                              0, -3,    0, 0, 0 },
-    /* Gleeful */           {  1, 27,  -30, 0, -2, 0, 3,  0, 0, 0,   0,  -7,  10,
-                              -25,  +27,   0, -2,  20, -2, 3,  0, 0, 0,
-                              0, 5,    39, 248, 78 },
-    /* Frustrated */        {  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
-                              0, 18,    0, 0,   0, 0, 3,  4, 100, 360,
-                              0, 0,    210, 75, 220 },
-};
 
 static constexpr uint32_t kTweenMs = 250;
 static constexpr uint32_t kTickIntervalMs = 33;
@@ -397,7 +318,7 @@ void begin() {
   randomSeed(esp_random());
 
   sLastExprIdx = -1;
-  sFrom = targetForExpression(Expression::VerbSleeping, kBaseTargets);
+  sFrom = targetForExpression(Expression::VerbSleeping, FaceConfig::kBaseTargets);
   sTo = sFrom;
   sTweenStartMs = millis();
   sNextBlinkMs = 0;
@@ -432,8 +353,8 @@ void invalidate() { sLastTickMs = 0; }
 
 const FaceParams& baseTargetFor(Expression e) {
   const uint8_t idx = (uint8_t)e;
-  if (idx >= (uint8_t)Expression::Count) return kBaseTargets[0];
-  return kBaseTargets[idx];
+  if (idx >= (uint8_t)Expression::Count) return FaceConfig::kBaseTargets[0];
+  return FaceConfig::kBaseTargets[idx];
 }
 
 static void onExpressionChange(Expression newExpr, uint32_t now, const SceneContext& ctx) {
@@ -450,7 +371,7 @@ static void onExpressionChange(Expression newExpr, uint32_t now, const SceneCont
   }
 
   sFrom = currentFrame;
-  sTo = targetForContext(ctx, kBaseTargets);
+  sTo = targetForContext(ctx, FaceConfig::kBaseTargets);
   sTweenStartMs = now;
 
   if (hadOld && oldExpr == Expression::Happy && newExpr == Expression::Neutral) {
@@ -498,7 +419,7 @@ void tick(const SceneContext& ctx) {
   const uint32_t settingsVersion = ctx.settings_version;
   if (settingsVersion != sLastSettingsVersion) {
     sLastSettingsVersion = settingsVersion;
-    sTo = targetForContext(ctx, kBaseTargets);
+    sTo = targetForContext(ctx, FaceConfig::kBaseTargets);
     sFrom.ring_r = sTo.ring_r;
     sFrom.ring_g = sTo.ring_g;
     sFrom.ring_b = sTo.ring_b;
@@ -523,7 +444,7 @@ void tick(const SceneContext& ctx) {
     // expression-enum change. sFrom/tween-start are untouched, so any
     // in-flight transition from a verb/overlay still completes
     // normally; once tw >= 1, the rendered params equal sTo (live).
-    sTo = targetForContext(ctx, kBaseTargets);
+    sTo = targetForContext(ctx, FaceConfig::kBaseTargets);
   }
 
   const float tw = (float)(now - sTweenStartMs) / (float)kTweenMs;

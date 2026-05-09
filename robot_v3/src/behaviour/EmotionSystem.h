@@ -2,6 +2,8 @@
 
 #include <Arduino.h>
 
+#include "../face/FaceEnums.h"
+
 /**
  * @file EmotionSystem.h
  * @brief Continuous valence/arousal model with hysteresis-snapped emotion regions.
@@ -14,7 +16,7 @@
  * first-order follows the goal with a short τ (~300 ms) so bridge or
  * agent-driven jumps do not visibly pop the face. Each `NamedEmotion`
  * has an anchor point `(valence, activation)`; the raw point snaps to the
- * nearest anchor (ties break by `kPickOrder` in `EmotionSystem.cpp`), with
+ * nearest anchor (ties break by `FaceConfig::kPickOrder` in `FACE_CONFIG.h`), with
  * hysteresis so the snap doesn't chatter near Voronoi boundaries.
  *
  * ## Inputs
@@ -43,25 +45,6 @@
  * raw point sits near a Voronoi boundary between anchors.
  */
 namespace EmotionSystem {
-
-/// Coarse named emotion regions. Each maps to a face/colour scheme.
-enum class NamedEmotion : uint8_t {
-  Neutral = 0,  ///< Centre band. Default.
-  Happy,        ///< Mid-valence positive (lower arousal half).
-  Excited,      ///< High valence + high arousal.
-  Joyful,       ///< Top-right: very high arousal + valence.
-  Sad,          ///< Negative valence (full arousal range).
-  Sleepy,
-  Distressed,
-  Blissed,
-  Depressed,
-  Shocked,
-  Disappointed,
-  Cheeky,
-  Gleeful,
-  Frustrated,
-  Count
-};
 
 /// Raw continuous (valence, activation) point.
 struct Emotion {

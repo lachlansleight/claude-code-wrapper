@@ -3,6 +3,8 @@
 #include <math.h>
 #include <string.h>
 
+#include "../face/FACE_CONFIG.h"
+
 namespace EmotionSystem {
 
 namespace {
@@ -14,11 +16,6 @@ static constexpr float kSnapHysteresisDist = 0.05f;
 static constexpr uint32_t kSnapHysteresisHoldMs = 100;
 /// Squared-distance tolerance for tying two anchors (float noise).
 static constexpr float kDistSqTieEps = 1e-7f;
-
-struct EmotionPoint {
-  float v;
-  float a;
-};
 
 struct Driver {
   bool active;
@@ -34,46 +31,7 @@ NamedEmotion sCurrentSnap = NamedEmotion::Neutral;
 NamedEmotion sPendingSnap = NamedEmotion::Neutral;
 uint32_t sPendingSnapSinceMs = 0;
 
-// Anchor samples in (valence, activation). Used for discrete snap + triangulation
-// source (see scripts/gen_emotion_triangulation.py).
-constexpr EmotionPoint kEmotionPoints[(size_t)NamedEmotion::Count] = {
-    {+0.0f, 0.5f},    // Neutral
-    {+0.5f, 0.5f},    // Happy
-    {+1.0f, 0.6f},    // Excited
-    {+1.0f, 1.0f},    // Joyful
-    {-0.5f, 0.5f},    // Sad
-    {-0.2f, 0.0f},    // Sleepy
-    {-1.0f, 1.0f},    // Distressed
-    {+1.0f, 0.0f},    // Blissed
-    {-1.0f, 0.0f},    // Depressed
-    {-0.3f, 1.0f},    // Shocked
-    {-1.0f, 0.3f},    // Disappointed
-    {+0.5f, 0.7f},    // Cheeky
-    {+0.6f, 1.0f},    // Gleeful
-    {-0.6f, 0.8f},    // Frustrated
-};
-
-// When two anchors are equidistant, first listed here wins (matches gen script
-// anchor dedup: first emotion keeps the shared coordinate).
-// Full permutation: tie-break priority when two anchors are equidistant.
-static constexpr NamedEmotion kPickOrder[] = {
-    NamedEmotion::Gleeful,
-    NamedEmotion::Cheeky,
-    NamedEmotion::Sleepy,
-    NamedEmotion::Distressed,
-    NamedEmotion::Frustrated,
-    NamedEmotion::Disappointed,
-    NamedEmotion::Blissed,
-    NamedEmotion::Depressed,
-    NamedEmotion::Shocked,
-    NamedEmotion::Neutral,
-    NamedEmotion::Happy,
-    NamedEmotion::Excited,
-    NamedEmotion::Joyful,
-    NamedEmotion::Sad,
-};
-
-float distSq(float v, float a, const EmotionPoint& p) {
+float distSq(float v, float a, const FaceConfig::EmotionPoint& p) {
   const float dv = v - p.v;
   const float da = a - p.a;
   return dv * dv + da * da;
@@ -99,15 +57,15 @@ float activeTargetV() {
   return best;
 }
 
-// Nearest anchor in (v, a); ties break by kPickOrder (first wins).
+// Nearest anchor in (v, a); ties break by FaceConfig::kPickOrder (first wins).
 NamedEmotion emotionForPoint(float v, float a, float* outBestDist = nullptr) {
-  float bestD = distSq(v, a, kEmotionPoints[0]);
+  float bestD = distSq(v, a, FaceConfig::kEmotionPoints[0]);
   for (size_t i = 1; i < (size_t)NamedEmotion::Count; ++i) {
-    const float d = distSq(v, a, kEmotionPoints[i]);
+    const float d = distSq(v, a, FaceConfig::kEmotionPoints[i]);
     if (d < bestD) bestD = d;
   }
-  for (NamedEmotion e : kPickOrder) {
-    const float d = distSq(v, a, kEmotionPoints[(size_t)e]);
+  for (NamedEmotion e : FaceConfig::kPickOrder) {
+    const float d = distSq(v, a, FaceConfig::kEmotionPoints[(size_t)e]);
     if (d <= bestD + kDistSqTieEps) {
       if (outBestDist) *outBestDist = sqrtf(bestD);
       return e;
@@ -151,8 +109,7 @@ void tick() {
       clampf(sRaw.activation + (sGoal.activation - sRaw.activation) * alphaFollow, 0.0f, 1.0f);
 
   float bestDist = 0.0f;
-  const NamedEmotion nearest =
-      emotionForPoint(sRaw.valence, sRaw.activation, &bestDist);
+  const NamedEmotion nearest = emotionForPoint(sRaw.valence, sRaw.activation, &bestDist);
   if (nearest == sCurrentSnap) {
     sPendingSnap = nearest;
     sPendingSnapSinceMs = 0;
@@ -160,7 +117,7 @@ void tick() {
   }
 
   const float currentDist =
-      sqrtf(distSq(sRaw.valence, sRaw.activation, kEmotionPoints[(size_t)sCurrentSnap]));
+      sqrtf(distSq(sRaw.valence, sRaw.activation, FaceConfig::kEmotionPoints[(size_t)sCurrentSnap]));
   if (currentDist - bestDist <= kSnapHysteresisDist) return;
 
   if (sPendingSnap != nearest) {
@@ -237,39 +194,6 @@ DebugState debugState() {
   return out;
 }
 
-const char* emotionName(NamedEmotion e) {
-  switch (e) {
-    case NamedEmotion::Neutral:
-      return "neutral";
-    case NamedEmotion::Happy:
-      return "happy";
-    case NamedEmotion::Excited:
-      return "excited";
-    case NamedEmotion::Joyful:
-      return "joyful";
-    case NamedEmotion::Sad:
-      return "sad";
-    case NamedEmotion::Sleepy:
-      return "sleepy";
-    case NamedEmotion::Distressed:
-      return "distressed";
-    case NamedEmotion::Blissed:
-      return "blissed";
-    case NamedEmotion::Depressed:
-      return "depressed";
-    case NamedEmotion::Shocked:
-      return "shocked";
-    case NamedEmotion::Disappointed:
-      return "disappointed";
-    case NamedEmotion::Cheeky:
-      return "cheeky";
-    case NamedEmotion::Gleeful:
-      return "gleeful";
-    case NamedEmotion::Frustrated:
-      return "frustrated";
-    default:
-      return "?";
-  }
-}
+const char* emotionName(NamedEmotion e) { return FaceConfig::emotionName(e); }
 
 }  // namespace EmotionSystem

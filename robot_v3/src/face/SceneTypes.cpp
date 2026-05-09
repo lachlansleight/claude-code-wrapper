@@ -1,56 +1,9 @@
 #include "SceneTypes.h"
 
+#include "FACE_CONFIG.h"
+
 namespace Face {
 
-const char* expressionName(Expression e) {
-  switch (e) {
-    case Expression::Neutral:
-      return "neutral";
-    case Expression::Happy:
-      return "happy";
-    case Expression::Excited:
-      return "excited";
-    case Expression::Joyful:
-      return "joyful";
-    case Expression::Sad:
-      return "sad";
-    case Expression::VerbThinking:
-      return "verb_thinking";
-    case Expression::VerbReading:
-      return "verb_reading";
-    case Expression::VerbWriting:
-      return "verb_writing";
-    case Expression::VerbExecuting:
-      return "verb_executing";
-    case Expression::VerbStraining:
-      return "verb_straining";
-    case Expression::VerbSleeping:
-      return "verb_sleeping";
-    case Expression::OverlayWaking:
-      return "overlay_waking";
-    case Expression::OverlayAttention:
-      return "overlay_attention";
-    case Expression::Sleepy:
-      return "sleepy";
-    case Expression::Distressed:
-      return "distressed";
-    case Expression::Blissed:
-      return "blissed";
-    case Expression::Depressed:
-      return "depressed";
-    case Expression::Shocked:
-      return "shocked";
-    case Expression::Disappointed:
-      return "disappointed";
-    case Expression::Cheeky:
-      return "cheeky";
-    case Expression::Gleeful:
-      return "gleeful";
-    case Expression::Frustrated:
-      return "frustrated";
-    default:
-      return "?";
-  }
-}
+const char* expressionName(Expression e) { return FaceConfig::expressionName(e); }
 
 }  // namespace Face
