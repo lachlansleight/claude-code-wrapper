@@ -121,7 +121,7 @@ All endpoints except `/api/health` require
 |--------|-----------------------------|-----------------------------------------------------------|
 | GET    | `/api/health`               | Liveness; lists registered agent adapters.                |
 | POST   | `/hooks/:agent`             | Ingest a lifecycle hook from a named agent.               |
-| POST   | `/api/messages`             | Inject a message (broadcast on WS only — no MCP delivery).|
+| POST   | `/api/messages`             | Inject a message (WS broadcast only; not delivered into the agent session).|
 | GET    | `/api/messages/:chat_id`    | Read message log for a chat.                              |
 | GET    | `/api/state`                | Bridge state (chats, pending permissions, uptime).        |
 | GET    | `/api/sessions`             | Active session ids (last 10 minutes of activity).         |
@@ -135,10 +135,11 @@ Curl recipes for each: [`docs/bridge/CURL_RECIPES.md`](docs/bridge/CURL_RECIPES.
 
 ### Note on permission verdicts
 
-Without an MCP channel back to the agent CLI, `POST /api/permissions/:id`
-**cannot actually approve or deny a tool call** in the agent. It only
-clears the local pending entry and broadcasts a `permission_resolved`
-event. The agent's own terminal prompt still has to be answered.
+The bridge has no path to push verdicts into the agent CLI, so
+`POST /api/permissions/:id` **cannot actually approve or deny a tool call**
+in the agent. It only clears the local pending entry and broadcasts a
+`permission_resolved` event. The agent's own terminal prompt still has to
+be answered.
 
 ## WebSocket API
 

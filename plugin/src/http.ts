@@ -469,10 +469,9 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
       json(res, 400, { error: 'behavior_must_be_allow_or_deny' })
       return
     }
-    // Without an MCP channel back to Claude Code, verdicts can't actually
-    // unblock the agent — they just resolve our local pending entry and
-    // notify clients. Surface this honestly via `applied: false` whenever
-    // we've stopped tracking the request.
+    // Verdicts can't reach the agent CLI from here — they only resolve our
+    // local pending entry and notify WS clients. Surface this via
+    // `applied: false` whenever we've stopped tracking the request.
     const wasPending = state.getPendingPermission(request_id) !== undefined
     if (wasPending) {
       state.resolvePendingPermission(request_id)

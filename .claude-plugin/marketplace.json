@@ -8,7 +8,7 @@
     {
       "name": "claude-code-bridge",
       "source": "./plugin",
-      "description": "Remote HTTP/WebSocket bridge for Claude Code — inject messages, stream events, approve tool-use prompts from external clients."
+      "description": "Claude Code plugin: wires lifecycle hooks to a separately-running HTTP/WebSocket bridge for robots, dashboards, or other subscribers."
     }
   ]
 }

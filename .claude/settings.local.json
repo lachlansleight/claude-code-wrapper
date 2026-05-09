@@ -3,7 +3,6 @@
     "allow": [
       "Bash(npm install *)",
       "Bash(npm run *)",
-      "mcp__bridge__reply",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebSearch",
       "Read(//c/Users/Lachlan/.claude/plugins/**)",
@@ -14,8 +13,5 @@
       "WebFetch(domain:docs.claude.com)",
       "Bash(git mv *)"
     ]
-  },
-  "enabledMcpjsonServers": [
-    "bridge"
-  ]
+  }
 }

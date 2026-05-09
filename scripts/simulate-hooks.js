@@ -53,7 +53,7 @@ const READ_FILES = [
   'src/index.ts',
   'package.json',
   'README.md',
-  'plugin/src/mcp.ts',
+  'plugin/src/http.ts',
   'robot_v2/Personality.cpp',
 ]
 

@@ -19,9 +19,8 @@ not derived states. Behaviour derivation lives in the firmware
 (`VerbSystem` + `EmotionSystem` + `EventRouter`).
 
 Source lives in `plugin/src/`. Compiled output is `plugin/dist/`. The
-Claude Code plugin in `plugin/` only registers hooks now — there is no
-MCP server, no `.mcp.json`. The bridge is started separately
-(`node plugin/dist/index.js`).
+Claude Code plugin in `plugin/` only registers hooks that POST to the
+bridge. Start the bridge separately (`node plugin/dist/index.js`).
 
 ## Repo layout
 
@@ -92,8 +91,8 @@ heuristics — they are intentionally separate.
 HTTP layer adds entries on `permission.requested`, removes them on
 `permission.resolved`.
 
-Without an MCP channel back to the agent CLI, `POST /api/permissions/:id`
-cannot actually approve/deny in the agent — it only clears local state
+The bridge cannot push verdicts into the agent CLI; `POST /api/permissions/:id`
+only clears local state
 and broadcasts a resolve. The terminal user still has to answer the
 agent's own prompt. The firmware recovers from stuck `BLOCKED` state by
 clearing `pending_permission` on `turn.started`.

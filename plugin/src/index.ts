@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Agent-agnostic robot bridge. Standalone Node service. No MCP transport —
-// agent CLIs (Claude Code, Codex, Cursor, OpenCode) POST hook payloads to
+// Agent-agnostic robot bridge. Standalone Node service — agent CLIs
+// (Claude Code, Codex, Cursor, OpenCode) POST hook payloads to
 // /hooks/<agent>; clients subscribe over WebSocket to live events and the
 // derived personality state.
 

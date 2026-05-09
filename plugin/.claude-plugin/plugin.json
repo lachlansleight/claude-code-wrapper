@@ -7,5 +7,5 @@
     "email": "lachlan@liquid.city"
   },
   "homepage": "https://github.com/LachlanSleight/claude-code-wrapper",
-  "keywords": ["mcp", "channel", "remote", "bridge", "websocket"]
+  "keywords": ["hooks", "lifecycle", "bridge", "websocket", "robot"]
 }

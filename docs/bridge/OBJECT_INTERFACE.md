@@ -331,8 +331,8 @@ activities for them.
 
 ‡ Claude Code's permission flow is delivered via `Notification` hook
 text; the bridge synthesises a `permission.requested` only when it can
-parse a request id out of that text. Without an MCP channel, the bridge
-cannot deliver verdicts back to Claude Code regardless.
+parse a request id out of that text. The bridge still cannot push verdicts
+back into Claude Code from HTTP/WS alone.
 
 ## ActivityKind classification table
 
