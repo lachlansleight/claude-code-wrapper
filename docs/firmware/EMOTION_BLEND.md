@@ -8,7 +8,7 @@ lookup.
 ## How it works
 
 1. `FaceConfig::kEmotionPoints` in
-   [`FACE_CONFIG.h`](../../robot_v3/src/face/FACE_CONFIG.h) lists one
+   [`FACE_CONFIG_DATA.h`](../../robot_v3/src/face/FACE_CONFIG_DATA.h) lists one
    `(valence, activation)` **anchor** per `NamedEmotion`. Discrete snap uses
    nearest-anchor distance (ties: `FaceConfig::kPickOrder`). Blend
    triangulation uses the same
@@ -44,7 +44,7 @@ sparse, triangulation can leave gaps — the script aborts with an error.
 ## Regenerating after a `kEmotionPoints` change
 
 Edit
-[`robot_v3/src/face/FACE_CONFIG.h`](../../robot_v3/src/face/FACE_CONFIG.h)'s
+[`robot_v3/src/face/FACE_CONFIG_DATA.h`](../../robot_v3/src/face/FACE_CONFIG_DATA.h)'s
 `FaceConfig::kEmotionPoints` table (the Python script parses it directly). Then run:
 
 ```

@@ -56,7 +56,7 @@ inline bool isEmotionExpression(Expression s) {
 
 namespace EmotionSystem {
 
-/// Named emotion regions (V/A anchors). Order matches kEmotionPoints in FACE_CONFIG.h.
+/// Named emotion regions (V/A anchors). Order matches kEmotionPoints in FACE_CONFIG_DATA.h.
 enum class NamedEmotion : uint8_t {
   Neutral = 0,
   Happy,

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * ASCII plot of FaceConfig::kEmotionPoints in FACE_CONFIG.h (nearest-anchor /
+ * ASCII plot of FaceConfig::kEmotionPoints in FACE_CONFIG_DATA.h (nearest-anchor /
  * Voronoi-style regions). Resolution matches firmware: nearest point in (v,a);
  * ties break by kPickOrder (first listed wins).
  *
@@ -9,7 +9,7 @@
  *   a ∈ [0, 1] → 20 steps × 4 = 80 rows (top row = high arousal)
  *
  * Usage:
- *   node scripts/render-emotion-regions.js [path/to/FACE_CONFIG.h]
+ *   node scripts/render-emotion-regions.js [path/to/FACE_CONFIG_DATA.h]
  * Options:
  *   --compact    80×40 grid (2 chars per 0.05 on each axis)
  *   --rows N     override row count (columns stay at 160 unless --compact)
@@ -31,7 +31,7 @@ const DIST_SQ_TIE_EPS = 1e-7;
 
 function usage() {
   console.error(
-    `Usage: node ${path.basename(process.argv[1])} [FACE_CONFIG.h] [--compact] [--rows N]`,
+    `Usage: node ${path.basename(process.argv[1])} [FACE_CONFIG_DATA.h] [--compact] [--rows N]`,
   );
   process.exit(1);
 }
@@ -65,7 +65,7 @@ function parseArgs(argv) {
   return {
     file:
       file ||
-      path.join(__dirname, "..", "robot_v3", "src", "face", "FACE_CONFIG.h"),
+      path.join(__dirname, "..", "robot_v3", "src", "face", "FACE_CONFIG_DATA.h"),
     cols,
     rows,
     charsPer005V: cv,
