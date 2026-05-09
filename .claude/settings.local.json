@@ -11,7 +11,9 @@
       "WebFetch(domain:developers.openai.com)",
       "WebFetch(domain:opencode.ai)",
       "WebFetch(domain:docs.claude.com)",
-      "Bash(git mv *)"
+      "Bash(git mv *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Lachlan\\\\Dev\\\\lachlan\\\\claude-code-wrapper\\\\plugin\\\\src\" -Recurse)",
+      "Bash(Select-Object FullName)"
     ]
   }
 }

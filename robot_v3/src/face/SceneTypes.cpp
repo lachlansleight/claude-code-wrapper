@@ -77,18 +77,39 @@ ParamI16& fieldMutRef(FaceParams& p, FieldIndex i) {
 
 ParamI16 combineEmotionVerbField(const ParamI16& e, bool hasVerb, const ParamI16& v) {
   if (!hasVerb) return e;
-  ParamI16 out{};
+
   const uint32_t se = e.strength;
   const uint32_t sv = v.strength;
+
+  if (se == 0 && sv == 0) return ParamI16{0, 0};
+  if (sv == 0) return e;
+  if (se == 0) return v;
+
+  // Lerp from emotion value to verb value. Verb strength is the lerp t
+  // (so verb_str=0 keeps emotion, verb_str=100 takes verb). Emotion
+  // strength shapes the curve: es=50 is linear, es<50 is ease-out (verb
+  // dominates more easily), es>50 is ease-in (emotion holds on harder).
+  // Power continuously varies from 1.0 (linear) at es=50 to kMaxPower
+  // at es=0 or es=100.
+  const float t = (float)sv / 100.0f;
+  constexpr float kMaxPower = 5.0f;
+
+  float factor;
+  if (se == 50) {
+    factor = t;
+  } else if (se < 50) {
+    const float power = 1.0f + (50.0f - (float)se) / 50.0f * (kMaxPower - 1.0f);
+    factor = 1.0f - powf(1.0f - t, power);
+  } else {
+    const float power = 1.0f + ((float)se - 50.0f) / 50.0f * (kMaxPower - 1.0f);
+    factor = powf(t, power);
+  }
+
+  ParamI16 out{};
+  out.value =
+      (int16_t)lroundf((float)e.value + ((float)v.value - (float)e.value) * factor);
   out.strength = (uint8_t)(se > sv ? se : sv);
   if (out.strength > 100) out.strength = 100;
-  if (se + sv > 0) {
-    out.value = (int16_t)(((int32_t)e.value * (int32_t)se + (int32_t)v.value * (int32_t)sv) /
-                          (int32_t)(se + sv));
-  } else {
-    out.value = e.value;
-    out.strength = 0;
-  }
   return out;
 }
 
