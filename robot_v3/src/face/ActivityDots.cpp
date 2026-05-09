@@ -2,6 +2,8 @@
 
 #include <math.h>
 
+#include "FACE_CONFIG.h"
+
 namespace Face {
 
 static constexpr int16_t kProgressDotRadiusMin = 5;
@@ -9,7 +11,6 @@ static constexpr int16_t kProgressDotRadiusMax = 2;
 static constexpr float kProgressArcDegMin = 40.0f;
 static constexpr float kProgressArcDegMax = 170.0f;
 static constexpr uint16_t kProgressMaxDots = 48;
-static constexpr uint32_t kProgressFadeMs = 280;
 
 static void drawProgressDots(TFT_eSprite& s, uint16_t count, float baseRad, float scale, float moodR,
                              float moodG, float moodB) {
@@ -44,8 +45,8 @@ void drawActivityDots(TFT_eSprite& s, const SceneRenderState& renderState, const
   if (renderState.expression == Expression::VerbSleeping) return;
 
   if (renderState.progress_fade_start_ms != 0) {
-    const float t =
-        (float)(now - renderState.progress_fade_start_ms) / (float)kProgressFadeMs;
+    const float t = (float)(now - renderState.progress_fade_start_ms) /
+                    (float)FaceConfig::kFrameAnim.progress_fade_ms;
     const float scale = 1.0f - smoothstep01(t);
     drawProgressDots(s, renderState.fade_read_count, (float)PI / 2.0f, scale, renderState.mood_r,
                      renderState.mood_g, renderState.mood_b);

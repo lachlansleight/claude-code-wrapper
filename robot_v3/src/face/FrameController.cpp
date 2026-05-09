@@ -16,16 +16,6 @@
 
 namespace Face {
 
-static constexpr float kMoodRingTauMs = 200.0f;
-static constexpr float kEmotionGeometrySmoothTauMs = 250.0f;
-
-static constexpr uint32_t kTickIntervalMs = 33;
-static constexpr uint32_t kTickIntervalStreamMs = 16;
-
-static constexpr uint32_t kThinkingFlipDurMs = 600;
-static constexpr uint32_t kThinkingFlipMinMs = 3000;
-static constexpr uint32_t kThinkingFlipMaxMs = 6000;
-
 static int16_t sLastExprIdx = -1;
 
 static FaceParams sSmoothedEmotion;
@@ -89,8 +79,11 @@ static FaceConfig::IdleAnimRow idleFor(const SceneContext& ctx, Expression s) {
   return FaceConfig::kIdleAnim[(uint8_t)s];
 }
 
+static const FaceConfig::FrameAnimConfig& animCfg() { return FaceConfig::kFrameAnim; }
+
 static float breathPhase(uint32_t now) {
-  const float t = (float)(now % 4000) / 4000.0f;
+  const uint32_t periodMs = animCfg().breath_period_ms ? animCfg().breath_period_ms : 4000u;
+  const float t = (float)(now % periodMs) / (float)periodMs;
   return sinf(t * 2.0f * (float)PI);
 }
 
@@ -109,7 +102,7 @@ static int16_t bodyBobFor(const SceneContext& ctx, const FaceConfig::IdleAnimRow
     integrate = true;
     if (Face::isEmotionExpression(s) &&
         ctx.base_emotion_arm.min_offset_deg != ctx.base_emotion_arm.max_offset_deg) {
-      amp = 3;
+      amp = animCfg().emotion_bob_amp_follow_arm;
     } else {
       amp = 0;
     }
@@ -140,7 +133,8 @@ static void gazeFor(const FaceConfig::IdleAnimRow& idle, uint32_t now, int16_t& 
   gdy = 0;
   switch (idle.gaze_style) {
     case FaceConfig::GazeStyle::IdleRandom: {
-      const uint32_t moveMs = idle.gaze_move_ms ? idle.gaze_move_ms : 200u;
+      const uint32_t moveMs =
+          idle.gaze_move_ms ? idle.gaze_move_ms : (uint32_t)animCfg().default_gaze_move_ms;
       if (sIdleGlanceStartMs != 0) {
         const float t = smoothstep01((float)(now - sIdleGlanceStartMs) / (float)moveMs);
         gdx = lerpi(sIdleGlanceFromDx, sIdleGlanceDx, t);
@@ -163,7 +157,7 @@ static void gazeFor(const FaceConfig::IdleAnimRow& idle, uint32_t now, int16_t& 
               now + (uint32_t)random((long)idle.gaze_reroll_min_ms,
                                      (long)idle.gaze_reroll_max_ms + 1);
         } else {
-          sNextIdleGlanceMs = now + 1000u;
+          sNextIdleGlanceMs = now + animCfg().invalid_gaze_reroll_fallback_ms;
         }
       }
       break;
@@ -205,8 +199,8 @@ static void scheduleNextBlink(const FaceConfig::IdleAnimRow& idle, uint32_t from
 
 static float currentBlinkAmount(uint32_t now, const FaceConfig::IdleAnimRow& idle) {
   if (!sBlinkActive) return 0.0f;
-  const uint32_t closeMs = idle.blink_close_ms ? idle.blink_close_ms : 80u;
-  const uint32_t openMs = idle.blink_open_ms ? idle.blink_open_ms : 130u;
+  const uint32_t closeMs = idle.blink_close_ms ? idle.blink_close_ms : animCfg().default_blink_close_ms;
+  const uint32_t openMs = idle.blink_open_ms ? idle.blink_open_ms : animCfg().default_blink_open_ms;
   const uint32_t d = now - sBlinkStartMs;
   if (d < closeMs) {
     return (float)d / (float)closeMs;
@@ -221,7 +215,7 @@ static float currentBlinkAmount(uint32_t now, const FaceConfig::IdleAnimRow& idl
 
 static float currentThinkSign(uint32_t now) {
   if (sThinkFlipStartMs == 0) return sThinkToSign;
-  const float t = (float)(now - sThinkFlipStartMs) / (float)kThinkingFlipDurMs;
+  const float t = (float)(now - sThinkFlipStartMs) / (float)animCfg().thinking_flip_dur_ms;
   return sThinkFromSign + (sThinkToSign - sThinkFromSign) * smoothstep01(t);
 }
 
@@ -230,7 +224,8 @@ static void resetThinkTilt(uint32_t now) {
   sThinkToSign = 1.0f;
   sThinkFlipStartMs = 0;
   sNextThinkFlipMs =
-      now + (uint32_t)random((long)kThinkingFlipMinMs, (long)kThinkingFlipMaxMs + 1);
+      now + (uint32_t)random((long)animCfg().thinking_flip_min_ms,
+                             (long)animCfg().thinking_flip_max_ms + 1);
 }
 
 static void maybeFlipThinkTilt(uint32_t now) {
@@ -238,12 +233,10 @@ static void maybeFlipThinkTilt(uint32_t now) {
   sThinkFromSign = currentThinkSign(now);
   sThinkToSign = -sThinkFromSign;
   sThinkFlipStartMs = now;
-  sNextThinkFlipMs = now + kThinkingFlipDurMs +
-                     (uint32_t)random((long)kThinkingFlipMinMs, (long)kThinkingFlipMaxMs + 1);
+  sNextThinkFlipMs =
+      now + animCfg().thinking_flip_dur_ms +
+      (uint32_t)random((long)animCfg().thinking_flip_min_ms, (long)animCfg().thinking_flip_max_ms + 1);
 }
-
-static constexpr uint32_t kProgressFadeMs = 280;
-static constexpr uint32_t kEffectsFadeMs = 100;
 
 void begin() {
   randomSeed(esp_random());
@@ -355,7 +348,8 @@ void tick(const SceneContext& ctx) {
 
   const bool streamFrame = (sNow == Expression::VerbReading || sNow == Expression::VerbWriting ||
                             sTextStreamAlpha > 0.02f || sWriteStreamAlpha > 0.02f);
-  const uint32_t tickInterval = streamFrame ? kTickIntervalStreamMs : kTickIntervalMs;
+  const uint32_t tickInterval =
+      streamFrame ? animCfg().tick_interval_stream_ms : animCfg().tick_interval_ms;
   if (now - sLastTickMs < tickInterval) return;
   sLastTickMs = now;
 
@@ -367,14 +361,14 @@ void tick(const SceneContext& ctx) {
   const FaceConfig::IdleAnimRow idle = idleFor(ctx, sNow);
 
   const uint32_t effectsDt = (sLastEffectsMs == 0) ? 0 : (now - sLastEffectsMs);
-  const float effectsA = 1.0f - expf(-(float)effectsDt / (float)kEffectsFadeMs);
+  const float effectsA = 1.0f - expf(-(float)effectsDt / (float)animCfg().effects_fade_ms);
   const float readTarget = (sNow == Expression::VerbReading) ? 1.0f : 0.0f;
   const float writeTarget = (sNow == Expression::VerbWriting) ? 1.0f : 0.0f;
   sTextStreamAlpha += (readTarget - sTextStreamAlpha) * effectsA;
   sWriteStreamAlpha += (writeTarget - sWriteStreamAlpha) * effectsA;
   sLastEffectsMs = now;
 
-  if (sProgressFadeStartMs != 0 && now - sProgressFadeStartMs >= kProgressFadeMs) {
+  if (sProgressFadeStartMs != 0 && now - sProgressFadeStartMs >= animCfg().progress_fade_ms) {
     sProgressFadeStartMs = 0;
     sFadeReadCount = 0;
     sFadeWriteCount = 0;
@@ -382,7 +376,8 @@ void tick(const SceneContext& ctx) {
 
   const uint32_t emoDt = (sLastEmotionSmoothMs == 0) ? tickInterval : (now - sLastEmotionSmoothMs);
   sLastEmotionSmoothMs = now;
-  const float emoAlpha = 1.0f - expf(-(float)emoDt / kEmotionGeometrySmoothTauMs);
+  const float emoAlpha =
+      1.0f - expf(-(float)emoDt / animCfg().emotion_geometry_smooth_tau_ms);
   smoothFaceValuesToward(sSmoothedEmotion, ctx.base_face_params, emoAlpha);
 
   bool verbHas[(size_t)FieldIndex::Count];
@@ -395,7 +390,7 @@ void tick(const SceneContext& ctx) {
   FaceParams p = combineEmotionVerbFace(sSmoothedEmotion, verbHas, verbVals);
 
   const uint32_t moodDt = (sLastMoodMs == 0) ? 0 : (now - sLastMoodMs);
-  const float moodAlpha = 1.0f - expf(-(float)moodDt / kMoodRingTauMs);
+  const float moodAlpha = 1.0f - expf(-(float)moodDt / animCfg().mood_ring_tau_ms);
   sMoodR += ((float)p.ring_r.value - sMoodR) * moodAlpha;
   sMoodG += ((float)p.ring_g.value - sMoodG) * moodAlpha;
   sMoodB += ((float)p.ring_b.value - sMoodB) * moodAlpha;
@@ -403,9 +398,9 @@ void tick(const SceneContext& ctx) {
 
   if (sNow != Expression::Joyful && sNow != Expression::Gleeful &&
       sNow != Expression::VerbSleeping) {
-    const int16_t b = (int16_t)(breathPhase(now) * 1.5f);
+    const int16_t b = (int16_t)(breathPhase(now) * animCfg().breath_eye_amp_px);
     p.eye_dy.value = (int16_t)(p.eye_dy.value + b);
-    p.mouth_dy.value = (int16_t)(p.mouth_dy.value + b / 2);
+    p.mouth_dy.value = (int16_t)(p.mouth_dy.value + (int16_t)((float)b * animCfg().breath_mouth_scale));
   }
 
   p.face_y.value = (int16_t)(p.face_y.value + bodyBobFor(ctx, idle, now));

@@ -9,14 +9,6 @@ namespace EmotionSystem {
 
 namespace {
 
-static constexpr float kTauMsA = 6000.0f;
-static constexpr float kTauMsV = 90000.0f;
-static constexpr float kTauMsRawFollow = 50.0f;
-static constexpr float kSnapHysteresisDist = 0.05f;
-static constexpr uint32_t kSnapHysteresisHoldMs = 100;
-/// Squared-distance tolerance for tying two anchors (float noise).
-static constexpr float kDistSqTieEps = 1e-7f;
-
 struct Driver {
   bool active;
   uint8_t id;
@@ -66,7 +58,7 @@ NamedEmotion emotionForPoint(float v, float a, float* outBestDist = nullptr) {
   }
   for (NamedEmotion e : FaceConfig::kPickOrder) {
     const float d = distSq(v, a, FaceConfig::kEmotionPoints[(size_t)e]);
-    if (d <= bestD + kDistSqTieEps) {
+    if (d <= bestD + FaceConfig::kEmotionSim.dist_sq_tie_eps) {
       if (outBestDist) *outBestDist = sqrtf(bestD);
       return e;
     }
@@ -93,13 +85,14 @@ void tick() {
   sLastTickMs = now;
   if (dtMs == 0) return;
 
-  const float alphaA = 1.0f - expf(-(float)dtMs / kTauMsA);
-  const float alphaV = 1.0f - expf(-(float)dtMs / kTauMsV);
-  const float alphaFollow = 1.0f - expf(-(float)dtMs / kTauMsRawFollow);
+  const float alphaA = 1.0f - expf(-(float)dtMs / FaceConfig::kEmotionSim.tau_ms_activation);
+  const float alphaV = 1.0f - expf(-(float)dtMs / FaceConfig::kEmotionSim.tau_ms_valence);
+  const float alphaFollow = 1.0f - expf(-(float)dtMs / FaceConfig::kEmotionSim.tau_ms_raw_follow);
   const float targetV = activeTargetV();
 
   const float newActivation =
-      fmaxf(0.5f, clampf(sGoal.activation + (0.0f - sGoal.activation) * alphaA, 0.0f, 1.0f));
+      fmaxf(FaceConfig::kEmotionSim.baseline_activation,
+            clampf(sGoal.activation + (0.0f - sGoal.activation) * alphaA, 0.0f, 1.0f));
   sGoal.activation = fminf(sGoal.activation, newActivation);
   sGoal.valence = clampf(sGoal.valence + (targetV - sGoal.valence) * alphaV, -1.0f, 1.0f);
 
@@ -118,7 +111,7 @@ void tick() {
 
   const float currentDist =
       sqrtf(distSq(sRaw.valence, sRaw.activation, FaceConfig::kEmotionPoints[(size_t)sCurrentSnap]));
-  if (currentDist - bestDist <= kSnapHysteresisDist) return;
+  if (currentDist - bestDist <= FaceConfig::kEmotionSim.snap_hysteresis_dist) return;
 
   if (sPendingSnap != nearest) {
     sPendingSnap = nearest;
@@ -126,7 +119,8 @@ void tick() {
     return;
   }
 
-  if (sPendingSnapSinceMs != 0 && (now - sPendingSnapSinceMs) >= kSnapHysteresisHoldMs) {
+  if (sPendingSnapSinceMs != 0 &&
+      (now - sPendingSnapSinceMs) >= FaceConfig::kEmotionSim.snap_hysteresis_hold_ms) {
     sCurrentSnap = nearest;
     sPendingSnapSinceMs = 0;
   }

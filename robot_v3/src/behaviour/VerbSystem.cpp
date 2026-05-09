@@ -3,11 +3,11 @@
 #include <ctype.h>
 #include <string.h>
 
+#include "../face/FACE_CONFIG.h"
+
 namespace VerbSystem {
 
 namespace {
-
-static constexpr uint32_t kStrainDelayMs = 5000;
 
 Verb sCurrent = Verb::None;
 uint32_t sEnteredAtMs = 0;
@@ -85,7 +85,8 @@ void tick() {
     }
   }
 
-  if (sCurrent == Verb::Executing && (now - sEnteredAtMs) >= kStrainDelayMs) {
+  if (sCurrent == Verb::Executing &&
+      (now - sEnteredAtMs) >= FaceConfig::kVerbSim.strain_delay_ms) {
     sCurrent = Verb::Straining;
     sEnteredAtMs = now;
   }
@@ -97,7 +98,7 @@ void setVerb(Verb v) {
     return;
   }
   if (isOverlayVerb(v)) {
-    fireOverlay(v, 1000);
+    fireOverlay(v, FaceConfig::kVerbSim.default_overlay_duration_ms);
     return;
   }
   sCurrent = v;

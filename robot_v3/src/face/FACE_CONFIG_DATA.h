@@ -512,6 +512,88 @@ static constexpr IdleAnimRow kIdleAnim[(uint8_t)Face::Expression::Count] = {
     {1800, 3199, 80, 130, kBobAmpFollowEmotionArm, GazeStyle::Off, 0, 0, 0, 0, 0, 0, 0, 0},
 };
 
+// ─── Runtime simulation tunables (emotion + frame + verb state machines) ──
+
+struct EmotionSimConfig {
+  float tau_ms_activation;
+  float tau_ms_valence;
+  float tau_ms_raw_follow;
+  float snap_hysteresis_dist;
+  uint32_t snap_hysteresis_hold_ms;
+  float dist_sq_tie_eps;
+  float baseline_activation;
+};
+
+struct FrameAnimConfig {
+  float mood_ring_tau_ms;
+  float emotion_geometry_smooth_tau_ms;
+  uint32_t tick_interval_ms;
+  uint32_t tick_interval_stream_ms;
+  uint32_t thinking_flip_dur_ms;
+  uint32_t thinking_flip_min_ms;
+  uint32_t thinking_flip_max_ms;
+  uint32_t progress_fade_ms;
+  uint32_t effects_fade_ms;
+  uint32_t breath_period_ms;
+  float breath_eye_amp_px;
+  float breath_mouth_scale;
+  int16_t emotion_bob_amp_follow_arm;
+  uint16_t default_blink_close_ms;
+  uint16_t default_blink_open_ms;
+  uint16_t default_gaze_move_ms;
+  uint32_t invalid_gaze_reroll_fallback_ms;
+};
+
+struct VerbSimConfig {
+  uint32_t strain_delay_ms;
+  uint32_t default_overlay_duration_ms;
+};
+
+struct MotionRuntimeConfig {
+  uint16_t default_static_slew_ms;
+  uint16_t default_drift_slew_ms;
+};
+
+static constexpr EmotionSimConfig kEmotionSim = {
+    6000.0f,  // tau_ms_activation
+    90000.0f, // tau_ms_valence
+    50.0f,    // tau_ms_raw_follow
+    0.05f,    // snap_hysteresis_dist
+    100,      // snap_hysteresis_hold_ms
+    1e-7f,    // dist_sq_tie_eps
+    0.5f,     // baseline_activation
+};
+
+static constexpr FrameAnimConfig kFrameAnim = {
+    200.0f, // mood_ring_tau_ms
+    250.0f, // emotion_geometry_smooth_tau_ms
+    33,     // tick_interval_ms
+    16,     // tick_interval_stream_ms
+    600,    // thinking_flip_dur_ms
+    3000,   // thinking_flip_min_ms
+    6000,   // thinking_flip_max_ms
+    280,    // progress_fade_ms
+    100,    // effects_fade_ms
+    4000,   // breath_period_ms
+    1.5f,   // breath_eye_amp_px
+    0.5f,   // breath_mouth_scale
+    3,      // emotion_bob_amp_follow_arm
+    80,     // default_blink_close_ms
+    130,    // default_blink_open_ms
+    200,    // default_gaze_move_ms
+    1000,   // invalid_gaze_reroll_fallback_ms
+};
+
+static constexpr VerbSimConfig kVerbSim = {
+    5000, // strain_delay_ms
+    1000, // default_overlay_duration_ms
+};
+
+static constexpr MotionRuntimeConfig kMotionRuntime = {
+    250, // default_static_slew_ms
+    500, // default_drift_slew_ms
+};
+
 static_assert(sizeof(kMotion) / sizeof(kMotion[0]) == (uint8_t)Face::Expression::Count,
               "kMotion rows must match Face::Expression::Count");
 static_assert(sizeof(kIdleAnim) / sizeof(kIdleAnim[0]) == (uint8_t)Face::Expression::Count,

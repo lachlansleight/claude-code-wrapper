@@ -11,9 +11,6 @@ namespace MotionBehaviors {
 static constexpr int8_t kSafeMin = -45;
 static constexpr int8_t kSafeMax = 45;
 
-static constexpr uint16_t kDefaultStaticSlewMs = 250;
-static constexpr uint16_t kDefaultDriftSlewMs = 500;
-
 static int16_t sLastExprIdx = -1;
 static uint32_t sNextTimedMs = 0;
 static bool sOscAtLow = false;
@@ -53,12 +50,14 @@ static void onEnter(Face::Expression s) {
       break;
 
     case FaceConfig::MotionMode::Static:
-      Motion::playJog(m.center, m.slew_ms ? m.slew_ms : kDefaultStaticSlewMs);
+      Motion::playJog(m.center,
+                      m.slew_ms ? m.slew_ms : FaceConfig::kMotionRuntime.default_static_slew_ms);
       sNextTimedMs = 0;
       break;
 
     case FaceConfig::MotionMode::RandomDrift:
-      Motion::playJog(driftPick(m), m.slew_ms ? m.slew_ms : kDefaultDriftSlewMs);
+      Motion::playJog(driftPick(m),
+                      m.slew_ms ? m.slew_ms : FaceConfig::kMotionRuntime.default_drift_slew_ms);
       sNextTimedMs = now + randRange(m.period_ms, (uint32_t)m.period_ms + m.period_jitter_ms);
       break;
 
@@ -95,7 +94,8 @@ static void onDuring(Face::Expression s) {
 
   switch (m.mode) {
     case FaceConfig::MotionMode::RandomDrift:
-      Motion::playJog(driftPick(m), m.slew_ms ? m.slew_ms : kDefaultDriftSlewMs);
+      Motion::playJog(driftPick(m),
+                      m.slew_ms ? m.slew_ms : FaceConfig::kMotionRuntime.default_drift_slew_ms);
       sNextTimedMs = now + randRange(m.period_ms, (uint32_t)m.period_ms + m.period_jitter_ms);
       break;
 
