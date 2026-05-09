@@ -68,6 +68,9 @@ struct EmotionArmMotion {
  * disable. All curve fields interpolate continuously, so
  * cross-expression tweens never pop.
  *
+ * Pipeline B (`06` / `08`): each channel is a `(value, strength)` pair
+ * (`ParamI16`). Renderers use `.value` only; blend/combine use both.
+ *
  * Eye render model: top stroke (band of `eye_thick` extending
  * **outward** above the top edge), bot stroke (same below the bottom
  * edge), hollow interior with the pupil drawn behind. Strokes never
@@ -79,41 +82,91 @@ struct EmotionArmMotion {
  * a minimum band thickness of `mouth_thick` when the curves collapse
  * onto each other (closed-mouth case).
  */
-struct FaceParams {
-  int16_t eye_dy;            ///< Vertical offset of both eyes from baseline.
-  int16_t eye_rx;            ///< Eye half-width.
-  int16_t eye_top_apex;      ///< Top edge y at lx=0 (eye-local; +y = down).
-  int16_t eye_top_corner;    ///< Top edge y at lx=±eye_rx.
-  int16_t eye_bot_apex;      ///< Bot edge y at lx=0.
-  int16_t eye_bot_corner;    ///< Bot edge y at lx=±eye_rx.
-  int16_t eye_thick;         ///< Per-edge stroke thickness, drawn outward.
-  int16_t eye_wave_amp;      ///< Sinusoidal vertical shift applied to both edges.
-  int16_t eye_wave_freq;     ///< Cycles across the eye width.
-  int16_t eye_wave_speed;    ///< Phase advance, degrees/sec (0 = static).
-
-  int16_t pupil_dx;          ///< Pupil horizontal offset within the eye.
-  int16_t pupil_dy;
-  int16_t pupil_r;           ///< Pupil radius (0 = no pupil).
-
-  int16_t mouth_dy;
-  int16_t mouth_rx;          ///< Mouth half-width.
-  int16_t mouth_top_apex;    ///< Top edge y at lx=0 (mouth-local; +y = down).
-  int16_t mouth_top_corner;  ///< Top edge y at lx=±mouth_rx.
-  int16_t mouth_bot_apex;
-  int16_t mouth_bot_corner;
-  int16_t mouth_thick;       ///< Min collapsed band thickness; below this the band
-                             ///< widens around the midpoint so closed mouths still show.
-  int16_t mouth_wave_amp;    ///< Sinusoidal shift applied to both edges (zigzag).
-  int16_t mouth_wave_freq;   ///< Cycles across the mouth width.
-  int16_t mouth_wave_speed;  ///< Phase advance, degrees/sec.
-
-  int16_t face_rot;          ///< Whole-face rotation in degrees.
-  int16_t face_y;            ///< Whole-face vertical bob offset.
-
-  int16_t ring_r;            ///< Mood-ring R (RGB888).
-  int16_t ring_g;
-  int16_t ring_b;
+struct ParamI16 {
+  int16_t value{0};
+  uint8_t strength{0};  ///< 0 = abstain for blend weighting; 100 = full insistence.
 };
+
+/// Canonical field order for verb keyframe overrides (`02_FACE_CONFIG_H_SPEC`).
+enum class FieldIndex : uint8_t {
+  EyeDy = 0,
+  EyeRx,
+  EyeTopApex,
+  EyeTopCorner,
+  EyeBotApex,
+  EyeBotCorner,
+  EyeThick,
+  EyeWaveAmp,
+  EyeWaveFreq,
+  EyeWaveSpeed,
+  PupilDx,
+  PupilDy,
+  PupilR,
+  MouthDy,
+  MouthRx,
+  MouthTopApex,
+  MouthTopCorner,
+  MouthBotApex,
+  MouthBotCorner,
+  MouthThick,
+  MouthWaveAmp,
+  MouthWaveFreq,
+  MouthWaveSpeed,
+  FaceRot,
+  FaceY,
+  RingR,
+  RingG,
+  RingB,
+  Count
+};
+
+struct FaceParams {
+  ParamI16 eye_dy;            ///< Vertical offset of both eyes from baseline.
+  ParamI16 eye_rx;            ///< Eye half-width.
+  ParamI16 eye_top_apex;      ///< Top edge y at lx=0 (eye-local; +y = down).
+  ParamI16 eye_top_corner;    ///< Top edge y at lx=±eye_rx.
+  ParamI16 eye_bot_apex;      ///< Bot edge y at lx=0.
+  ParamI16 eye_bot_corner;    ///< Bot edge y at lx=±eye_rx.
+  ParamI16 eye_thick;         ///< Per-edge stroke thickness, drawn outward.
+  ParamI16 eye_wave_amp;      ///< Sinusoidal vertical shift applied to both edges.
+  ParamI16 eye_wave_freq;     ///< Cycles across the eye width.
+  ParamI16 eye_wave_speed;    ///< Phase advance, degrees/sec (0 = static).
+
+  ParamI16 pupil_dx;          ///< Pupil horizontal offset within the eye.
+  ParamI16 pupil_dy;
+  ParamI16 pupil_r;           ///< Pupil radius (0 = no pupil).
+
+  ParamI16 mouth_dy;
+  ParamI16 mouth_rx;          ///< Mouth half-width.
+  ParamI16 mouth_top_apex;    ///< Top edge y at lx=0 (mouth-local; +y = down).
+  ParamI16 mouth_top_corner;  ///< Top edge y at lx=±mouth_rx.
+  ParamI16 mouth_bot_apex;
+  ParamI16 mouth_bot_corner;
+  ParamI16 mouth_thick;       ///< Min collapsed band thickness; below this the band
+                              ///< widens around the midpoint so closed mouths still show.
+  ParamI16 mouth_wave_amp;    ///< Sinusoidal shift applied to both edges (zigzag).
+  ParamI16 mouth_wave_freq;   ///< Cycles across the mouth width.
+  ParamI16 mouth_wave_speed;  ///< Phase advance, degrees/sec.
+
+  ParamI16 face_rot;          ///< Whole-face rotation in degrees.
+  ParamI16 face_y;            ///< Whole-face vertical bob offset.
+
+  ParamI16 ring_r;            ///< Mood-ring R (RGB888).
+  ParamI16 ring_g;
+  ParamI16 ring_b;
+};
+
+const ParamI16& fieldConstRef(const FaceParams& p, FieldIndex i);
+ParamI16& fieldMutRef(FaceParams& p, FieldIndex i);
+
+/** Per-field combine of emotion layer `e` with optional verb override (`06` §4, `08`). */
+ParamI16 combineEmotionVerbField(const ParamI16& e, bool hasVerb, const ParamI16& v);
+
+FaceParams combineEmotionVerbFace(const FaceParams& emotion, const bool* verbHas,
+                                  const ParamI16* verbVals);
+
+/** Lerp each `.value` toward `target`; copy each `.strength` from `target`. */
+void smoothFaceValuesToward(FaceParams& state, const FaceParams& target, float alpha);
 
 /**
  * Per-frame derived rendering state computed by FrameController.
@@ -167,12 +220,11 @@ struct SceneContext {
   float mood_a;          ///< Raw activation in [0, 1].
 
   /**
-   * Continuous barycentric blend of emotion FaceParams presets at the
-   * current (mood_v, mood_a). Consumed by FrameController as the base
-   * tween target when `effective_expression` is an emotion (Neutral
-   * through Disappointed). Verb/overlay expressions ignore this and use the
-   * `FaceConfig::kBaseTargets[expression]` row directly. The `ring_*` fields are
-   * part of the same blend as the rest of the preset geometry.
+   * Emotion-layer output (ParamI16 per field): continuous blend at (mood_v,
+   * mood_a). FrameController smooths these values, combines with verb
+   * timelines when active, then applies idle/breath on top. Verbs/overlays do
+   * not replace this row — verb face comes from `VerbTimeline` sampling +
+   * combine.
    */
   FaceParams base_face_params;
 

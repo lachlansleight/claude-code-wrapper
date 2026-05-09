@@ -4,33 +4,20 @@
 #include <math.h>
 
 #include "FACE_CONFIG.h"
+#include "VerbTimeline.h"
 #include "../hal/Display.h"
 #include "../hal/MotionBehaviors.h"
 #include "../hal/Settings.h"
 #include "Scene.h"
 #include "TextScene.h"
 
+#include <string.h>
+
 namespace Face {
 
 static constexpr float kMoodRingTauMs = 200.0f;
+static constexpr float kEmotionGeometrySmoothTauMs = 250.0f;
 
-static FaceParams targetForExpression(Expression s, const FaceParams* baseTargets) {
-  const uint8_t idx = (uint8_t)s;
-  if (idx >= (uint8_t)Expression::Count) return baseTargets[0];
-  return baseTargets[idx];
-}
-
-// Resolve the live tween target. For emotion expressions the base
-// FaceParams (including ring_*) come from the continuous (v,a) blend in
-// SceneContextFill; for verbs and overlays it's the static FaceConfig::kBaseTargets row.
-static FaceParams targetForContext(const SceneContext& ctx, const FaceParams* baseTargets) {
-  if (Face::isEmotionExpression(ctx.effective_expression)) {
-    return ctx.base_face_params;
-  }
-  return targetForExpression(ctx.effective_expression, baseTargets);
-}
-
-static constexpr uint32_t kTweenMs = 250;
 static constexpr uint32_t kTickIntervalMs = 33;
 static constexpr uint32_t kTickIntervalStreamMs = 16;
 
@@ -41,10 +28,25 @@ static constexpr uint32_t kThinkingFlipDurMs = 600;
 static constexpr uint32_t kThinkingFlipMinMs = 3000;
 static constexpr uint32_t kThinkingFlipMaxMs = 6000;
 
-static FaceParams sFrom;
-static FaceParams sTo;
-static uint32_t sTweenStartMs = 0;
 static int16_t sLastExprIdx = -1;
+
+static FaceParams sSmoothedEmotion;
+static FaceParams sLastRendered;
+static uint32_t sLastEmotionSmoothMs = 0;
+
+static bool verbUsesTimeline(Expression s) {
+  switch (s) {
+    case Expression::VerbThinking:
+    case Expression::VerbReading:
+    case Expression::VerbWriting:
+    case Expression::VerbExecuting:
+    case Expression::VerbStraining:
+    case Expression::VerbSleeping:
+      return true;
+    default:
+      return false;
+  }
+}
 
 static uint32_t sNextBlinkMs = 0;
 static uint32_t sBlinkStartMs = 0;
@@ -82,39 +84,6 @@ static float sBodyBobPhaseRad = 0.0f;
 static uint32_t sBodyBobPhaseLastMs = 0;
 
 static int16_t lerpi(int16_t a, int16_t b, float t) { return (int16_t)(a + (b - a) * t); }
-
-static FaceParams lerpParams(const FaceParams& a, const FaceParams& b, float t) {
-  FaceParams r;
-  r.eye_dy = lerpi(a.eye_dy, b.eye_dy, t);
-  r.eye_rx = lerpi(a.eye_rx, b.eye_rx, t);
-  r.eye_top_apex = lerpi(a.eye_top_apex, b.eye_top_apex, t);
-  r.eye_top_corner = lerpi(a.eye_top_corner, b.eye_top_corner, t);
-  r.eye_bot_apex = lerpi(a.eye_bot_apex, b.eye_bot_apex, t);
-  r.eye_bot_corner = lerpi(a.eye_bot_corner, b.eye_bot_corner, t);
-  r.eye_thick = lerpi(a.eye_thick, b.eye_thick, t);
-  r.eye_wave_amp = lerpi(a.eye_wave_amp, b.eye_wave_amp, t);
-  r.eye_wave_freq = lerpi(a.eye_wave_freq, b.eye_wave_freq, t);
-  r.eye_wave_speed = lerpi(a.eye_wave_speed, b.eye_wave_speed, t);
-  r.pupil_dx = lerpi(a.pupil_dx, b.pupil_dx, t);
-  r.pupil_dy = lerpi(a.pupil_dy, b.pupil_dy, t);
-  r.pupil_r = lerpi(a.pupil_r, b.pupil_r, t);
-  r.mouth_dy = lerpi(a.mouth_dy, b.mouth_dy, t);
-  r.mouth_rx = lerpi(a.mouth_rx, b.mouth_rx, t);
-  r.mouth_top_apex = lerpi(a.mouth_top_apex, b.mouth_top_apex, t);
-  r.mouth_top_corner = lerpi(a.mouth_top_corner, b.mouth_top_corner, t);
-  r.mouth_bot_apex = lerpi(a.mouth_bot_apex, b.mouth_bot_apex, t);
-  r.mouth_bot_corner = lerpi(a.mouth_bot_corner, b.mouth_bot_corner, t);
-  r.mouth_thick = lerpi(a.mouth_thick, b.mouth_thick, t);
-  r.mouth_wave_amp = lerpi(a.mouth_wave_amp, b.mouth_wave_amp, t);
-  r.mouth_wave_freq = lerpi(a.mouth_wave_freq, b.mouth_wave_freq, t);
-  r.mouth_wave_speed = lerpi(a.mouth_wave_speed, b.mouth_wave_speed, t);
-  r.face_rot = lerpi(a.face_rot, b.face_rot, t);
-  r.face_y = lerpi(a.face_y, b.face_y, t);
-  r.ring_r = lerpi(a.ring_r, b.ring_r, t);
-  r.ring_g = lerpi(a.ring_g, b.ring_g, t);
-  r.ring_b = lerpi(a.ring_b, b.ring_b, t);
-  return r;
-}
 
 static float breathPhase(uint32_t now) {
   const float t = (float)(now % 4000) / 4000.0f;
@@ -318,9 +287,9 @@ void begin() {
   randomSeed(esp_random());
 
   sLastExprIdx = -1;
-  sFrom = targetForExpression(Expression::VerbSleeping, FaceConfig::kBaseTargets);
-  sTo = sFrom;
-  sTweenStartMs = millis();
+  sSmoothedEmotion = baseTargetFor(Expression::Neutral);
+  sLastRendered = sSmoothedEmotion;
+  sLastEmotionSmoothMs = 0;
   sNextBlinkMs = 0;
   sBlinkActive = false;
   sLastTickMs = 0;
@@ -330,9 +299,9 @@ void begin() {
   sThinkFlipStartMs = 0;
   sNextThinkFlipMs = 0;
 
-  sMoodR = (float)sFrom.ring_r;
-  sMoodG = (float)sFrom.ring_g;
-  sMoodB = (float)sFrom.ring_b;
+  sMoodR = (float)sSmoothedEmotion.ring_r.value;
+  sMoodG = (float)sSmoothedEmotion.ring_g.value;
+  sMoodB = (float)sSmoothedEmotion.ring_b.value;
   sLastMoodMs = millis();
   sTextStreamAlpha = 0.0f;
   sWriteStreamAlpha = 0.0f;
@@ -358,21 +327,17 @@ const FaceParams& baseTargetFor(Expression e) {
 }
 
 static void onExpressionChange(Expression newExpr, uint32_t now, const SceneContext& ctx) {
-  const float t = (float)(now - sTweenStartMs) / (float)kTweenMs;
-  FaceParams currentFrame = lerpParams(sFrom, sTo, smoothstep01(t));
+  (void)ctx;
+  FaceParams currentFrame = sLastRendered;
 
   const bool hadOld = (sLastExprIdx >= 0);
   const Expression oldExpr = hadOld ? (Expression)(uint8_t)sLastExprIdx : Expression::VerbSleeping;
 
   if (hadOld && oldExpr == Expression::VerbThinking && newExpr != Expression::VerbThinking) {
     const float sign = currentThinkSign(now);
-    currentFrame.face_rot = (int16_t)((float)currentFrame.face_rot * sign);
-    currentFrame.pupil_dx = (int16_t)((float)currentFrame.pupil_dx * sign);
+    currentFrame.face_rot.value = (int16_t)((float)currentFrame.face_rot.value * sign);
+    currentFrame.pupil_dx.value = (int16_t)((float)currentFrame.pupil_dx.value * sign);
   }
-
-  sFrom = currentFrame;
-  sTo = targetForContext(ctx, FaceConfig::kBaseTargets);
-  sTweenStartMs = now;
 
   if (hadOld && oldExpr == Expression::Happy && newExpr == Expression::Neutral) {
     sFadeReadCount = ctx.read_tools_this_turn;
@@ -419,13 +384,10 @@ void tick(const SceneContext& ctx) {
   const uint32_t settingsVersion = ctx.settings_version;
   if (settingsVersion != sLastSettingsVersion) {
     sLastSettingsVersion = settingsVersion;
-    sTo = targetForContext(ctx, FaceConfig::kBaseTargets);
-    sFrom.ring_r = sTo.ring_r;
-    sFrom.ring_g = sTo.ring_g;
-    sFrom.ring_b = sTo.ring_b;
-    sMoodR = (float)sTo.ring_r;
-    sMoodG = (float)sTo.ring_g;
-    sMoodB = (float)sTo.ring_b;
+    smoothFaceValuesToward(sSmoothedEmotion, ctx.base_face_params, 1.0f);
+    sMoodR = (float)ctx.base_face_params.ring_r.value;
+    sMoodG = (float)ctx.base_face_params.ring_g.value;
+    sMoodB = (float)ctx.base_face_params.ring_b.value;
     sLastMoodMs = now;
   }
 
@@ -438,25 +400,7 @@ void tick(const SceneContext& ctx) {
   const int16_t idx = (int16_t)exprIdx;
   if (idx != sLastExprIdx) {
     onExpressionChange(sNow, now, ctx);
-  } else if (Face::isEmotionExpression(sNow)) {
-    // Continuous emotion blend: refresh the tween target every tick so
-    // the face follows the (v, a) point smoothly even without an
-    // expression-enum change. sFrom/tween-start are untouched, so any
-    // in-flight transition from a verb/overlay still completes
-    // normally; once tw >= 1, the rendered params equal sTo (live).
-    sTo = targetForContext(ctx, FaceConfig::kBaseTargets);
   }
-
-  const float tw = (float)(now - sTweenStartMs) / (float)kTweenMs;
-  const float te = smoothstep01(tw);
-  FaceParams p = lerpParams(sFrom, sTo, te);
-
-  const uint32_t moodDt = (sLastMoodMs == 0) ? 0 : (now - sLastMoodMs);
-  const float alpha = 1.0f - expf(-(float)moodDt / kMoodRingTauMs);
-  sMoodR += ((float)p.ring_r - sMoodR) * alpha;
-  sMoodG += ((float)p.ring_g - sMoodG) * alpha;
-  sMoodB += ((float)p.ring_b - sMoodB) * alpha;
-  sLastMoodMs = now;
 
   const uint32_t effectsDt = (sLastEffectsMs == 0) ? 0 : (now - sLastEffectsMs);
   const float effectsA = 1.0f - expf(-(float)effectsDt / (float)kEffectsFadeMs);
@@ -472,20 +416,41 @@ void tick(const SceneContext& ctx) {
     sFadeWriteCount = 0;
   }
 
+  const uint32_t emoDt = (sLastEmotionSmoothMs == 0) ? tickInterval : (now - sLastEmotionSmoothMs);
+  sLastEmotionSmoothMs = now;
+  const float emoAlpha = 1.0f - expf(-(float)emoDt / kEmotionGeometrySmoothTauMs);
+  smoothFaceValuesToward(sSmoothedEmotion, ctx.base_face_params, emoAlpha);
+
+  bool verbHas[(size_t)FieldIndex::Count];
+  ParamI16 verbVals[(size_t)FieldIndex::Count];
+  memset(verbHas, 0, sizeof(verbHas));
+  if (verbUsesTimeline(sNow)) {
+    sampleVerbTimeline(sNow, ctx.verb_time_in_current_ms, verbHas, verbVals);
+  }
+
+  FaceParams p = combineEmotionVerbFace(sSmoothedEmotion, verbHas, verbVals);
+
+  const uint32_t moodDt = (sLastMoodMs == 0) ? 0 : (now - sLastMoodMs);
+  const float moodAlpha = 1.0f - expf(-(float)moodDt / kMoodRingTauMs);
+  sMoodR += ((float)p.ring_r.value - sMoodR) * moodAlpha;
+  sMoodG += ((float)p.ring_g.value - sMoodG) * moodAlpha;
+  sMoodB += ((float)p.ring_b.value - sMoodB) * moodAlpha;
+  sLastMoodMs = now;
+
   if (sNow != Expression::Joyful && sNow != Expression::Gleeful &&
       sNow != Expression::VerbSleeping) {
     const int16_t b = (int16_t)(breathPhase(now) * 1.5f);
-    p.eye_dy = (int16_t)(p.eye_dy + b);
-    p.mouth_dy = (int16_t)(p.mouth_dy + b / 2);
+    p.eye_dy.value = (int16_t)(p.eye_dy.value + b);
+    p.mouth_dy.value = (int16_t)(p.mouth_dy.value + b / 2);
   }
 
-  p.face_y = (int16_t)(p.face_y + bodyBobFor(ctx, now));
+  p.face_y.value = (int16_t)(p.face_y.value + bodyBobFor(ctx, now));
 
   if (sNow == Expression::VerbThinking) {
     maybeFlipThinkTilt(now);
     const float sign = currentThinkSign(now);
-    p.face_rot = (int16_t)((float)p.face_rot * sign);
-    p.pupil_dx = (int16_t)((float)p.pupil_dx * sign);
+    p.face_rot.value = (int16_t)((float)p.face_rot.value * sign);
+    p.pupil_dx.value = (int16_t)((float)p.pupil_dx.value * sign);
   }
 
   if (!sBlinkActive) {
@@ -528,6 +493,7 @@ void tick(const SceneContext& ctx) {
   } else {
     renderTextScene(spr, renderState, ctx, now);
   }
+  sLastRendered = p;
   Display::pushFrame();
 }
 

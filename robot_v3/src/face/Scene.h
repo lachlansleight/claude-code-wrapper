@@ -11,10 +11,11 @@
  * Composes the four face-mode renderers in fixed Z-order:
  *   1. background fill,
  *   2. FaceRenderer::drawFace (eyes + mouth, rotated/translated),
- *   3. EffectsRenderer::drawEffects (left/right token streams),
- *   4. MoodRingRenderer::drawMoodRing (all emotions; verbs/overlays per
+ *   3. EffectsRenderer::drawOverlayEffects (waking / attention rim),
+ *   4. EffectsRenderer::drawEffects (left/right token streams),
+ *   5. MoodRingRenderer::drawMoodRing (all emotions; verbs/overlays per
  *      moodRingShouldDraw),
- *   5. ActivityDots overlay.
+ *   6. ActivityDots overlay.
  *
  * Called by FrameController once per frame in face mode; text/debug
  * mode goes through TextScene::renderTextScene instead.

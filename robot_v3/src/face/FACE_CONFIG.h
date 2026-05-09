@@ -54,77 +54,93 @@ static constexpr EmotionSystem::NamedEmotion kPickOrder[] = {
     EmotionSystem::NamedEmotion::Sad,
 };
 
-// ─── Per-expression geometry (FaceParams) ─────────────────────────────────
-
-// Field order matches Face::FaceParams in SceneTypes.h.
+// ─── Per-expression geometry (ParamI16, PR B) ─────────────────────────────
+// Emotion rows: full strength presets for Delaunay blend. Verb / overlay rows
+// are zeroed — face geometry comes from VerbTimeline.cpp + EffectsRenderer.
+#ifndef FACE_P
+#define FACE_P(V) ::Face::ParamI16{ (int16_t)(V), 100 }
+#endif
 static const Face::FaceParams kBaseTargets[(uint8_t)Face::Expression::Count] = {
-    /* Neutral */          {  2, 30,  -26, 0, +26, 0, 3,  0, 0, 0,   0,  3, 15,
-                              0, 15,   +2, 0,  +2, 0, 3,  0, 0, 0,
-                              0, 0,    0, 0, 0 },
-    /* Happy */            {  0, 30,  -16, 0, +30, 0, 3,  0, 0, 0,   0,  5,  16,
-                              0,  +24,   3, 0,  3, 0, 3,  0, 0, 0,
-                              0, 5,    0, 0, 0 },
-    /* Excited */          {  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   0,  0,  17,
-                              0,  +27,   4, -2,  8, -2, 3,  0, 0, 0,
-                              0, 0,    40, 255, 80 },
-    /* Joyful */           { -5, 20,  -15, 0, -6, 0, 4,  0, 0, 0,   0,  0,  14,
-                              -11,  +37,   3, 0,  24, 0, 4,  0, 0, 0,
-                              0, -14,    255, 228, 38 },
-    /* Sad */              {  4, 28,  -12, 0, +17, 0, 3,  0, 0, 0,   0,  3,  11,
-                              4,  +20,   -13, -7,  -11, -8, 3,  0, 0, 0,
-                              0, 6,    0, 0, 0 },
-    /* VerbThinking */     {  0, 30,  -30, 0, +30, 0, 3,  0, 0, 0,   7, -9, 15,
-                              0, 11,   +3, 0,  +3, 0, 3,  0, 0, 0,
-                            -10, 0,    36, 56, 120 },
-    /* VerbReading */      {  0, 28,  -26, 0, +26, 0, 3,  0, 0, 0,   0,  8, 12,
-                              0,  9,   +3, 0,  +3, 0, 3,  0, 0, 0,
-                              0, 12,   78, 146, 210 },
-    /* VerbWriting */      {  0, 30,  -26, 0, +26, 0, 3,  0, 0, 0,   0, -8, 15,
-                              0, 15,    0, 0, +14, 0, 3,  0, 0, 0,
-                              0, 0,    104, 118, 228 },
-    /* VerbExecuting */    {  0, 30,  -16, 0, +16, 0, 3,  0, 0, 0,   0, -4, 10,
-                              0,  9,   +2, 0,  +2, 0, 3,  0, 0, 0,
-                              0, 0,    156, 64, 216 },
-    /* VerbStraining */    {  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
-                              0, 18,    0, 0,   0, 0, 3,  4, 100, 360,
-                              0, 0,    210, 75, 220 },
-    /* VerbSleeping */     {  8, 26,   -2, 0,  +2, 0, 3,  0, 0, 0,   0,  0,  15,
-                              0,  9,    0, 0,   0, 0, 3,  0, 0, 0,
-                              0, 0,    0, 0, 0 },
-    /* OverlayWaking */    { -2, 34,  -34, 0, +34, 0, 3,  0, 0, 0,   0,  0, 18,
-                              0,  7,   -9, 0,  +9, 0, 3,  0, 0, 0,
-                              0, 0,    128, 128, 128 },
-    /* OverlayAttention */ { -2, 34,  -34, 0, +34, 0, 3,  0, 0, 0,   0,  0, 18,
-                              0,  7,   -9, 0,  +9, 0, 3,  0, 0, 0,
-                              0, 0,    255, 20, 40 },
-    /* Sleepy */           {  0, 28,  0, 10, +34, 10, 3,  0, 0, 0,   0,  0,  15,
-                              0,  +13,   0, 0,  3, 0, 3,  0, 17, 90,
-                              0, 9,    0, 0, 0 },
-    /* Distressed */       {  2, 30,  -26, 0, +33, 0, 3,  0, 0, 0,   0,  7,  10,
-                              4,  +24,   -19, -7,  -7, 0, 3,  0, 0, 0,
-                              0, -15,    255, 48, 24 },
-    /* Blissed */          {  1, 20,   +3, 0, +1, 0, 3,  0, 0, 0,   0,  0,  15,
-                              1,  +26,   3, 0,  13, 0, 3,  0, 0, 0,
-                              0, 5,    0, 0, 0 },
-    /* Depressed */        {  0, 30,   +16, 10, +34, 11, 3,  0, 0, 0,   0,  20,  6,
-                              0,  +13,   0, +6,  3, 4, 3,  0, 17, 90,
-                              0, 9,    0, 0, 0 },
-    /* Shocked */          {  0, 30,   -34, 0,   39, 0, 3,   1, 85, 720,   0, 3, 9,
-                             20, 17,  -17, 0,   8, 0, 1,    2, 49, 720,
-                              0, 0,     255, 255, 255 },
-    /* Disappointed */     {  3, 21,   +6, 0, +6, 0, 3,  0, 0, 0,   0,  3,  8,
-                              5,  +26,   -1, 0,  -3, 0, 3,  0, 0, 0,
-                              0, 0,    229, 54, 95 },
-    /* Cheeky */           {  1, 30,  -31, 0, +8, 0, 3,  0, 0, 0,   0,  3,  15,
-                              -25,  +15,   11, 0,  8, 0, 3,  0, 0, 0,
-                              0, -3,    0, 0, 0 },
-    /* Gleeful */          {  1, 27,  -30, 0, -2, 0, 3,  0, 0, 0,   0,  -7,  10,
-                              -25,  +27,   0, -2,  20, -2, 3,  0, 0, 0,
-                              0, 5,    39, 248, 78 },
-    /* Frustrated */       {  0, 30,  -22, 0, +22, 0, 3,  0, 0, 0,   0, -3, 10,
-                              0, 18,    0, 0,   0, 0, 3,  4, 100, 360,
-                              0, 0,    210, 75, 220 },
+    /* Neutral */
+    {FACE_P(2), FACE_P(30), FACE_P(-26), FACE_P(0), FACE_P(26), FACE_P(0), FACE_P(3), FACE_P(0),
+     FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(3), FACE_P(15), FACE_P(0), FACE_P(15), FACE_P(2),
+     FACE_P(0), FACE_P(2), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0),
+     FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0)},
+    /* Happy */
+    {FACE_P(0), FACE_P(30), FACE_P(-16), FACE_P(0), FACE_P(30), FACE_P(0), FACE_P(3), FACE_P(0),
+     FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(5), FACE_P(16), FACE_P(0), FACE_P(24), FACE_P(3),
+     FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0),
+     FACE_P(5), FACE_P(0), FACE_P(0), FACE_P(0)},
+    /* Excited */
+    {FACE_P(0), FACE_P(30), FACE_P(-30), FACE_P(0), FACE_P(30), FACE_P(0), FACE_P(3), FACE_P(0),
+     FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(17), FACE_P(0), FACE_P(27), FACE_P(4),
+     FACE_P(-2), FACE_P(8), FACE_P(-2), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0),
+     FACE_P(0), FACE_P(40), FACE_P(255), FACE_P(80)},
+    /* Joyful */
+    {FACE_P(-5), FACE_P(20), FACE_P(-15), FACE_P(0), FACE_P(-6), FACE_P(0), FACE_P(4), FACE_P(0),
+     FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(14), FACE_P(-11), FACE_P(37), FACE_P(3),
+     FACE_P(0), FACE_P(24), FACE_P(0), FACE_P(4), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0),
+     FACE_P(-14), FACE_P(255), FACE_P(228), FACE_P(38)},
+    /* Sad */
+    {FACE_P(4), FACE_P(28), FACE_P(-12), FACE_P(0), FACE_P(17), FACE_P(0), FACE_P(3), FACE_P(0),
+     FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(3), FACE_P(11), FACE_P(4), FACE_P(20), FACE_P(-13),
+     FACE_P(-7), FACE_P(-11), FACE_P(-8), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0),
+     FACE_P(6), FACE_P(0), FACE_P(0), FACE_P(0)},
+    /* VerbThinking */ Face::FaceParams{},
+    /* VerbReading */ Face::FaceParams{},
+    /* VerbWriting */ Face::FaceParams{},
+    /* VerbExecuting */ Face::FaceParams{},
+    /* VerbStraining */ Face::FaceParams{},
+    /* VerbSleeping */ Face::FaceParams{},
+    /* OverlayWaking */ Face::FaceParams{},
+    /* OverlayAttention */ Face::FaceParams{},
+    /* Sleepy */
+    {FACE_P(0), FACE_P(28), FACE_P(0), FACE_P(10), FACE_P(34), FACE_P(10), FACE_P(3), FACE_P(0),
+     FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(15), FACE_P(0), FACE_P(13), FACE_P(0),
+     FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(17), FACE_P(90), FACE_P(0),
+     FACE_P(9), FACE_P(0), FACE_P(0), FACE_P(0)},
+    /* Distressed */
+    {FACE_P(2), FACE_P(30), FACE_P(-26), FACE_P(0), FACE_P(33), FACE_P(0), FACE_P(3), FACE_P(0),
+     FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(7), FACE_P(10), FACE_P(4), FACE_P(24), FACE_P(-19),
+     FACE_P(-7), FACE_P(-7), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0),
+     FACE_P(-15), FACE_P(255), FACE_P(48), FACE_P(24)},
+    /* Blissed */
+    {FACE_P(1), FACE_P(20), FACE_P(3), FACE_P(0), FACE_P(1), FACE_P(0), FACE_P(3), FACE_P(0),
+     FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(15), FACE_P(1), FACE_P(26), FACE_P(3),
+     FACE_P(0), FACE_P(13), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0),
+     FACE_P(5), FACE_P(0), FACE_P(0), FACE_P(0)},
+    /* Depressed */
+    {FACE_P(0), FACE_P(30), FACE_P(16), FACE_P(10), FACE_P(34), FACE_P(11), FACE_P(3), FACE_P(0),
+     FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(20), FACE_P(6), FACE_P(0), FACE_P(13), FACE_P(0),
+     FACE_P(6), FACE_P(3), FACE_P(4), FACE_P(3), FACE_P(0), FACE_P(17), FACE_P(90), FACE_P(0),
+     FACE_P(9), FACE_P(0), FACE_P(0), FACE_P(0)},
+    /* Shocked */
+    {FACE_P(0), FACE_P(30), FACE_P(-34), FACE_P(0), FACE_P(39), FACE_P(0), FACE_P(3), FACE_P(1),
+     FACE_P(85), FACE_P(720), FACE_P(0), FACE_P(3), FACE_P(9), FACE_P(20), FACE_P(17), FACE_P(-17),
+     FACE_P(0), FACE_P(8), FACE_P(0), FACE_P(1), FACE_P(2), FACE_P(49), FACE_P(720), FACE_P(0),
+     FACE_P(0), FACE_P(255), FACE_P(255), FACE_P(255)},
+    /* Disappointed */
+    {FACE_P(3), FACE_P(21), FACE_P(6), FACE_P(0), FACE_P(6), FACE_P(0), FACE_P(3), FACE_P(0),
+     FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(3), FACE_P(8), FACE_P(5), FACE_P(26), FACE_P(-1),
+     FACE_P(0), FACE_P(-3), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0),
+     FACE_P(0), FACE_P(229), FACE_P(54), FACE_P(95)},
+    /* Cheeky */
+    {FACE_P(1), FACE_P(30), FACE_P(-31), FACE_P(0), FACE_P(8), FACE_P(0), FACE_P(3), FACE_P(0),
+     FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(3), FACE_P(15), FACE_P(-25), FACE_P(15), FACE_P(11),
+     FACE_P(0), FACE_P(8), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0),
+     FACE_P(-3), FACE_P(0), FACE_P(0), FACE_P(0)},
+    /* Gleeful */
+    {FACE_P(1), FACE_P(27), FACE_P(-30), FACE_P(0), FACE_P(-2), FACE_P(0), FACE_P(3), FACE_P(0),
+     FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(-7), FACE_P(10), FACE_P(-25), FACE_P(27), FACE_P(0),
+     FACE_P(-2), FACE_P(20), FACE_P(-2), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0),
+     FACE_P(5), FACE_P(39), FACE_P(248), FACE_P(78)},
+    /* Frustrated */
+    {FACE_P(0), FACE_P(30), FACE_P(-22), FACE_P(0), FACE_P(22), FACE_P(0), FACE_P(3), FACE_P(0),
+     FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(-3), FACE_P(10), FACE_P(0), FACE_P(18), FACE_P(0),
+     FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(3), FACE_P(4), FACE_P(100), FACE_P(360), FACE_P(0),
+     FACE_P(0), FACE_P(210), FACE_P(75), FACE_P(220)},
 };
+#undef FACE_P
 
 // ─── Arm presets per Face::Expression (emotion blend source) ─────────────
 

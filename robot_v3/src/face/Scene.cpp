@@ -13,6 +13,7 @@ void renderScene(TFT_eSprite& s, const FaceParams& p, float blinkAmt, int16_t gd
 
   drawFace(s, p, blinkAmt, gdx, gdy, renderState.expression, now, renderState.fg565,
            renderState.bg565);
+  drawOverlayEffects(s, renderState.expression, now);
   drawEffects(s, now, renderState.read_stream_alpha, renderState.write_stream_alpha);
 
   if (moodRingShouldDraw(renderState.expression)) {

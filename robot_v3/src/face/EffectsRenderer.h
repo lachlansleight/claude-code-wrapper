@@ -2,6 +2,8 @@
 
 #include <TFT_eSPI.h>
 
+#include "FaceEnums.h"
+
 /**
  * @file EffectsRenderer.h
  * @brief Procedural "code stream" backdrop effects for read/write states.
@@ -25,5 +27,8 @@ namespace Face {
  * after the face background fill and before the face geometry.
  */
 void drawEffects(TFT_eSprite& s, uint32_t now, float readAlpha, float writeAlpha);
+
+/** Waking / attention rim pulses (replaces parametric overlay rows in `FACE_CONFIG`). */
+void drawOverlayEffects(TFT_eSprite& s, Expression expr, uint32_t nowMs);
 
 }  // namespace Face

@@ -14,9 +14,8 @@
  * `EmotionTriangulation.h`), and per-frame finds the triangle that
  * contains the current (v, a) point. The three anchors of that
  * triangle each map to one of the emotion presets in
- * `Face::baseTargetFor(...)` (`FaceConfig::kBaseTargets`); their `FaceParams`
- * are blended per-field
- * with the barycentric weights.
+ * `Face::baseTargetFor(...)` (`FaceConfig::kBaseTargets`); each field is a
+ * `ParamI16` — per-field strength-weighted blend with `W==0` fallback per `06`.
  *
  * Inside any emotion rectangle, all four corners belong to the same
  * emotion → the blend collapses to that emotion's preset exactly.

@@ -96,19 +96,19 @@ static void drawEdgeStroke(TFT_eSprite& s, int16_t cx, int16_t cy,
 
 static void drawMouth(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy, uint32_t nowMs,
                       float cosA, float sinA, uint16_t fg565) {
-  const int16_t halfw = p.mouth_rx;
+  const int16_t halfw = p.mouth_rx.value;
   if (halfw < 1) return;
 
-  const float wavePhase = wavePhaseRad(p.mouth_wave_speed, nowMs);
+  const float wavePhase = wavePhaseRad(p.mouth_wave_speed.value, nowMs);
   // Scale by 1/50 so a wave_freq slider value of 50 ≈ 1 cycle across the shape.
-  const float waveFreq = (float)p.mouth_wave_freq * 0.02f;
-  const float waveAmp = (float)p.mouth_wave_amp;
-  const float minThick = (float)p.mouth_thick;
+  const float waveFreq = (float)p.mouth_wave_freq.value * 0.02f;
+  const float waveAmp = (float)p.mouth_wave_amp.value;
+  const float minThick = (float)p.mouth_thick.value;
 
   for (int16_t lx = -halfw; lx <= halfw; ++lx) {
     const float n = (float)lx / (float)halfw;
-    float yt = curveAt(p.mouth_top_apex, p.mouth_top_corner, n);
-    float yb = curveAt(p.mouth_bot_apex, p.mouth_bot_corner, n);
+    float yt = curveAt(p.mouth_top_apex.value, p.mouth_top_corner.value, n);
+    float yb = curveAt(p.mouth_bot_apex.value, p.mouth_bot_corner.value, n);
     if (waveAmp != 0.0f) {
       const float w = waveAmp * sinf(2.0f * (float)M_PI * waveFreq * n + wavePhase);
       yt += w;
@@ -131,25 +131,25 @@ static void drawMouth(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t c
 static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy, float blinkAmt,
                     int16_t gdx, int16_t gdy, uint32_t nowMs, float cosA, float sinA,
                     uint16_t fg565, uint16_t bg565) {
-  const int16_t halfw = p.eye_rx;
+  const int16_t halfw = p.eye_rx.value;
   if (halfw < 1) return;
 
   // Blink squeezes the envelope vertically toward y=0. blinkAmt=1 collapses to zero gap.
   const float blink = clamp01(blinkAmt);
   const float blinkScale = 1.0f - blink;
 
-  const float wavePhase = wavePhaseRad(p.eye_wave_speed, nowMs);
-  const float waveFreq = (float)p.eye_wave_freq * 0.02f;
-  const float waveAmp = (float)p.eye_wave_amp;
+  const float wavePhase = wavePhaseRad(p.eye_wave_speed.value, nowMs);
+  const float waveFreq = (float)p.eye_wave_freq.value * 0.02f;
+  const float waveAmp = (float)p.eye_wave_amp.value;
 
   // Pupil position in eye-local coords.
-  const float pupilLx = (float)(p.pupil_dx + gdx);
-  const float pupilLy = (float)(p.pupil_dy + gdy);
-  const float pupilR = (float)p.pupil_r;
+  const float pupilLx = (float)(p.pupil_dx.value + gdx);
+  const float pupilLy = (float)(p.pupil_dy.value + gdy);
+  const float pupilR = (float)p.pupil_r.value;
   const float pupilR2 = pupilR * pupilR;
   const float maskPupilR = pupilR + 2.0f;
   const float maskPupilR2 = maskPupilR * maskPupilR;
-  const bool drawPupil = (p.pupil_r > 0) && (blink < 0.6f);
+  const bool drawPupil = (p.pupil_r.value > 0) && (blink < 0.6f);
   const int16_t pupilMinX = (int16_t)floorf(pupilLx - maskPupilR) - 1;
   const int16_t pupilMaxX = (int16_t)ceilf(pupilLx + maskPupilR) + 1;
 
@@ -164,8 +164,8 @@ static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy,
   // --- Interior fill (column-major, hollow inside the inner envelope) ---
   for (int16_t lx = -halfw; lx <= halfw; ++lx) {
     const float n = (float)lx / (float)halfw;
-    float yt = curveAt(p.eye_top_apex, p.eye_top_corner, n) * blinkScale;
-    float yb = curveAt(p.eye_bot_apex, p.eye_bot_corner, n) * blinkScale;
+    float yt = curveAt(p.eye_top_apex.value, p.eye_top_corner.value, n) * blinkScale;
+    float yb = curveAt(p.eye_bot_apex.value, p.eye_bot_corner.value, n) * blinkScale;
     if (waveAmp != 0.0f) {
       const float w = waveAmp * sinf(2.0f * (float)M_PI * waveFreq * n + wavePhase);
       yt += w;
@@ -224,22 +224,22 @@ static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy,
   }
 
   // --- Outward strokes: concentric arc layers, top edge then bot edge ---
-  const int16_t thick = p.eye_thick > 0 ? p.eye_thick : 1;
-  drawEdgeStroke(s, cx, cy, halfw, p.eye_top_apex, p.eye_top_corner,
+  const int16_t thick = p.eye_thick.value > 0 ? p.eye_thick.value : 1;
+  drawEdgeStroke(s, cx, cy, halfw, p.eye_top_apex.value, p.eye_top_corner.value,
                  blinkScale, thick, /*outwardSign=*/-1,
                  waveAmp, waveFreq, wavePhase, cosA, sinA, fg565);
-  drawEdgeStroke(s, cx, cy, halfw, p.eye_bot_apex, p.eye_bot_corner,
+  drawEdgeStroke(s, cx, cy, halfw, p.eye_bot_apex.value, p.eye_bot_corner.value,
                  blinkScale, thick, /*outwardSign=*/+1,
                  waveAmp, waveFreq, wavePhase, cosA, sinA, fg565);
 }
 
 void drawFace(TFT_eSprite& s, const FaceParams& p, float blinkAmt, int16_t gdx, int16_t gdy,
               Expression /*expr*/, uint32_t nowMs, uint16_t fg565, uint16_t bg565) {
-  const float angleRad = (float)p.face_rot * (float)M_PI / 180.0f;
+  const float angleRad = (float)p.face_rot.value * (float)M_PI / 180.0f;
   const float cosA = cosf(angleRad);
   const float sinA = sinf(angleRad);
 
-  const int16_t shorten = (int16_t)(abs(p.face_y) / 2);
+  const int16_t shorten = (int16_t)(abs(p.face_y.value) / 2);
   const auto compress = [&](int16_t fy) -> int16_t {
     const int16_t dy = (int16_t)(fy - kPivotY);
     if (dy > 0) {
@@ -257,13 +257,13 @@ void drawFace(TFT_eSprite& s, const FaceParams& p, float blinkAmt, int16_t gdx, 
     const float dx = (float)(fx - kCx);
     const float dy = (float)(fy - kPivotY);
     outx = kCx + (int16_t)(dx * cosA - dy * sinA);
-    outy = kPivotY + (int16_t)(dx * sinA + dy * cosA) + p.face_y;
+    outy = kPivotY + (int16_t)(dx * sinA + dy * cosA) + p.face_y.value;
   };
 
   int16_t lex, ley, rex, rey, mx, my;
-  rotated(kEyeLX, compress(kEyeY + p.eye_dy), lex, ley);
-  rotated(kEyeRX, compress(kEyeY + p.eye_dy), rex, rey);
-  rotated(kCx, compress(kMouthY + p.mouth_dy), mx, my);
+  rotated(kEyeLX, compress(kEyeY + p.eye_dy.value), lex, ley);
+  rotated(kEyeRX, compress(kEyeY + p.eye_dy.value), rex, rey);
+  rotated(kCx, compress(kMouthY + p.mouth_dy.value), mx, my);
 
   drawEye(s, p, lex, ley, blinkAmt, gdx, gdy, nowMs, cosA, sinA, fg565, bg565);
   drawEye(s, p, rex, rey, blinkAmt, gdx, gdy, nowMs, cosA, sinA, fg565, bg565);
