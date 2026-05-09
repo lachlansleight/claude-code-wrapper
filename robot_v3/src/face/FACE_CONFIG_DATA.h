@@ -9,9 +9,79 @@
  * `kEmotionPoints` from here.
  */
 
-#include "SceneTypes.h"
+#include "FacePrimitives.h"
+
+namespace Face {
+
+enum class Expression : uint8_t {
+  Neutral = 0,
+  Happy,
+  Excited,
+  Joyful,
+  Sad,
+  VerbThinking,
+  VerbReading,
+  VerbWriting,
+  VerbExecuting,
+  VerbStraining,
+  VerbSleeping,
+  OverlayWaking,
+  OverlayAttention,
+  Sleepy,
+  Distressed,
+  Blissed,
+  Depressed,
+  Shocked,
+  Disappointed,
+  Cheeky,
+  Gleeful,
+  Frustrated,
+  Count
+};
+
+}  // namespace Face
+
+namespace EmotionSystem {
+
+enum class NamedEmotion : uint8_t {
+  Neutral = 0,
+  Happy,
+  Excited,
+  Joyful,
+  Sad,
+  Sleepy,
+  Distressed,
+  Blissed,
+  Depressed,
+  Shocked,
+  Disappointed,
+  Cheeky,
+  Gleeful,
+  Frustrated,
+  Count
+};
+
+}  // namespace EmotionSystem
 
 namespace FaceConfig {
+
+static constexpr const char* kExpressionNames[(size_t)Face::Expression::Count] = {
+    "neutral",          "happy",          "excited",      "joyful",      "sad",          "verb_thinking",
+    "verb_reading",     "verb_writing",   "verb_executing","verb_straining","verb_sleeping","overlay_waking",
+    "overlay_attention","sleepy",         "distressed",   "blissed",     "depressed",    "shocked",
+    "disappointed",     "cheeky",         "gleeful",      "frustrated",
+};
+
+static constexpr bool kExpressionIsEmotion[(size_t)Face::Expression::Count] = {
+    true,  true,  true,  true,  true,  false, false, false, false, false, false,
+    false, false, true,  true,  true,  true,  true,  true,  true,  true,  true,
+};
+
+static constexpr const char* kEmotionNames[(size_t)EmotionSystem::NamedEmotion::Count] = {
+    "neutral",     "happy",    "excited",   "joyful",     "sad",        "sleepy",
+    "distressed",  "blissed",  "depressed", "shocked",    "disappointed","cheeky",
+    "gleeful",     "frustrated",
+};
 
 // ─── (v, a) anchors for NamedEmotion (triangulation + discrete snap) ─────
 
@@ -53,6 +123,15 @@ static constexpr EmotionSystem::NamedEmotion kPickOrder[] = {
     EmotionSystem::NamedEmotion::Excited,
     EmotionSystem::NamedEmotion::Joyful,
     EmotionSystem::NamedEmotion::Sad,
+};
+
+static constexpr Face::Expression
+    kNamedEmotionToExpression[(size_t)EmotionSystem::NamedEmotion::Count] = {
+        Face::Expression::Neutral,      Face::Expression::Happy,     Face::Expression::Excited,
+        Face::Expression::Joyful,       Face::Expression::Sad,       Face::Expression::Sleepy,
+        Face::Expression::Distressed,   Face::Expression::Blissed,   Face::Expression::Depressed,
+        Face::Expression::Shocked,      Face::Expression::Disappointed,
+        Face::Expression::Cheeky,       Face::Expression::Gleeful,   Face::Expression::Frustrated,
 };
 
 // ─── Per-expression geometry (ParamI16) ───────────────────────────────────

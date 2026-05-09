@@ -6,6 +6,7 @@
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 
+#include "FacePrimitives.h"
 #include "FaceEnums.h"
 
 /**
@@ -40,121 +41,7 @@ enum class RenderMode : uint8_t {
   Debug,      ///< Verbose diagnostic overlay.
 };
 
-/**
- * Blended base-layer arm motion (offsets from centre, degrees).
- * One cycle: sine arch from min → max → min over @p waggle_period_s,
- * then hold at min for @p waggle_interval_s. Blended in (v, a) like
- * FaceParams; verbs/overlays ignore this and use MotionBehaviors tables.
- */
-struct EmotionArmMotion {
-  int16_t min_offset_deg;
-  int16_t max_offset_deg;
-  float waggle_period_s;
-  float waggle_interval_s;
-};
-
-/**
- * Per-expression face geometry target. FrameController tweens between
- * these. All fields except rotation/speed are integer pixel offsets
- * (positive = down/right, expression-relative). `ring_*` is mood-ring
- * RGB888 from FaceConfig / emotion blend (not Settings).
- *
- * Both eye and mouth are described as a top edge curve and a bottom
- * edge curve, each as a semicircular interpolation between an apex
- * (y at lx=0) and a corner (y at lx=±half-width). When top and bottom
- * curves are mirror images about y=0 the pair traces a perfect
- * ellipse. The whole shape can be modulated by a per-shape sinusoidal
- * wave that shifts both edges together — set `*_wave_amp` to 0 to
- * disable. All curve fields interpolate continuously, so
- * cross-expression tweens never pop.
- *
- * Pipeline B (`06` / `08`): each channel is a `(value, strength)` pair
- * (`ParamI16`). Renderers use `.value` only; blend/combine use both.
- *
- * Eye render model: top stroke (band of `eye_thick` extending
- * **outward** above the top edge), bot stroke (same below the bottom
- * edge), hollow interior with the pupil drawn behind. Strokes never
- * overlap into each other — the corners stay sharp. Out-of-envelope
- * columns are not painted, so the pupil is naturally clipped to the
- * eye shape and does not shrink with eye height.
- *
- * Mouth render model: solid fill between top and bottom curves, with
- * a minimum band thickness of `mouth_thick` when the curves collapse
- * onto each other (closed-mouth case).
- */
-struct ParamI16 {
-  int16_t value{0};
-  uint8_t strength{0};  ///< 0 = abstain for blend weighting; 100 = full insistence.
-};
-
-/// Canonical field order for verb keyframe overrides (`02_FACE_CONFIG_H_SPEC`).
-enum class FieldIndex : uint8_t {
-  EyeDy = 0,
-  EyeRx,
-  EyeTopApex,
-  EyeTopCorner,
-  EyeBotApex,
-  EyeBotCorner,
-  EyeThick,
-  EyeWaveAmp,
-  EyeWaveFreq,
-  EyeWaveSpeed,
-  PupilDx,
-  PupilDy,
-  PupilR,
-  MouthDy,
-  MouthRx,
-  MouthTopApex,
-  MouthTopCorner,
-  MouthBotApex,
-  MouthBotCorner,
-  MouthThick,
-  MouthWaveAmp,
-  MouthWaveFreq,
-  MouthWaveSpeed,
-  FaceRot,
-  FaceY,
-  RingR,
-  RingG,
-  RingB,
-  Count
-};
-
-struct FaceParams {
-  ParamI16 eye_dy;            ///< Vertical offset of both eyes from baseline.
-  ParamI16 eye_rx;            ///< Eye half-width.
-  ParamI16 eye_top_apex;      ///< Top edge y at lx=0 (eye-local; +y = down).
-  ParamI16 eye_top_corner;    ///< Top edge y at lx=±eye_rx.
-  ParamI16 eye_bot_apex;      ///< Bot edge y at lx=0.
-  ParamI16 eye_bot_corner;    ///< Bot edge y at lx=±eye_rx.
-  ParamI16 eye_thick;         ///< Per-edge stroke thickness, drawn outward.
-  ParamI16 eye_wave_amp;      ///< Sinusoidal vertical shift applied to both edges.
-  ParamI16 eye_wave_freq;     ///< Cycles across the eye width.
-  ParamI16 eye_wave_speed;    ///< Phase advance, degrees/sec (0 = static).
-
-  ParamI16 pupil_dx;          ///< Pupil horizontal offset within the eye.
-  ParamI16 pupil_dy;
-  ParamI16 pupil_r;           ///< Pupil radius (0 = no pupil).
-
-  ParamI16 mouth_dy;
-  ParamI16 mouth_rx;          ///< Mouth half-width.
-  ParamI16 mouth_top_apex;    ///< Top edge y at lx=0 (mouth-local; +y = down).
-  ParamI16 mouth_top_corner;  ///< Top edge y at lx=±mouth_rx.
-  ParamI16 mouth_bot_apex;
-  ParamI16 mouth_bot_corner;
-  ParamI16 mouth_thick;       ///< Min collapsed band thickness; below this the band
-                              ///< widens around the midpoint so closed mouths still show.
-  ParamI16 mouth_wave_amp;    ///< Sinusoidal shift applied to both edges (zigzag).
-  ParamI16 mouth_wave_freq;   ///< Cycles across the mouth width.
-  ParamI16 mouth_wave_speed;  ///< Phase advance, degrees/sec.
-
-  ParamI16 face_rot;          ///< Whole-face rotation in degrees.
-  ParamI16 face_y;            ///< Whole-face vertical bob offset.
-
-  ParamI16 ring_r;            ///< Mood-ring R (RGB888).
-  ParamI16 ring_g;
-  ParamI16 ring_b;
-};
+// FaceParams / FieldIndex / ParamI16 / EmotionArmMotion live in FacePrimitives.h.
 
 const ParamI16& fieldConstRef(const FaceParams& p, FieldIndex i);
 ParamI16& fieldMutRef(FaceParams& p, FieldIndex i);
