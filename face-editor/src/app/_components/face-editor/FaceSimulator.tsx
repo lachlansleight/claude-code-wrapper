@@ -6,7 +6,6 @@ import type { FaceParams, ParamField } from "../../_lib/face-engine/faceParams";
 import { formatKBaseTargetsCpp } from "../../_lib/face-editor/cppRowFormat";
 import { postRaw } from "../../_lib/face-editor/bridge";
 import { OVERLAY_MAP } from "../../_lib/face-editor/simulatorLayout";
-import { emotionBlendDraw } from "../../_lib/face-editor/simulatorBlendShared";
 import { BlendPanel } from "./BlendPanel";
 import { ExpressionPickers, handleExpressionBridge } from "./ExpressionPickers";
 import { FaceStage } from "./FaceStage";
@@ -138,8 +137,9 @@ export function FaceSimulator() {
     if (!blendOn) return;
     const va = fc.blendVA();
     let p: FaceParams = { ...fc.params() };
-    if (emotionBlendDraw.ready()) {
-      const blended = emotionBlendDraw.blendedFaceParams(va.v, va.a);
+    const blend = fc.emotionBlendApi();
+    if (blend.ready()) {
+      const blended = blend.blendedFaceParams(va.v, va.a);
       if (blended) p = blended;
     }
     setSliderSnap({
@@ -159,7 +159,9 @@ export function FaceSimulator() {
 
   async function onExpressionClick(name: string): Promise<void> {
     fc.requestExpression(name);
-    await handleExpressionBridge(name);
+    await handleExpressionBridge(name, {
+      emotionTriangulation: fc.emotionTriangulation(),
+    });
   }
 
   async function onOverlayClick(name: string): Promise<void> {
@@ -167,6 +169,13 @@ export function FaceSimulator() {
     const verb = OVERLAY_MAP[name];
     const ms = overlayMs || 1200;
     await postRaw("/api/raw/verb/overlay", { verb, duration_ms: ms });
+  }
+
+  /** Match robot `clearVerb` + emotion-driven face: end verb on bridge and snap preview off verb timelines. */
+  async function onClearVerb(): Promise<void> {
+    await postRaw("/api/raw/verb/clear", {});
+    fc.requestExpression("Neutral");
+    await handleExpressionBridge("Neutral");
   }
 
   const expressions = fc.expressions();
@@ -189,6 +198,7 @@ export function FaceSimulator() {
             onOverlayMsChange={setOverlayMs}
             onExpressionClick={onExpressionClick}
             onOverlayClick={onOverlayClick}
+            onClearVerb={onClearVerb}
           />
 
           {/* <LiveParamsReadout text={paramsText} /> */}

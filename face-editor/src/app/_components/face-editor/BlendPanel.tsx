@@ -2,15 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FrameController } from "../../_lib/face-engine/frameController";
+import type { MutableEmotionTriangulation } from "../../_lib/face-engine/emotionTriangulationLive";
+import { retriangulateEmotionAnchors } from "../../_lib/face-engine/emotionTriangulationLive";
 import { canvasClientToVa } from "../../_lib/face-editor/blendCanvasMath";
 import {
   computeBlendMetaHtml,
   drawBlendDiagram,
+  pickBlendAnchorIndexAtCanvas,
 } from "../../_lib/face-editor/drawBlendDiagram";
-import { emotionBlendDraw } from "../../_lib/face-editor/simulatorBlendShared";
 
 const W = 720;
 const H = 720;
+
+type DragKind = "va" | "anchor";
 
 export function BlendPanel({
   fc,
@@ -35,6 +39,7 @@ export function BlendPanel({
   onBlendVaCommit: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const dragRef = useRef<{ kind: DragKind; anchorIndex: number } | null>(null);
   const [metaHtml, setMetaHtml] = useState("triangle: — · weights: —");
   const [blendV, setBlendV] = useState(0);
   const [blendA, setBlendA] = useState(0.5);
@@ -44,8 +49,10 @@ export function BlendPanel({
     if (!c) return;
     const ctx = c.getContext("2d");
     if (!ctx) return;
-    drawBlendDiagram(ctx, fc, emotionBlendDraw, W, H);
-    setMetaHtml(computeBlendMetaHtml(fc, emotionBlendDraw));
+    const blendApi = fc.emotionBlendApi();
+    const tri = fc.emotionTriangulation();
+    drawBlendDiagram(ctx, fc, blendApi, tri, W, H);
+    setMetaHtml(computeBlendMetaHtml(fc, blendApi, tri));
   }, [fc]);
 
   const applyVa = useCallback(
@@ -59,6 +66,12 @@ export function BlendPanel({
     },
     [fc, markBlendDirty, onBlendVaCommit, redraw],
   );
+
+  useEffect(() => {
+    if (blendOn && canvasRef.current) {
+      canvasRef.current.style.cursor = "crosshair";
+    }
+  }, [blendOn]);
 
   useEffect(() => {
     if (!blendOn) return;
@@ -119,35 +132,100 @@ export function BlendPanel({
         <div className="flex justify-center rounded border border-face-border bg-face-canvas p-1.5">
           <canvas
             ref={canvasRef}
-            className="block aspect-square w-full max-w-[720px] cursor-crosshair touch-none [image-rendering:pixelated]"
+            className="block aspect-square w-full max-w-[720px] touch-none [image-rendering:pixelated]"
             width={W}
             height={H}
             onPointerDown={(e) => {
               if (!blendOn) return;
               if (e.pointerType === "mouse" && e.button !== 0) return;
               e.preventDefault();
-              (e.currentTarget as HTMLCanvasElement).setPointerCapture(
-                e.pointerId,
-              );
-              const rect = e.currentTarget.getBoundingClientRect();
-              const [v, a] = canvasClientToVa(e.clientX, e.clientY, rect, W, H);
-              applyVa(v, a);
+              const el = e.currentTarget as HTMLCanvasElement;
+              el.setPointerCapture(e.pointerId);
+              const rect = el.getBoundingClientRect();
+              const cx = (e.clientX - rect.left) * (W / rect.width);
+              const cy = (e.clientY - rect.top) * (H / rect.height);
+              const tri = fc.emotionTriangulation();
+              const hit = pickBlendAnchorIndexAtCanvas(cx, cy, tri, W, H);
+              if (hit !== null) {
+                dragRef.current = { kind: "anchor", anchorIndex: hit };
+                el.style.cursor = "grabbing";
+              } else {
+                dragRef.current = { kind: "va", anchorIndex: -1 };
+                const [v, a] = canvasClientToVa(
+                  e.clientX,
+                  e.clientY,
+                  rect,
+                  W,
+                  H,
+                );
+                applyVa(v, a);
+              }
             }}
             onPointerMove={(e) => {
-              if (!e.currentTarget.hasPointerCapture(e.pointerId) || !blendOn)
-                return;
+              if (!blendOn) return;
               e.preventDefault();
-              const rect = e.currentTarget.getBoundingClientRect();
-              const [v, a] = canvasClientToVa(e.clientX, e.clientY, rect, W, H);
-              applyVa(v, a);
+              const el = e.currentTarget as HTMLCanvasElement;
+              const rect = el.getBoundingClientRect();
+              const cx = (e.clientX - rect.left) * (W / rect.width);
+              const cy = (e.clientY - rect.top) * (H / rect.height);
+              const tri = fc.emotionTriangulation() as MutableEmotionTriangulation;
+
+              if (el.hasPointerCapture(e.pointerId)) {
+                const d = dragRef.current;
+                if (d?.kind === "anchor") {
+                  const [v, a] = canvasClientToVa(
+                    e.clientX,
+                    e.clientY,
+                    rect,
+                    W,
+                    H,
+                  );
+                  const an = tri.anchors[d.anchorIndex];
+                  if (an) {
+                    an.v = v;
+                    an.a = a;
+                  }
+                  retriangulateEmotionAnchors(tri);
+                  redraw();
+                  onBlendVaCommit();
+                  markBlendDirty();
+                } else if (d?.kind === "va") {
+                  const [v, a] = canvasClientToVa(
+                    e.clientX,
+                    e.clientY,
+                    rect,
+                    W,
+                    H,
+                  );
+                  applyVa(v, a);
+                }
+                return;
+              }
+
+              const hit = pickBlendAnchorIndexAtCanvas(cx, cy, tri, W, H);
+              el.style.cursor = hit !== null ? "pointer" : "crosshair";
+            }}
+            onPointerLeave={(e) => {
+              const el = e.currentTarget as HTMLCanvasElement;
+              if (!el.hasPointerCapture(e.pointerId)) {
+                el.style.cursor = "crosshair";
+              }
             }}
             onPointerUp={(e) => {
+              const el = e.currentTarget as HTMLCanvasElement;
               try {
-                (e.currentTarget as HTMLCanvasElement).releasePointerCapture(
-                  e.pointerId,
-                );
+                el.releasePointerCapture(e.pointerId);
               } catch {
                 /* */
+              }
+              dragRef.current = null;
+              if (blendOn) {
+                const rect = el.getBoundingClientRect();
+                const cx = (e.clientX - rect.left) * (W / rect.width);
+                const cy = (e.clientY - rect.top) * (H / rect.height);
+                const tri = fc.emotionTriangulation();
+                const hit = pickBlendAnchorIndexAtCanvas(cx, cy, tri, W, H);
+                el.style.cursor = hit !== null ? "pointer" : "crosshair";
               }
             }}
           />

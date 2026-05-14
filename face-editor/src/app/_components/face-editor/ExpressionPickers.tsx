@@ -1,6 +1,7 @@
 "use client";
 
 import { postRaw } from "../../_lib/face-editor/bridge";
+import type { EmotionTriangulationTable } from "../../_lib/face-engine/types";
 import { emotionVA } from "../../_lib/face-editor/simulatorBlendShared";
 import {
   isEmotionExprName,
@@ -15,6 +16,7 @@ export function ExpressionPickers({
   onOverlayMsChange,
   onExpressionClick,
   onOverlayClick,
+  onClearVerb,
 }: {
   expressions: readonly string[];
   currentExpr: string;
@@ -22,6 +24,7 @@ export function ExpressionPickers({
   onOverlayMsChange: (ms: number) => void;
   onExpressionClick: (name: string) => void | Promise<void>;
   onOverlayClick: (name: string) => void | Promise<void>;
+  onClearVerb: () => void | Promise<void>;
 }) {
   return (
     <>
@@ -57,7 +60,7 @@ export function ExpressionPickers({
         <button
           type="button"
           className="rounded border border-face-border bg-face-panel px-2.5 py-1.5 text-sm font-inherit text-face-text hover:bg-face-panel-2 disabled:cursor-not-allowed disabled:opacity-45"
-          onClick={() => void postRaw("/api/raw/verb/clear", {})}
+          onClick={() => void onClearVerb()}
         >
           Clear verb
         </button>
@@ -117,14 +120,17 @@ export function ExpressionPickers({
   );
 }
 
-export async function handleExpressionBridge(name: string): Promise<void> {
+export async function handleExpressionBridge(
+  name: string,
+  opts?: { emotionTriangulation?: EmotionTriangulationTable },
+): Promise<void> {
   if (name.startsWith("Verb")) {
     const verb = VERB_MAP[name];
     if (verb) await postRaw("/api/raw/verb/start", { verb });
     return;
   }
   if (isEmotionExprName(name)) {
-    const va = emotionVA(name);
+    const va = emotionVA(name, opts?.emotionTriangulation);
     await postRaw("/api/raw/emotion/set-both", { a: va.a, v: va.v });
   }
 }

@@ -3,7 +3,7 @@
  * (text-stream / progress-fade paths omitted; not used by the face simulator).
  */
 
-import { createEmotionBlend } from "./emotionBlend";
+import { createEmotionBlend, type EmotionBlendApi } from "./emotionBlend";
 import {
   BOB_AMP_FOLLOW_EMOTION_ARM,
   Expression,
@@ -21,6 +21,7 @@ import {
   isEmotionExpressionIndex,
 } from "./FACE_CONFIG_DATA";
 import { EMOTION_TRIANGULATION } from "./emotionTriangulation";
+import { cloneMutableEmotionTriangulation } from "./emotionTriangulationLive";
 import {
   PARAM_FIELDS,
   faceParamsFromIndexed,
@@ -42,7 +43,11 @@ import {
   smoothFaceValuesToward,
 } from "./sceneFaceCombine";
 import { TFTSprite, tft } from "./tftSprite";
-import type { BlendTriangle, EmotionArmMotion } from "./types";
+import type {
+  BlendTriangle,
+  EmotionArmMotion,
+  EmotionTriangulationTable,
+} from "./types";
 import {
   expressionUsesVerbTimeline,
   isVerbExpression,
@@ -80,6 +85,7 @@ function periodMsForExpressionIndex(idx: number): number {
 }
 
 function periodMsForContext(
+  tri: EmotionTriangulationTable,
   exprIdx: number,
   blendMode: boolean,
   blendV: number,
@@ -97,7 +103,7 @@ function periodMsForContext(
         return Math.round(msf);
       }
     } else {
-      const { v, a } = anchorVaForExprIdx(exprIdx);
+      const { v, a } = anchorVaForExprIdx(tri, exprIdx);
       const m = emotionBlend.blendedEmotionArmMotion(v, a);
       if (m) {
         const total = m.waggle_period_s + m.waggle_interval_s;
@@ -111,14 +117,18 @@ function periodMsForContext(
   return periodMsForExpressionIndex(exprIdx);
 }
 
-function anchorVaForExprIdx(exprIdx: number): { v: number; a: number } {
-  const an = EMOTION_TRIANGULATION.anchors.find(
+function anchorVaForExprIdx(
+  tri: EmotionTriangulationTable,
+  exprIdx: number,
+): { v: number; a: number } {
+  const an = tri.anchors.find(
     (x) => expressionIndexFromName(x.emotion) === exprIdx,
   );
   return { v: an?.v ?? 0, a: an?.a ?? 0.5 };
 }
 
 function idleFor(
+  tri: EmotionTriangulationTable,
   exprIdx: number,
   blendMode: boolean,
   blendV: number,
@@ -131,7 +141,7 @@ function idleFor(
       if (row) return row;
     }
     if (!blendMode && emotionBlend.ready()) {
-      const an = EMOTION_TRIANGULATION.anchors.find(
+      const an = tri.anchors.find(
         (x) => expressionIndexFromName(x.emotion) === exprIdx,
       );
       if (an) {
@@ -144,6 +154,7 @@ function idleFor(
 }
 
 function bodyBobAmpFor(
+  tri: EmotionTriangulationTable,
   exprIdx: number,
   idle: IdleAnimRow,
   blendMode: boolean,
@@ -153,7 +164,7 @@ function bodyBobAmpFor(
 ): number {
   if (idle.bob_amplitude_px === BOB_AMP_FOLLOW_EMOTION_ARM) {
     if (isEmotionExpressionIndex(exprIdx) && emotionBlend.ready()) {
-      const { v, a } = anchorVaForExprIdx(exprIdx);
+      const { v, a } = anchorVaForExprIdx(tri, exprIdx);
       const m = blendMode
         ? emotionBlend.blendedEmotionArmMotion(blendV, blendA)
         : emotionBlend.blendedEmotionArmMotion(v, a);
@@ -191,6 +202,10 @@ export interface FrameController {
   setBlendVA(v: number, a: number): void;
   blendVA(): { v: number; a: number };
   lastBlendTriangle(): BlendTriangle | null;
+  /** Same blend instance used for ticks and the V/A diagram. */
+  emotionBlendApi(): EmotionBlendApi;
+  /** Mutable live triangulation (clone of shipped data); safe to edit in the editor. */
+  emotionTriangulation(): EmotionTriangulationTable;
   setStaticOverride(partial: {
     params?: Partial<FaceParams>;
     blinkAmt?: number;
@@ -204,12 +219,23 @@ export interface FrameController {
   armOffsetDeg(): number;
 }
 
-export function createFrameController(): FrameController {
+export interface CreateFrameControllerOptions {
+  /** Defaults to a mutable clone of `EMOTION_TRIANGULATION` (editor can move anchors). */
+  triangulation?: EmotionTriangulationTable;
+}
+
+export function createFrameController(
+  opts?: CreateFrameControllerOptions,
+): FrameController {
+  const liveTriangulation =
+    opts?.triangulation ??
+    cloneMutableEmotionTriangulation(EMOTION_TRIANGULATION);
+  const emotionBlend = createEmotionBlend({
+    triangulation: liveTriangulation as EmotionTriangulationTable,
+  });
+
   const settings = createRobotSettings();
   const face = createFaceRenderer({ settings, tft });
-  const emotionBlend = createEmotionBlend({
-    triangulation: EMOTION_TRIANGULATION,
-  });
 
   const animCfg = () => kFrameAnim;
 
@@ -394,13 +420,28 @@ export function createFrameController(): FrameController {
     blendV: number,
     blendA: number,
   ): number {
-    const period = periodMsForContext(exprIdx, blendMode, blendV, blendA, emotionBlend);
+    const period = periodMsForContext(
+      liveTriangulation,
+      exprIdx,
+      blendMode,
+      blendV,
+      blendA,
+      emotionBlend,
+    );
     if (period === 0) {
       sBodyBobPhaseLastMs = t;
       sLastBobAmp = 0;
       return 0;
     }
-    const liveAmp = bodyBobAmpFor(exprIdx, idle, blendMode, blendV, blendA, emotionBlend);
+    const liveAmp = bodyBobAmpFor(
+      liveTriangulation,
+      exprIdx,
+      idle,
+      blendMode,
+      blendV,
+      blendA,
+      emotionBlend,
+    );
     const tt = verbTransitionT(t);
     const effAmpF =
       tt >= 1.0 ? liveAmp : sFromBobAmp + (liveAmp - sFromBobAmp) * tt;
@@ -425,6 +466,7 @@ export function createFrameController(): FrameController {
     sLastExprIdx = newExprIdx;
     sBlinkActive = false;
     const idleNew = idleFor(
+      liveTriangulation,
       newExprIdx,
       sBlendMode,
       sBlendV,
@@ -549,7 +591,7 @@ export function createFrameController(): FrameController {
     }
 
     if (isEmotionExpressionIndex(exprIdx) && emotionBlend.ready()) {
-      const an = EMOTION_TRIANGULATION.anchors.find(
+      const an = liveTriangulation.anchors.find(
         (x) => expressionIndexFromName(x.emotion) === exprIdx,
       );
       const arm = an
@@ -661,7 +703,14 @@ export function createFrameController(): FrameController {
       onExpressionChange(exprIdx, t);
     }
 
-    const idle = idleFor(exprIdx, false, sBlendV, sBlendA, emotionBlend);
+    const idle = idleFor(
+      liveTriangulation,
+      exprIdx,
+      false,
+      sBlendV,
+      sBlendA,
+      emotionBlend,
+    );
 
     const emoDt =
       sLastEmotionSmoothMs === 0 ? tickInterval : t - sLastEmotionSmoothMs;
@@ -814,7 +863,14 @@ export function createFrameController(): FrameController {
     }
     sLastTickMs = t;
     const exprIdx = expressionIndexFromName(sCurrentExpr);
-    const idle = idleFor(exprIdx, true, sBlendV, sBlendA, emotionBlend);
+    const idle = idleFor(
+      liveTriangulation,
+      exprIdx,
+      true,
+      sBlendV,
+      sBlendA,
+      emotionBlend,
+    );
 
     const blended = emotionBlend.blendedFaceParamsIndexed(sBlendV, sBlendA);
     if (!blended) {
@@ -983,6 +1039,14 @@ export function createFrameController(): FrameController {
 
     lastBlendTriangle(): BlendTriangle | null {
       return sBlendLastTri;
+    },
+
+    emotionBlendApi(): EmotionBlendApi {
+      return emotionBlend;
+    },
+
+    emotionTriangulation(): EmotionTriangulationTable {
+      return liveTriangulation as EmotionTriangulationTable;
     },
 
     setStaticOverride(partial: {
