@@ -344,7 +344,16 @@ void runPortal(const Config& currentCfg) {
     staged.bridge_host = server.arg("host");
     staged.bridge_port = (uint16_t)server.arg("port").toInt();
     staged.bridge_token = server.arg("token");
-    save(staged);
+    // Merge into the remembered-networks list (and legacy keys). If this
+    // SSID already exists, bridge host/port/token are refreshed in-place
+    // in NVS so a new IP/DNS target survives the next boot.
+    NetEntry saved;
+    saved.ssid = staged.wifi_ssid;
+    saved.password = staged.wifi_password;
+    saved.bridge_host = staged.bridge_host;
+    saved.bridge_port = staged.bridge_port;
+    saved.bridge_token = staged.bridge_token;
+    rememberNetwork(saved);
     server.send(200, "text/html", FPSTR(kSavedHtml));
     delay(500);
     ESP.restart();

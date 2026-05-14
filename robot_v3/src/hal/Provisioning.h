@@ -21,7 +21,8 @@
  * `robot-XXXX` (MAC-derived SSID). It is entered if the user holds
  * `PORTAL_BUTTON_PIN` (GPIO 0 by default) for 800 ms at boot, or if a
  * one-shot request was set via requestOneTimePortalRequest(). Saving
- * triggers a reboot.
+ * triggers a reboot and merges the form into the remembered-networks
+ * list (same SSID updates stored bridge host/port/token).
  *
  * Optional UI integration is delivered via onPortalState — register a
  * callback that paints the SSID/IP somewhere visible (see
@@ -71,7 +72,7 @@ static constexpr size_t kMaxKnownNetworks = 8;
  */
 bool load(Config& out);
 
-/// Persist the legacy single-set credentials. Used by the portal save handler.
+/// Persist the legacy single-set credentials only (does not update `nets`). Prefer rememberNetwork() when saving a full network row from the portal.
 void save(const Config& c);
 
 /**
@@ -84,9 +85,12 @@ size_t loadNetworks(NetEntry* out, size_t maxCount);
 /**
  * Insert/promote @p entry to the head of the remembered-networks list.
  * If an entry with the same SSID already exists it is removed first
- * (de-duplication). The list is capped at `kMaxKnownNetworks - 1`
- * entries before the new one is prepended. Also updates the legacy
- * single-set keys so a fresh boot finds the right defaults.
+ * (de-duplication), then the new row is prepended with the supplied
+ * WiFi + bridge fields — so re-saving the same SSID from the portal
+ * refreshes stored host/port/token (e.g. after a dynamic DNS change).
+ * The list is capped at `kMaxKnownNetworks - 1` entries before the new
+ * one is prepended. Also updates the legacy single-set keys so a fresh
+ * boot finds the right defaults.
  */
 void rememberNetwork(const NetEntry& entry);
 

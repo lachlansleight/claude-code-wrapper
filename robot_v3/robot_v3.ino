@@ -9,6 +9,7 @@
 #include "src/hal/MotionBehaviors.h"
 #include "src/hal/Provisioning.h"
 #include "src/hal/ProvisioningUI.h"
+#include "src/hal/SerialDebugging.h"
 #include "src/hal/Settings.h"
 #include "src/hal/WiFiManager.h"
 
@@ -84,6 +85,7 @@ void setup() {
 }
 
 void loop() {
+  SerialDebugging::tick();
   WifiMgr::tick(gCfg.wifi_ssid.c_str(), gCfg.wifi_password.c_str());
   Bridge::tick();
   EventRouter::tick();
