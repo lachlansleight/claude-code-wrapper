@@ -43,7 +43,7 @@
     return;
   }
 
-  // Order MUST match Face::FieldIndex in robot_v3/src/face/FaceEnums.h.
+  // Order MUST match Face::FieldIndex in robot_v3/src/face/FacePrimitives.h.
   const PARAM_FIELDS = D.PARAM_FIELDS;
   const FIELD_COUNT = PARAM_FIELDS.length;
   const FIELD_INDEX = {};

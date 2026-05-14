@@ -286,8 +286,8 @@
             <select id="staticPreset" style="margin-left:0.4em;"></select>
           </label>
           <button id="staticCaptureBtn" type="button">Capture live frame</button>
-          <button id="staticCopyBtn" type="button">Copy as kBaseTargets row</button>
-          <button id="staticPasteKBaseBtn" type="button">Paste from kBaseTargets row</button>
+          <button id="staticCopyBtn" type="button">Copy values</button>
+          <button id="staticPasteValuesBtn" type="button">Paste values</button>
         </div>
         <div id="paramSliders"></div>
         <div class="slider-section">
@@ -529,8 +529,8 @@
             ["pupil_r", "Pupil Size", 0, 50, 1],
           ],
           [
-            ["eye_top_apex", "Top Arc",    -50, 50, 1, true],
-            ["eye_bot_apex", "Bottom Arc", -50, 50, 1],
+            ["eye_open_amt", "Eye open", 0, 45, 1],
+            ["eye_arc_amt", "Eye arc (×0.01)", -200, 200, 1],
           ],
           [
             ["pupil_dx", "Look X", -50, 50, 1],
@@ -542,8 +542,6 @@
             ["eye_wave_speed", "Wave Speed",  0, 1000, 10],
           ],
           [
-            ["eye_top_corner", "Top Corner",    -50, 50, 1],
-            ["eye_bot_corner", "Bottom Corner", -50, 50, 1],
             ["eye_thick",      "Thickness",       0, 10, 1],
           ],
         ],
@@ -555,8 +553,8 @@
             ["mouth_rx", "Width", 0, 100, 1],
           ],
           [
-            ["mouth_top_apex", "Top Arc",    -50, 50, 1, true],
-            ["mouth_bot_apex", "Bottom Arc", -50, 50, 1],
+            ["mouth_open_amt", "Mouth open", 0, 45, 1],
+            ["mouth_arc_amt", "Mouth arc (×0.01)", -200, 200, 1],
           ],
           [
             ["mouth_wave_amp",   "Wave Amount", 0, 20,   1],
@@ -564,8 +562,6 @@
             ["mouth_wave_speed", "Wave Speed",  0, 1000, 10],
           ],
           [
-            ["mouth_top_corner", "Top Corner",    -50, 50, 1],
-            ["mouth_bot_corner", "Bottom Corner", -50, 50, 1],
             ["mouth_thick",      "Thickness",       0, 10, 1],
           ],
         ],
@@ -679,7 +675,7 @@
     }
 
     // Mirrors robot_v3/src/face/FACE_CONFIG_DATA.h::kBaseTargets layout —
-    // `/* Name */` comment line, then a 4-space-indented brace block of 28
+    // `/* Name */` comment line, then a 4-space-indented brace block of 24
     // `FACE_P(N)` calls, 8 per line.
     function formatKBaseTargetsCpp(exprName, params) {
       const keys = FC.paramFields();
@@ -693,6 +689,45 @@
         lines.push(lead + chunk + tail);
       }
       return lines.join("");
+    }
+
+    /** Comma-separated ints for the current static params; positives use an explicit +. */
+    function formatParamIntsSignedCsv(params) {
+      const keys = FC.paramFields();
+      return keys
+        .map((k) => {
+          const n = params[k] | 0;
+          return n > 0 ? `+${n}` : String(n);
+        })
+        .join(", ");
+    }
+
+    /** One entry per comma-separated segment: optional +, decimals, optional trailing f/F (C++ literals). */
+    function parseCommaSeparatedParamValues(text) {
+      const numPat = /[-+]?(?:\d+\.\d*|\d*\.\d+|\d+)(?:[eE][-+]?\d+)?/g;
+      const segments = text.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+      const nums = [];
+      for (let i = 0; i < segments.length; i++) {
+        const withoutF = segments[i].replace(/[fF]\s*$/i, "").trim();
+        let last = null;
+        let m;
+        numPat.lastIndex = 0;
+        while ((m = numPat.exec(withoutF)) !== null) {
+          last = m[0];
+        }
+        if (last === null) {
+          return {
+            ok: false,
+            error: `Could not parse a number in segment ${i + 1}: ${JSON.stringify(segments[i])}`,
+          };
+        }
+        const n = Math.trunc(parseFloat(last));
+        if (Number.isNaN(n)) {
+          return { ok: false, error: `Invalid number in segment ${i + 1}: ${JSON.stringify(last)}` };
+        }
+        nums.push(n);
+      }
+      return { ok: true, nums };
     }
 
     function refreshCopyOutput() {
@@ -751,19 +786,20 @@
     });
 
     document.getElementById("staticCopyBtn").addEventListener("click", async () => {
-      const text = copyOutput.textContent;
+      const o = FC.staticOverride();
+      const text = formatParamIntsSignedCsv(o.params);
       try {
         await navigator.clipboard.writeText(text);
         document.getElementById("staticCopyBtn").textContent = "Copied!";
         setTimeout(() => {
-          document.getElementById("staticCopyBtn").textContent = "Copy as kBaseTargets row";
+          document.getElementById("staticCopyBtn").textContent = "Copy values";
         }, 1200);
       } catch (e) {
         console.warn("Clipboard write blocked", e);
       }
     });
 
-    document.getElementById("staticPasteKBaseBtn").addEventListener("click", async () => {
+    document.getElementById("staticPasteValuesBtn").addEventListener("click", async () => {
       let text;
       try {
         text = await navigator.clipboard.readText();
@@ -771,17 +807,16 @@
         console.warn("Clipboard read blocked", e);
         return;
       }
-      const cleaned = text.replace(/[^0-9,+\-\s]/g, "");
-      const parts = cleaned.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
-      const nums = parts.map((s) => parseInt(s, 10));
-      if (nums.some((n) => Number.isNaN(n))) {
-        alert("Could not parse one or more numbers after cleaning clipboard text.");
+      const parsed = parseCommaSeparatedParamValues(text);
+      if (!parsed.ok) {
+        alert(parsed.error);
         return;
       }
+      const { nums } = parsed;
       const fields = FC.paramFields();
       if (nums.length !== fields.length) {
         alert(
-          `Expected ${fields.length} comma-separated integers (full kBaseTargets row), got ${nums.length}.`,
+          `Expected ${fields.length} comma-separated values (same order as Copy values), got ${nums.length}.`,
         );
         return;
       }

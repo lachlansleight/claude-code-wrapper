@@ -25,10 +25,8 @@ struct ParamI16 {
 enum class FieldIndex : uint8_t {
   EyeDy = 0,
   EyeRx,
-  EyeTopApex,
-  EyeTopCorner,
-  EyeBotApex,
-  EyeBotCorner,
+  EyeOpenAmt,
+  EyeArcAmt,
   EyeThick,
   EyeWaveAmp,
   EyeWaveFreq,
@@ -38,10 +36,8 @@ enum class FieldIndex : uint8_t {
   PupilR,
   MouthDy,
   MouthRx,
-  MouthTopApex,
-  MouthTopCorner,
-  MouthBotApex,
-  MouthBotCorner,
+  MouthOpenAmt,
+  MouthArcAmt,
   MouthThick,
   MouthWaveAmp,
   MouthWaveFreq,
@@ -57,10 +53,8 @@ enum class FieldIndex : uint8_t {
 struct FaceParams {
   ParamI16 eye_dy;
   ParamI16 eye_rx;
-  ParamI16 eye_top_apex;
-  ParamI16 eye_top_corner;
-  ParamI16 eye_bot_apex;
-  ParamI16 eye_bot_corner;
+  ParamI16 eye_open_amt;
+  ParamI16 eye_arc_amt;
   ParamI16 eye_thick;
   ParamI16 eye_wave_amp;
   ParamI16 eye_wave_freq;
@@ -70,10 +64,8 @@ struct FaceParams {
   ParamI16 pupil_r;
   ParamI16 mouth_dy;
   ParamI16 mouth_rx;
-  ParamI16 mouth_top_apex;
-  ParamI16 mouth_top_corner;
-  ParamI16 mouth_bot_apex;
-  ParamI16 mouth_bot_corner;
+  ParamI16 mouth_open_amt;
+  ParamI16 mouth_arc_amt;
   ParamI16 mouth_thick;
   ParamI16 mouth_wave_amp;
   ParamI16 mouth_wave_freq;

@@ -16,9 +16,9 @@
  * vertical offset (`face_y`).
  *
  * Rendering is fully parametric: there are no expression-specific
- * branches. Every shape is described by `(top_apex, top_corner,
- * bot_apex, bot_corner)` plus a wave modulation, all of which
- * interpolate continuously so cross-expression tweens never pop.
+ * branches. Eye and mouth envelopes use `*_open_amt` and `*_arc_amt`,
+ * expanded inside FaceRenderer into the shared semicircular apex/corner
+ * model, plus wave modulation — all fields interpolate continuously.
  *
  *  - Eye: per-column scan inside `[-eye_rx, +eye_rx]`. Top stroke band
  *    (`eye_thick` outward above the top edge) and bot stroke band

@@ -14,14 +14,10 @@ const ParamI16& fieldConstRef(const FaceParams& p, FieldIndex i) {
       return p.eye_dy;
     case FieldIndex::EyeRx:
       return p.eye_rx;
-    case FieldIndex::EyeTopApex:
-      return p.eye_top_apex;
-    case FieldIndex::EyeTopCorner:
-      return p.eye_top_corner;
-    case FieldIndex::EyeBotApex:
-      return p.eye_bot_apex;
-    case FieldIndex::EyeBotCorner:
-      return p.eye_bot_corner;
+    case FieldIndex::EyeOpenAmt:
+      return p.eye_open_amt;
+    case FieldIndex::EyeArcAmt:
+      return p.eye_arc_amt;
     case FieldIndex::EyeThick:
       return p.eye_thick;
     case FieldIndex::EyeWaveAmp:
@@ -40,14 +36,10 @@ const ParamI16& fieldConstRef(const FaceParams& p, FieldIndex i) {
       return p.mouth_dy;
     case FieldIndex::MouthRx:
       return p.mouth_rx;
-    case FieldIndex::MouthTopApex:
-      return p.mouth_top_apex;
-    case FieldIndex::MouthTopCorner:
-      return p.mouth_top_corner;
-    case FieldIndex::MouthBotApex:
-      return p.mouth_bot_apex;
-    case FieldIndex::MouthBotCorner:
-      return p.mouth_bot_corner;
+    case FieldIndex::MouthOpenAmt:
+      return p.mouth_open_amt;
+    case FieldIndex::MouthArcAmt:
+      return p.mouth_arc_amt;
     case FieldIndex::MouthThick:
       return p.mouth_thick;
     case FieldIndex::MouthWaveAmp:

@@ -32,10 +32,45 @@
 
   // Semicircular interp between apex (n=0) and corner (|n|=1):
   //   y(n) = corner + (apex - corner) * sqrt(1 - n^2)
-  // Top + bottom edges with mirrored apexes about y=0 trace a perfect ellipse.
+  // open_amt / arc_amt expand to apex/corner via arcDerived (matches firmware).
   function curveAt(apex, corner, n) {
     const r = Math.sqrt(Math.max(0, 1 - n * n));
     return corner + (apex - corner) * r;
+  }
+
+  const kArcCurlFloorK = 20;
+  function arcDerived(openAmt, arcAmtScaled) {
+    const O = openAmt;
+    const A = arcAmtScaled / 100;
+    const S = O > kArcCurlFloorK ? O : kArcCurlFloorK;
+    let topApex; let botApex; let corner;
+    if (A >= 0) {
+      if (A <= 1) {
+        topApex = -O;
+        botApex = O;
+        corner = -S * A;
+      } else {
+        corner = -S;
+        topApex = -O + (A - 1) * S;
+        botApex = O;
+      }
+    } else {
+      const a = -A;
+      if (a <= 1) {
+        topApex = -O;
+        botApex = O;
+        corner = S * a;
+      } else {
+        corner = S;
+        topApex = -O;
+        botApex = O - (a - 1) * S;
+      }
+    }
+    return {
+      top: Math.round(topApex),
+      bot: Math.round(botApex),
+      corner: Math.round(corner),
+    };
   }
 
   // Wave phase is integrated by the caller (FrameControllerV3) and passed in.
@@ -112,10 +147,12 @@
     const waveAmp = p.mouth_wave_amp;
     const minThick = p.mouth_thick;
 
+    const m = arcDerived(p.mouth_open_amt, p.mouth_arc_amt);
+
     for (let lx = -halfw; lx <= halfw; lx++) {
       const n = lx / halfw;
-      let yt = curveAt(p.mouth_top_apex, p.mouth_top_corner, n);
-      let yb = curveAt(p.mouth_bot_apex, p.mouth_bot_corner, n);
+      let yt = curveAt(m.top, m.corner, n);
+      let yb = curveAt(m.bot, m.corner, n);
       if (waveAmp !== 0) {
         const w = waveAmp * Math.sin(2 * Math.PI * waveFreq * n + wavePhase);
         yt += w; yb += w;
@@ -139,6 +176,8 @@
     const waveFreq = p.eye_wave_freq * 0.02;
     const waveAmp = p.eye_wave_amp;
 
+    const e = arcDerived(p.eye_open_amt, p.eye_arc_amt);
+
     const pupilLx = p.pupil_dx + gdx;
     const pupilLy = p.pupil_dy + gdy;
     const pupilR = p.pupil_r;
@@ -158,8 +197,8 @@
     // --- Interior fill (column-major over the inner envelope) ---
     for (let lx = -halfw; lx <= halfw; lx++) {
       const n = lx / halfw;
-      let yt = curveAt(p.eye_top_apex, p.eye_top_corner, n) * blinkScale;
-      let yb = curveAt(p.eye_bot_apex, p.eye_bot_corner, n) * blinkScale;
+      let yt = curveAt(e.top, e.corner, n) * blinkScale;
+      let yb = curveAt(e.bot, e.corner, n) * blinkScale;
       if (waveAmp !== 0) {
         const w = waveAmp * Math.sin(2 * Math.PI * waveFreq * n + wavePhase);
         yt += w; yb += w;
@@ -212,10 +251,10 @@
 
     // --- Outward strokes: concentric arc layers ---
     const thick = p.eye_thick > 0 ? p.eye_thick : 1;
-    drawEdgeStroke(s, cx, cy, halfw, p.eye_top_apex, p.eye_top_corner,
+    drawEdgeStroke(s, cx, cy, halfw, e.top, e.corner,
                    blinkScale, thick, -1,
                    waveAmp, waveFreq, wavePhase, cosA, sinA, fg);
-    drawEdgeStroke(s, cx, cy, halfw, p.eye_bot_apex, p.eye_bot_corner,
+    drawEdgeStroke(s, cx, cy, halfw, e.bot, e.corner,
                    blinkScale, thick, +1,
                    waveAmp, waveFreq, wavePhase, cosA, sinA, fg);
   }

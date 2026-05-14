@@ -108,10 +108,8 @@ Face::FaceParams blendThree(const Face::FaceParams& A, const Face::FaceParams& B
   Face::FaceParams r;
   r.eye_dy = blendParam3(A.eye_dy, B.eye_dy, C.eye_dy, la, lb, lc);
   r.eye_rx = blendParam3(A.eye_rx, B.eye_rx, C.eye_rx, la, lb, lc);
-  r.eye_top_apex = blendParam3(A.eye_top_apex, B.eye_top_apex, C.eye_top_apex, la, lb, lc);
-  r.eye_top_corner = blendParam3(A.eye_top_corner, B.eye_top_corner, C.eye_top_corner, la, lb, lc);
-  r.eye_bot_apex = blendParam3(A.eye_bot_apex, B.eye_bot_apex, C.eye_bot_apex, la, lb, lc);
-  r.eye_bot_corner = blendParam3(A.eye_bot_corner, B.eye_bot_corner, C.eye_bot_corner, la, lb, lc);
+  r.eye_open_amt = blendParam3(A.eye_open_amt, B.eye_open_amt, C.eye_open_amt, la, lb, lc);
+  r.eye_arc_amt = blendParam3(A.eye_arc_amt, B.eye_arc_amt, C.eye_arc_amt, la, lb, lc);
   r.eye_thick = blendParam3(A.eye_thick, B.eye_thick, C.eye_thick, la, lb, lc);
   r.eye_wave_amp = blendParam3(A.eye_wave_amp, B.eye_wave_amp, C.eye_wave_amp, la, lb, lc);
   r.eye_wave_freq = blendParam3(A.eye_wave_freq, B.eye_wave_freq, C.eye_wave_freq, la, lb, lc);
@@ -121,12 +119,8 @@ Face::FaceParams blendThree(const Face::FaceParams& A, const Face::FaceParams& B
   r.pupil_r = blendParam3(A.pupil_r, B.pupil_r, C.pupil_r, la, lb, lc);
   r.mouth_dy = blendParam3(A.mouth_dy, B.mouth_dy, C.mouth_dy, la, lb, lc);
   r.mouth_rx = blendParam3(A.mouth_rx, B.mouth_rx, C.mouth_rx, la, lb, lc);
-  r.mouth_top_apex = blendParam3(A.mouth_top_apex, B.mouth_top_apex, C.mouth_top_apex, la, lb, lc);
-  r.mouth_top_corner =
-      blendParam3(A.mouth_top_corner, B.mouth_top_corner, C.mouth_top_corner, la, lb, lc);
-  r.mouth_bot_apex = blendParam3(A.mouth_bot_apex, B.mouth_bot_apex, C.mouth_bot_apex, la, lb, lc);
-  r.mouth_bot_corner =
-      blendParam3(A.mouth_bot_corner, B.mouth_bot_corner, C.mouth_bot_corner, la, lb, lc);
+  r.mouth_open_amt = blendParam3(A.mouth_open_amt, B.mouth_open_amt, C.mouth_open_amt, la, lb, lc);
+  r.mouth_arc_amt = blendParam3(A.mouth_arc_amt, B.mouth_arc_amt, C.mouth_arc_amt, la, lb, lc);
   r.mouth_thick = blendParam3(A.mouth_thick, B.mouth_thick, C.mouth_thick, la, lb, lc);
   r.mouth_wave_amp = blendParam3(A.mouth_wave_amp, B.mouth_wave_amp, C.mouth_wave_amp, la, lb, lc);
   r.mouth_wave_freq =

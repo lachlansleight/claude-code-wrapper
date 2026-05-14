@@ -6,12 +6,48 @@ namespace Face {
 
 // Semicircular interp between apex (n=0) and corner (|n|=1):
 //   y(n) = corner + (apex - corner) * sqrt(1 - n^2)
-// Top and bottom edges with mirrored apexes about y=0 trace a perfect
-// ellipse, so `eye_top_apex = -ry, eye_bot_apex = +ry` gives a circular
-// eye when rx == ry.
+// `open_amt` / `arc_amt` are expanded into apex/corner before curveAt — see arcDerived.
 static inline float curveAt(int16_t apex, int16_t corner, float n) {
   const float r = sqrtf(fmaxf(0.0f, 1.0f - n * n));
   return (float)corner + ((float)apex - (float)corner) * r;
+}
+
+// Matches control/scripts/face-v3.js: corner throw uses
+// S = max(open_amt, kArcCurlFloorK) so closed mouths can still smile/frown.
+static constexpr int16_t kArcCurlFloorK = 20;
+
+static inline void arcDerived(int16_t open_amt, int16_t arc_amt_scaled, int16_t* out_top_apex,
+                                int16_t* out_bot_apex, int16_t* out_corner) {
+  if (!out_top_apex || !out_bot_apex || !out_corner) return;
+  const float O = (float)open_amt;
+  const float A = (float)arc_amt_scaled / 100.0f;
+  const float S = O > (float)kArcCurlFloorK ? O : (float)kArcCurlFloorK;
+  float topApex, botApex, corner;
+  if (A >= 0.0f) {
+    if (A <= 1.0f) {
+      topApex = -O;
+      botApex = +O;
+      corner = -S * A;
+    } else {
+      corner = -S;
+      topApex = -O + (A - 1.0f) * S;
+      botApex = +O;
+    }
+  } else {
+    const float a = -A;
+    if (a <= 1.0f) {
+      topApex = -O;
+      botApex = +O;
+      corner = +S * a;
+    } else {
+      corner = +S;
+      topApex = -O;
+      botApex = +O - (a - 1.0f) * S;
+    }
+  }
+  *out_top_apex = (int16_t)lroundf(topApex);
+  *out_bot_apex = (int16_t)lroundf(botApex);
+  *out_corner = (int16_t)lroundf(corner);
 }
 
 // Wave phase is now integrated by the caller (FrameController) and passed in
@@ -105,10 +141,13 @@ static void drawMouth(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t c
   const float waveAmp = (float)p.mouth_wave_amp.value;
   const float minThick = (float)p.mouth_thick.value;
 
+  int16_t mTop = 0, mBot = 0, mCorner = 0;
+  arcDerived(p.mouth_open_amt.value, p.mouth_arc_amt.value, &mTop, &mBot, &mCorner);
+
   for (int16_t lx = -halfw; lx <= halfw; ++lx) {
     const float n = (float)lx / (float)halfw;
-    float yt = curveAt(p.mouth_top_apex.value, p.mouth_top_corner.value, n);
-    float yb = curveAt(p.mouth_bot_apex.value, p.mouth_bot_corner.value, n);
+    float yt = curveAt(mTop, mCorner, n);
+    float yb = curveAt(mBot, mCorner, n);
     if (waveAmp != 0.0f) {
       const float w = waveAmp * sinf(2.0f * (float)M_PI * waveFreq * n + wavePhase);
       yt += w;
@@ -141,6 +180,9 @@ static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy,
   const float waveFreq = (float)p.eye_wave_freq.value * 0.02f;
   const float waveAmp = (float)p.eye_wave_amp.value;
 
+  int16_t eTop = 0, eBot = 0, eCorner = 0;
+  arcDerived(p.eye_open_amt.value, p.eye_arc_amt.value, &eTop, &eBot, &eCorner);
+
   // Pupil position in eye-local coords.
   const float pupilLx = (float)(p.pupil_dx.value + gdx);
   const float pupilLy = (float)(p.pupil_dy.value + gdy);
@@ -163,8 +205,8 @@ static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy,
   // --- Interior fill (column-major, hollow inside the inner envelope) ---
   for (int16_t lx = -halfw; lx <= halfw; ++lx) {
     const float n = (float)lx / (float)halfw;
-    float yt = curveAt(p.eye_top_apex.value, p.eye_top_corner.value, n) * blinkScale;
-    float yb = curveAt(p.eye_bot_apex.value, p.eye_bot_corner.value, n) * blinkScale;
+    float yt = curveAt(eTop, eCorner, n) * blinkScale;
+    float yb = curveAt(eBot, eCorner, n) * blinkScale;
     if (waveAmp != 0.0f) {
       const float w = waveAmp * sinf(2.0f * (float)M_PI * waveFreq * n + wavePhase);
       yt += w;
@@ -224,10 +266,10 @@ static void drawEye(TFT_eSprite& s, const FaceParams& p, int16_t cx, int16_t cy,
 
   // --- Outward strokes: concentric arc layers, top edge then bot edge ---
   const int16_t thick = p.eye_thick.value > 0 ? p.eye_thick.value : 1;
-  drawEdgeStroke(s, cx, cy, halfw, p.eye_top_apex.value, p.eye_top_corner.value,
+  drawEdgeStroke(s, cx, cy, halfw, eTop, eCorner,
                  blinkScale, thick, /*outwardSign=*/-1,
                  waveAmp, waveFreq, wavePhase, cosA, sinA, fg565);
-  drawEdgeStroke(s, cx, cy, halfw, p.eye_bot_apex.value, p.eye_bot_corner.value,
+  drawEdgeStroke(s, cx, cy, halfw, eBot, eCorner,
                  blinkScale, thick, /*outwardSign=*/+1,
                  waveAmp, waveFreq, wavePhase, cosA, sinA, fg565);
 }
