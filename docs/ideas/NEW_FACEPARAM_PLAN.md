@@ -57,8 +57,7 @@ Regimes:
 We picked **option (a) linear corner placement** in [−1, +1]
 (`corner = −S · A`, see curl floor below). At `A = ±0.5` the corner
 sits halfway between centre and the top/bottom edge, giving a 1:3
-top:bot depth ratio (not 1:2). Validated visually in
-`control/p5_test.html`.
+top:bot depth ratio (not 1:2). Validated visually in the interactive sketch (`p5_test`, formerly under `control/`); use **`face-editor`** static mode for the same kind of iteration today.
 
 The renderer keeps using the existing `curveAt(apex, corner, n)`
 primitive. Conversion from `(open_amt, arc_amt)` to
@@ -122,19 +121,19 @@ function arcParams(openAmt, arcAmtScaled) {
 
 ## Migration strategy
 
-JS first — `simulator_v3.html` is the preset authoring surface, so we
+JS first — use **`face-editor`** (`presets.ts`, `faceRenderer.ts`, `frameController.ts`, static-mode UI) to
 re-author there and copy values into C++ once they look right.
 
 Order of operations:
 
 1. **Plan doc** (this file).
-2. **`control/scripts/face-v3.js`** — add `arcParams` helper. Swap the
+2. **`face-editor/src/app/_lib/face-engine/faceRenderer.ts`** — add `arcParams` helper. Swap the
    `curveAt` callers in `drawMouth` and `drawEye` and the
    `drawEdgeStroke` calls to consume the derived apex/corner.
-3. **`control/scripts/frame-controller-v3.js`** — update
-   `PARAM_FIELDS` and rewrite `BASE_TARGETS`. Use a one-shot mechanical
+3. **`face-editor/src/app/_lib/face-engine/presets.ts`** (and **`frameController.ts`** if needed) — update
+   `PARAM_FIELDS` and rewrite `NEW_TARGETS`. Use a one-shot mechanical
    conversion from the legacy values (see below) as the starting point.
-4. **`control/simulator_v3.html`** — replace the four apex/corner
+4. **`face-editor/src/app/_components/face-editor/FaceSimulator.tsx`** (static sliders / `simulatorLayout.ts`) — replace the four apex/corner
    sliders per shape with two (`open_amt`, `arc_amt`). `arc_amt` slider
    is `−200..+200` step 1.
 5. **Verify in simulator**: cycle every expression, scrub blend
@@ -212,8 +211,8 @@ logic:
 
 ## Status
 
-- [x] Validated arc geometry interactively (`control/p5_test.html`).
-- [ ] JS renderer + frame controller + simulator.
-- [ ] Re-author presets in simulator.
-- [ ] Firmware port.
-- [ ] Docs.
+- [x] Validated arc geometry interactively (`control/p5_test.html` and/or face editor static mode).
+- [x] JS renderer + frame controller + simulator (`control/scripts/*` and `face-editor` TypeScript port).
+- [x] Re-author presets (`face-config-data.js` / `presets.ts` `NEW_TARGETS`, firmware `kBaseTargets`).
+- [x] Firmware port (`FacePrimitives.h`, `FaceRenderer.cpp`, `FrameController.cpp`, `EmotionBlend.cpp`, etc.).
+- [x] Docs (`DISPLAY_AND_FACE.md`, this file).

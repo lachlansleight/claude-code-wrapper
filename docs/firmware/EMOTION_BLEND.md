@@ -55,9 +55,8 @@ That writes two files (commit both):
 
 - `robot_v3/src/behaviour/EmotionTriangulation.h` — consumed by
   `EmotionBlend.cpp`.
-- `control/scripts/emotion-triangulation.js` — consumed by
-  `control/simulator_v3.html` so the simulator's blend matches the
-  device.
+- `face-editor/src/app/_lib/face-engine/emotionTriangulation.ts` — consumed by
+  the Next.js face editor so the browser blend matches the device.
 
 Both are marked `GENERATED FILE - DO NOT EDIT` at the top. No scipy
 needed; the script ships its own Bowyer-Watson.

@@ -44,7 +44,7 @@ Any WebSocket client may inject synthetic lifecycle events using:
   "event": { "kind": "turn.started" } }
 ```
 
-This is how `control/index.html` can drive the robot without a real agent.
+This is how the legacy `control/index.html` panel could drive the robot without a real agent. The `control/` tree has been removed; use **`face-editor`** (`npm run dev` in that package) for the v3 face simulator and raw bridge calls from the UI.
 
 ## Controlling behaviour directly (verb / emotion)
 
