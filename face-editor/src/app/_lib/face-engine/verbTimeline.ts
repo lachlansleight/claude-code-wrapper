@@ -26,6 +26,21 @@ function tableFor(verb: Expression): (typeof kVerbTimelines)[number] | undefined
   return undefined;
 }
 
+/** Minimal shape for sampling (shipped `VerbTimeline` or editor `MutableVerbTimeline`). */
+export type VerbTimelineSampleSource = {
+  loop_duration_ms: number;
+  keyframe_count: number;
+  keyframes: readonly {
+    time_ms: number;
+    override_count: number;
+    overrides: readonly { field: FieldIndex; targetValue: number; strength: number }[];
+  }[];
+};
+
+export type VerbTimelineTableResolver = (
+  verb: Expression,
+) => VerbTimelineSampleSource | undefined;
+
 /** Same predicate as firmware `Face::expressionUsesVerbTimeline`. */
 export function expressionUsesVerbTimeline(e: Expression): boolean {
   switch (e) {
@@ -45,7 +60,7 @@ export function expressionUsesVerbTimeline(e: Expression): boolean {
 export const isVerbExpression = expressionUsesVerbTimeline;
 
 function cumulativeState(
-  tab: NonNullable<ReturnType<typeof tableFor>>,
+  tab: VerbTimelineSampleSource,
   uptoIdx: number,
   hasField: boolean[],
   fieldVals: ParamI16[],
@@ -112,85 +127,8 @@ function lerpFieldSnapshots(
   }
 }
 
-interface Snapshot {
-  has: boolean[];
-  value: Int16Array;
-  strength: Uint8Array;
-}
-
-const sFromSnapshot: Snapshot = {
-  has: new Array(FIELD_COUNT).fill(false),
-  value: new Int16Array(FIELD_COUNT),
-  strength: new Uint8Array(FIELD_COUNT),
-};
-let sToVerb: Expression = Expression.Count;
-let sTransitionStartMs = 0;
-let sFromInitialised = false;
-
-function evaluate(
-  nowMs: number,
-  timeInVerbMs: number,
-  outHas: boolean[],
-  outVals: ParamI16[],
-): void {
-  const toHas = new Array(FIELD_COUNT).fill(false);
-  const toVals: ParamI16[] = Array.from({ length: FIELD_COUNT }, () => ({
-    value: 0,
-    strength: 0,
-  }));
-
-  if (expressionUsesVerbTimeline(sToVerb)) {
-    sampleVerbTimeline(sToVerb, timeInVerbMs, toHas, toVals);
-  }
-
-  const elapsed = nowMs - sTransitionStartMs;
-  const t = clamp01f(elapsed / kVerbTransitionDurMs);
-
-  if (!sFromInitialised || t >= 1.0) {
-    for (let i = 0; i < FIELD_COUNT; ++i) {
-      outHas[i] = toHas[i]!;
-      outVals[i] = { ...toVals[i]! };
-    }
-    return;
-  }
-
-  const oneMinus = 1.0 - t;
-  for (let i = 0; i < FIELD_COUNT; ++i) {
-    const fromHas = sFromSnapshot.has[i];
-    const nextHas = toHas[i];
-    if (fromHas && nextHas) {
-      const v =
-        sFromSnapshot.value[i]! * oneMinus + toVals[i]!.value * t;
-      const s =
-        sFromSnapshot.strength[i]! * oneMinus + toVals[i]!.strength * t;
-      outHas[i] = true;
-      outVals[i] = {
-        value: Math.round(v),
-        strength: Math.round(s),
-      };
-    } else if (fromHas) {
-      const s = Math.round(sFromSnapshot.strength[i]! * oneMinus);
-      outHas[i] = s > 0;
-      outVals[i] = {
-        value: sFromSnapshot.value[i]!,
-        strength: s < 0 ? 0 : s,
-      };
-    } else if (nextHas) {
-      const s = Math.round(toVals[i]!.strength * t);
-      outHas[i] = s > 0;
-      outVals[i] = {
-        value: toVals[i]!.value,
-        strength: s < 0 ? 0 : s,
-      };
-    } else {
-      outHas[i] = false;
-      outVals[i] = { value: 0, strength: 0 };
-    }
-  }
-}
-
-export function sampleVerbTimeline(
-  verb: Expression,
+export function sampleVerbTimelineFromTable(
+  tab: VerbTimelineSampleSource,
   timeInVerbMs: number,
   hasField: boolean[],
   fieldVals: ParamI16[],
@@ -200,10 +138,9 @@ export function sampleVerbTimeline(
     fieldVals[i] = { value: 0, strength: 0 };
   }
 
-  const tab = tableFor(verb);
-  if (!tab || tab.keyframe_count === 0) return;
-
   const K = tab.keyframe_count;
+  if (K === 0) return;
+
   const L = tab.loop_duration_ms;
 
   if (K === 1) {
@@ -255,12 +192,110 @@ export function sampleVerbTimeline(
   lerpFieldSnapshots(leftHas, leftVals, rightHas, rightVals, u, hasField, fieldVals);
 }
 
+export function sampleVerbTimeline(
+  verb: Expression,
+  timeInVerbMs: number,
+  hasField: boolean[],
+  fieldVals: ParamI16[],
+): void {
+  const tab = tableFor(verb);
+  if (!tab) return;
+  sampleVerbTimelineFromTable(tab, timeInVerbMs, hasField, fieldVals);
+}
+
+interface Snapshot {
+  has: boolean[];
+  value: Int16Array;
+  strength: Uint8Array;
+}
+
+const sFromSnapshot: Snapshot = {
+  has: new Array(FIELD_COUNT).fill(false),
+  value: new Int16Array(FIELD_COUNT),
+  strength: new Uint8Array(FIELD_COUNT),
+};
+let sToVerb: Expression = Expression.Count;
+let sTransitionStartMs = 0;
+let sFromInitialised = false;
+
+function resolveTabForVerb(
+  verb: Expression,
+  resolveTable?: VerbTimelineTableResolver,
+): VerbTimelineSampleSource | undefined {
+  return resolveTable?.(verb) ?? tableFor(verb);
+}
+
+function evaluate(
+  nowMs: number,
+  timeInVerbMs: number,
+  outHas: boolean[],
+  outVals: ParamI16[],
+  resolveTable?: VerbTimelineTableResolver,
+): void {
+  const toHas = new Array(FIELD_COUNT).fill(false);
+  const toVals: ParamI16[] = Array.from({ length: FIELD_COUNT }, () => ({
+    value: 0,
+    strength: 0,
+  }));
+
+  if (expressionUsesVerbTimeline(sToVerb)) {
+    const tab = resolveTabForVerb(sToVerb, resolveTable);
+    if (tab) {
+      sampleVerbTimelineFromTable(tab, timeInVerbMs, toHas, toVals);
+    }
+  }
+
+  const elapsed = nowMs - sTransitionStartMs;
+  const t = clamp01f(elapsed / kVerbTransitionDurMs);
+
+  if (!sFromInitialised || t >= 1.0) {
+    for (let i = 0; i < FIELD_COUNT; ++i) {
+      outHas[i] = toHas[i]!;
+      outVals[i] = { ...toVals[i]! };
+    }
+    return;
+  }
+
+  const oneMinus = 1.0 - t;
+  for (let i = 0; i < FIELD_COUNT; ++i) {
+    const fromHas = sFromSnapshot.has[i];
+    const nextHas = toHas[i];
+    if (fromHas && nextHas) {
+      const v = sFromSnapshot.value[i]! * oneMinus + toVals[i]!.value * t;
+      const s = sFromSnapshot.strength[i]! * oneMinus + toVals[i]!.strength * t;
+      outHas[i] = true;
+      outVals[i] = {
+        value: Math.round(v),
+        strength: Math.round(s),
+      };
+    } else if (fromHas) {
+      const s = Math.round(sFromSnapshot.strength[i]! * oneMinus);
+      outHas[i] = s > 0;
+      outVals[i] = {
+        value: sFromSnapshot.value[i]!,
+        strength: s < 0 ? 0 : s,
+      };
+    } else if (nextHas) {
+      const s = Math.round(toVals[i]!.strength * t);
+      outHas[i] = s > 0;
+      outVals[i] = {
+        value: toVals[i]!.value,
+        strength: s < 0 ? 0 : s,
+      };
+    } else {
+      outHas[i] = false;
+      outVals[i] = { value: 0, strength: 0 };
+    }
+  }
+}
+
 export function sampleEffectiveVerb(
   currentVerbExpression: Expression,
   nowMs: number,
   timeInVerbMs: number,
   hasField: boolean[],
   fieldVals: ParamI16[],
+  resolveTable?: VerbTimelineTableResolver,
 ): void {
   if (currentVerbExpression !== sToVerb) {
     const tmpHas = new Array(FIELD_COUNT).fill(false);
@@ -268,7 +303,7 @@ export function sampleEffectiveVerb(
       value: 0,
       strength: 0,
     }));
-    evaluate(nowMs, timeInVerbMs, tmpHas, tmpVals);
+    evaluate(nowMs, timeInVerbMs, tmpHas, tmpVals, resolveTable);
     for (let i = 0; i < FIELD_COUNT; ++i) {
       sFromSnapshot.has[i] = tmpHas[i]!;
       sFromSnapshot.value[i] = tmpVals[i]!.value;
@@ -279,7 +314,7 @@ export function sampleEffectiveVerb(
     sTransitionStartMs = nowMs;
   }
 
-  evaluate(nowMs, timeInVerbMs, hasField, fieldVals);
+  evaluate(nowMs, timeInVerbMs, hasField, fieldVals, resolveTable);
 }
 
 export function resetVerbTransition(): void {

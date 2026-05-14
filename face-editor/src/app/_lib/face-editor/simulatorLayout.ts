@@ -1,3 +1,9 @@
+import type { ParamField } from "../face-engine/faceParams";
+import {
+  PARAM_UI_SECTIONS,
+  paramFieldLabel,
+} from "../face-engine/faceParams";
+
 export type SliderRowDef = [
   field: string,
   label: string,
@@ -12,70 +18,52 @@ export interface SliderSectionDef {
   groups: SliderRowDef[][];
 }
 
-export const PARAM_LAYOUT: SliderSectionDef[] = [
-  {
-    section: "Positioning",
-    groups: [
-      [
-        ["eye_dy", "Eye Y", -30, 30, 1],
-        ["mouth_dy", "Mouth Y", -30, 30, 1],
-      ],
-      [
-        ["face_y", "Face Y", -30, 30, 1],
-        ["face_rot", "Face Rot", -90, 90, 1],
-      ],
-    ],
-  },
-  {
-    section: "Eyes",
-    groups: [
-      [
-        ["eye_rx", "Width", 0, 35, 1],
-        ["pupil_r", "Pupil Size", 0, 50, 1],
-      ],
-      [
-        ["eye_open_amt", "Open Amt", 0, 50, 1],
-        ["eye_arc_amt", "Arc Amt", -200, 200, 1],
-      ],
-      [
-        ["pupil_dx", "Look X", -50, 50, 1],
-        ["pupil_dy", "Look Y", -50, 50, 1],
-      ],
-      [
-        ["eye_wave_amp", "Wave Amount", 0, 20, 1],
-        ["eye_wave_freq", "Wave Freq", 0, 100, 1],
-        ["eye_wave_speed", "Wave Speed", 0, 1000, 10],
-      ],
-      [["eye_thick", "Thickness", 0, 10, 1]],
-    ],
-  },
-  {
-    section: "Mouth",
-    groups: [
-      [["mouth_rx", "Width", 0, 100, 1]],
-      [
-        ["mouth_open_amt", "Open Amt", 0, 50, 1],
-        ["mouth_arc_amt", "Arc Amt", -200, 200, 1],
-      ],
-      [
-        ["mouth_wave_amp", "Wave Amount", 0, 20, 1],
-        ["mouth_wave_freq", "Wave Freq", 0, 100, 1],
-        ["mouth_wave_speed", "Wave Speed", 0, 1000, 10],
-      ],
-      [["mouth_thick", "Thickness", 0, 10, 1]],
-    ],
-  },
-  {
-    section: "Ring",
-    groups: [
-      [
-        ["ring_r", "Red", 0, 255, 1],
-        ["ring_g", "Green", 0, 255, 1],
-        ["ring_b", "Blue", 0, 255, 1],
-      ],
-    ],
-  },
-];
+/** Slider min / max / step (and optional RTL range) — labels come from `paramFieldLabel`. */
+const PARAM_SLIDER_RANGE: Record<
+  ParamField,
+  readonly [min: number, max: number, step: number, reversed?: boolean]
+> = {
+  eye_dy: [-30, 30, 1],
+  mouth_dy: [-30, 30, 1],
+  face_y: [-30, 30, 1],
+  face_rot: [-90, 90, 1],
+  eye_rx: [0, 35, 1],
+  pupil_r: [0, 50, 1],
+  eye_open_amt: [0, 50, 1],
+  eye_arc_amt: [-200, 200, 1],
+  pupil_dx: [-50, 50, 1],
+  pupil_dy: [-50, 50, 1],
+  eye_wave_amp: [0, 20, 1],
+  eye_wave_freq: [0, 100, 1],
+  eye_wave_speed: [0, 1000, 10],
+  eye_thick: [0, 10, 1],
+  mouth_rx: [0, 100, 1],
+  mouth_open_amt: [0, 50, 1],
+  mouth_arc_amt: [-200, 200, 1],
+  mouth_wave_amp: [0, 20, 1],
+  mouth_wave_freq: [0, 100, 1],
+  mouth_wave_speed: [0, 1000, 10],
+  mouth_thick: [0, 10, 1],
+  ring_r: [0, 255, 1],
+  ring_g: [0, 255, 1],
+  ring_b: [0, 255, 1],
+};
+
+function sliderRowForField(f: ParamField): SliderRowDef {
+  const spec = PARAM_SLIDER_RANGE[f]!;
+  const [min, max, step, reversed] = spec;
+  if (reversed !== undefined) {
+    return [f, paramFieldLabel(f), min, max, step, reversed];
+  }
+  return [f, paramFieldLabel(f), min, max, step];
+}
+
+export const PARAM_LAYOUT: SliderSectionDef[] = PARAM_UI_SECTIONS.map(
+  (sec) => ({
+    section: sec.section,
+    groups: sec.groups.map((grp) => grp.map((f) => sliderRowForField(f))),
+  }),
+);
 
 export const MOD_LAYOUT: SliderRowDef[][] = [
   [

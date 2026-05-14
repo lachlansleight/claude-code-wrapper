@@ -23,6 +23,10 @@ import { EMOTION_TRIANGULATION } from "./emotionTriangulation";
 import { cloneMutableEmotionTriangulation } from "./emotionTriangulationLive";
 import { cloneMutableBaseTargets } from "./mutableBaseTargets";
 import {
+  cloneMutableVerbTimelines,
+  type MutableVerbTimeline,
+} from "./mutableVerbTimelines";
+import {
   PARAM_FIELDS,
   faceParamsFromIndexed,
   indexedFromFaceParams,
@@ -53,6 +57,7 @@ import {
   isVerbExpression,
   resetVerbTransition,
   sampleEffectiveVerb,
+  type VerbTimelineTableResolver,
   verbTransitionT,
 } from "./verbTimeline";
 
@@ -210,6 +215,10 @@ export interface FrameController {
   emotionBlendApi(): EmotionBlendApi;
   /** Mutable live triangulation (clone of shipped data); safe to edit in the editor. */
   emotionTriangulation(): EmotionTriangulationTable;
+  /** Session-local verb keyframe tables (clone of shipped `kVerbTimelines`; lost on refresh). */
+  verbTimelines(): MutableVerbTimeline[];
+  /** When set, `tick()` uses `timeMs` as verb phase for that verb instead of wall-clock verb time. */
+  setVerbTimelinePreview(p: { verb: Expression; timeMs: number } | null): void;
   setStaticOverride(partial: {
     params?: Partial<FaceParams>;
     blinkAmt?: number;
@@ -235,6 +244,7 @@ export function createFrameController(
     opts?.triangulation ??
     cloneMutableEmotionTriangulation(EMOTION_TRIANGULATION);
   const liveBaseTargets = cloneMutableBaseTargets();
+  const liveVerbTimelines = cloneMutableVerbTimelines();
   const emotionBlend = createEmotionBlend({
     triangulation: liveTriangulation as EmotionTriangulationTable,
     baseTargets: liveBaseTargets,
@@ -312,6 +322,11 @@ export function createFrameController(
   let sArmEmotionOsc01 = 0;
   let sArmEmotionDwellS = 0;
   let sPrevArmDriverEmotion = false;
+
+  let sVerbTimelinePreview: { verb: Expression; timeMs: number } | null = null;
+
+  const resolveLiveVerbTable: VerbTimelineTableResolver = (verb: Expression) =>
+    liveVerbTimelines.find((t) => t.verb === verb);
 
   const listeners: Array<(name: string) => void> = [];
   let rafHandle: number | null = null;
@@ -736,13 +751,30 @@ export function createFrameController(
       sLastVerbForXfade = exprEnum;
     }
 
-    const verbTime = isVerbExpression(exprEnum) ? Math.max(0, t - sVerbEnteredMs) : 0;
+    let verbTime = 0;
+    if (isVerbExpression(exprEnum)) {
+      if (
+        sVerbTimelinePreview !== null &&
+        sVerbTimelinePreview.verb === exprEnum
+      ) {
+        verbTime = sVerbTimelinePreview.timeMs;
+      } else {
+        verbTime = Math.max(0, t - sVerbEnteredMs);
+      }
+    }
     const verbHas: boolean[] = new Array(FieldIndex.Count).fill(false);
     const verbVals: ParamI16[] = Array.from({ length: FieldIndex.Count }, () => ({
       value: 0,
       strength: 0,
     }));
-    sampleEffectiveVerb(exprEnum, t, verbTime, verbHas, verbVals);
+    sampleEffectiveVerb(
+      exprEnum,
+      t,
+      verbTime,
+      verbHas,
+      verbVals,
+      resolveLiveVerbTable,
+    );
 
     let combined = combineEmotionVerbFace(sSmoothed, verbHas, verbVals);
     let pFlat = faceParamsFromIndexed(combined);
@@ -889,7 +921,14 @@ export function createFrameController(
       value: 0,
       strength: 0,
     }));
-    sampleEffectiveVerb(Expression.Count, t, 0, verbHas, verbVals);
+    sampleEffectiveVerb(
+      Expression.Count,
+      t,
+      0,
+      verbHas,
+      verbVals,
+      resolveLiveVerbTable,
+    );
 
     let combined = combineEmotionVerbFace(sSmoothed, verbHas, verbVals);
     let pFlat = faceParamsFromIndexed(combined);
@@ -1068,6 +1107,14 @@ export function createFrameController(
 
     emotionTriangulation(): EmotionTriangulationTable {
       return liveTriangulation as EmotionTriangulationTable;
+    },
+
+    verbTimelines(): MutableVerbTimeline[] {
+      return liveVerbTimelines;
+    },
+
+    setVerbTimelinePreview(p: { verb: Expression; timeMs: number } | null): void {
+      sVerbTimelinePreview = p;
     },
 
     setStaticOverride(partial: {

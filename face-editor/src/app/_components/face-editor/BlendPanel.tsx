@@ -10,6 +10,7 @@ import {
   drawBlendDiagram,
   pickBlendAnchorIndexAtCanvas,
 } from "../../_lib/face-editor/drawBlendDiagram";
+import Panel from "./atoms/Panel";
 
 const W = 720;
 const H = 720;
@@ -124,19 +125,8 @@ export function BlendPanel({
           </label>
         </div>
       </h3>
-      <p className="mb-1.5 text-[0.78em] text-face-muted">
-        Coloured rings are <strong className="font-semibold text-face-text">emotion points</strong>{" "}
-        (V/A anchors). Drag empty space for blend cursor; drag a ring to move that point. Click a
-        ring to open the emotion point inspector.
-      </p>
 
-      <div
-        className={
-          blendOn
-            ? "my-1.5 rounded-md border border-face-border bg-face-panel px-3 py-2"
-            : "pointer-events-none my-1.5 rounded-md border border-face-border bg-face-panel px-3 py-2 opacity-50"
-        }
-      >
+      <Panel disabled={!blendOn}>
         <div className="flex justify-center rounded border border-face-border bg-face-canvas p-1.5">
           <canvas
             ref={canvasRef}
@@ -319,7 +309,7 @@ export function BlendPanel({
           className="mt-1.5 font-mono text-[0.78em] text-face-muted [&_b]:font-semibold [&_b]:text-face-text"
           dangerouslySetInnerHTML={{ __html: metaHtml }}
         />
-      </div>
+      </Panel>
     </>
   );
 }

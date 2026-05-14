@@ -20,6 +20,12 @@ export { EMOTION_TRIANGULATION } from "./emotionTriangulation";
 export { tft, TFTSprite } from "./tftSprite";
 export type { FaceParams, ParamField } from "./faceParams";
 export {
+  PARAM_FIELD_LABEL,
+  PARAM_FIELDS_UI_ORDER,
+  PARAM_UI_SECTIONS,
+  paramFieldLabel,
+} from "./faceParams";
+export {
   PARAM_FIELDS,
   expressionsList,
   paramFieldsList,

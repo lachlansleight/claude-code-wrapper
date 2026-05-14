@@ -1,12 +1,25 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  expressionIndexFromName,
+  Expression,
+} from "../../_lib/face-engine/FACE_CONFIG_DATA";
 import { createFrameController } from "../../_lib/face-engine/frameController";
 import {
   PARAM_FIELDS,
+  PARAM_FIELDS_UI_ORDER,
+  paramFieldLabel,
   type FaceParams,
   type ParamField,
+  paramFieldFromFieldIndex,
 } from "../../_lib/face-engine/faceParams";
+import { resetVerbTransition } from "../../_lib/face-engine/verbTimeline";
+import {
+  applyVerbLoopDurationMs,
+  fieldsInKeyframeOverrides,
+  snapVerbPlayheadMs,
+} from "../../_lib/face-engine/verbTimelineEdit";
 import { formatKBaseTargetsCpp } from "../../_lib/face-editor/cppRowFormat";
 import { postRaw } from "../../_lib/face-editor/bridge";
 import { OVERLAY_MAP } from "../../_lib/face-editor/simulatorLayout";
@@ -14,8 +27,12 @@ import { BlendPanel } from "./BlendPanel";
 import { EmotionPointInspector } from "./EmotionPointInspector";
 import { ExpressionPickers, handleExpressionBridge } from "./ExpressionPickers";
 import { FaceStage } from "./FaceStage";
-import { LiveParamsReadout } from "./LiveParamsReadout";
+import { KeyframeInspector } from "./KeyframeInspector";
 import { StaticModePanel } from "./StaticModePanel";
+import {
+  VerbTimelinePanel,
+  type VerbTimelineName,
+} from "./VerbTimelinePanel";
 
 export function FaceSimulator() {
   const fc = useMemo(() => createFrameController(), []);
@@ -39,6 +56,8 @@ export function FaceSimulator() {
   }));
 
   const blendSendDirty = useRef(false);
+  /** While true, do not copy `currentExpr` → verb dropdown (avoids fighting the dropdown before `requestExpression` lands). */
+  const verbDropdownAwaitingEngineRef = useRef(false);
   const inspectorSendDirty = useRef(false);
   const inspectorLiveRef = useRef<{
     emotion: string;
@@ -50,6 +69,93 @@ export function FaceSimulator() {
     null,
   );
   const [inspectorSendLive, setInspectorSendLive] = useState(false);
+
+  const [simulatorMode, setSimulatorMode] = useState<"blend" | "verbTimeline">(
+    "blend",
+  );
+  const [verbTimelineName, setVerbTimelineName] =
+    useState<VerbTimelineName>("VerbThinking");
+  const [verbPlayheadMs, setVerbPlayheadMs] = useState(0);
+  const [verbPlaySpeed, setVerbPlaySpeed] = useState<0 | 0.25 | 0.5 | 1 | 2>(0);
+  const [verbSelectedKeyframe, setVerbSelectedKeyframe] = useState<
+    number | null
+  >(null);
+  const [timelineRev, setTimelineRev] = useState(0);
+  const [verbLiveParams, setVerbLiveParams] = useState<FaceParams>(() => ({
+    ...fc.params(),
+  }));
+
+  const verbTimelineMode = simulatorMode === "verbTimeline";
+
+  const verbEnum = useMemo(
+    () => expressionIndexFromName(verbTimelineName) as Expression,
+    [verbTimelineName],
+  );
+
+  const verbTab = fc.verbTimelines().find((t) => t.verb === verbEnum);
+
+  const keyframeHighlightFields = useMemo(() => {
+    const s = new Set<ParamField>();
+    if (!verbTab || verbSelectedKeyframe === null) return s;
+    for (const fi of fieldsInKeyframeOverrides(verbTab, verbSelectedKeyframe)) {
+      const pf = paramFieldFromFieldIndex(fi);
+      if (pf) s.add(pf);
+    }
+    return s;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- timelineRev bumps on in-place table mutation
+  }, [verbTab, verbSelectedKeyframe, timelineRev]);
+
+  const bumpTimeline = useCallback(() => {
+    setTimelineRev((n) => n + 1);
+  }, []);
+
+  const commitVerbLoopDurationMs = useCallback(
+    (ms: number) => {
+      const t = fc.verbTimelines().find((x) => x.verb === verbEnum);
+      if (!t) return;
+      const applied = applyVerbLoopDurationMs(t, ms);
+      setVerbPlayheadMs((p) => snapVerbPlayheadMs(p, applied));
+      bumpTimeline();
+    },
+    [fc, verbEnum, bumpTimeline],
+  );
+
+  const setVerbPlayheadSnapped = useCallback(
+    (ms: number) => {
+      const t = fc.verbTimelines().find((x) => x.verb === verbEnum);
+      const loop = t?.loop_duration_ms ?? 1000;
+      setVerbPlayheadMs(snapVerbPlayheadMs(ms, loop));
+    },
+    [fc, verbEnum],
+  );
+
+  useEffect(() => {
+    if (verbSelectedKeyframe === null || !verbTab) return;
+    if (verbSelectedKeyframe >= verbTab.keyframe_count) {
+      setVerbSelectedKeyframe(null);
+    }
+  }, [verbTab, verbSelectedKeyframe, timelineRev]);
+
+  const setModeBlend = useCallback(() => {
+    verbDropdownAwaitingEngineRef.current = false;
+    setSimulatorMode("blend");
+    setBlendOn(true);
+    setStaticOn(false);
+    fc.setStaticMode(false);
+    setVerbPlaySpeed(0);
+    fc.setVerbTimelinePreview(null);
+  }, [fc]);
+
+  const setModeVerbTimeline = useCallback(() => {
+    setBlendOn(false);
+    setStaticOn(false);
+    fc.setStaticMode(false);
+    setInspectorEmotion(null);
+    setInspectorParams(null);
+    setInspectorSendLive(false);
+    setSimulatorMode("verbTimeline");
+    setVerbPlaySpeed(0);
+  }, [fc]);
 
   useEffect(() => {
     const canvas = faceCanvasRef.current;
@@ -65,7 +171,7 @@ export function FaceSimulator() {
 
   /** Mirror animated face (expression mode) into static sliders — verb timelines, bob, breath, etc. */
   useEffect(() => {
-    if (staticOn || blendOn) return;
+    if (staticOn || blendOn || verbTimelineMode) return;
     let raf = 0;
     const step = () => {
       const m = fc.liveRenderMod();
@@ -79,7 +185,119 @@ export function FaceSimulator() {
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [fc, staticOn, blendOn]);
+  }, [fc, staticOn, blendOn, verbTimelineMode]);
+
+  useEffect(() => {
+    if (blendOn && verbTimelineMode) {
+      setModeBlend();
+    }
+  }, [blendOn, verbTimelineMode, setModeBlend]);
+
+  useEffect(() => {
+    if (staticOn && verbTimelineMode) {
+      setModeBlend();
+    }
+  }, [staticOn, verbTimelineMode, setModeBlend]);
+
+  useEffect(() => {
+    if (!verbTimelineMode) return;
+    if (!currentExpr.startsWith("Verb")) {
+      verbDropdownAwaitingEngineRef.current = false;
+      return;
+    }
+    if (verbDropdownAwaitingEngineRef.current) {
+      if (currentExpr === verbTimelineName) {
+        verbDropdownAwaitingEngineRef.current = false;
+      }
+      return;
+    }
+    if (currentExpr !== verbTimelineName) {
+      setVerbTimelineName(currentExpr as VerbTimelineName);
+      setVerbPlayheadMs(0);
+      setVerbSelectedKeyframe(null);
+    }
+  }, [verbTimelineMode, currentExpr, verbTimelineName]);
+
+  useEffect(() => {
+    if (!verbTimelineMode) return;
+    resetVerbTransition();
+    fc.requestExpression(verbTimelineName);
+    void handleExpressionBridge(verbTimelineName, {
+      emotionTriangulation: fc.emotionTriangulation(),
+    });
+  }, [verbTimelineMode, verbTimelineName, fc]);
+
+  useEffect(() => {
+    if (!verbTimelineMode) {
+      fc.setVerbTimelinePreview(null);
+      return;
+    }
+    fc.setVerbTimelinePreview({ verb: verbEnum, timeMs: verbPlayheadMs });
+  }, [verbTimelineMode, verbEnum, verbPlayheadMs, fc]);
+
+  useEffect(() => {
+    const vEnum = expressionIndexFromName(verbTimelineName) as Expression;
+    const t = fc.verbTimelines().find((x) => x.verb === vEnum);
+    const loop = t?.loop_duration_ms ?? 1000;
+    setVerbPlayheadMs(snapVerbPlayheadMs(0, loop));
+    setVerbSelectedKeyframe(null);
+  }, [verbTimelineName, fc]);
+
+  useEffect(() => {
+    if (!verbTimelineMode || verbPlaySpeed === 0) return;
+    let raf = 0;
+    let last = 0;
+    let primed = false;
+    const step = (t: number) => {
+      if (!primed) {
+        primed = true;
+        last = t;
+        raf = requestAnimationFrame(step);
+        return;
+      }
+      let dt = t - last;
+      last = t;
+      if (dt < 0) dt = 0;
+      if (dt > 250) dt = 250;
+      const tabNow = fc.verbTimelines().find((x) => x.verb === verbEnum);
+      const loop = tabNow?.loop_duration_ms ?? 1000;
+      setVerbPlayheadMs((p) => {
+        const next = p + dt * verbPlaySpeed;
+        const wrapped = ((next % loop) + loop) % loop;
+        return wrapped;
+      });
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [verbTimelineMode, verbPlaySpeed, verbEnum, fc, timelineRev]);
+
+  useEffect(() => {
+    if (!verbTimelineMode || !verbTab) return;
+    const loop = verbTab.loop_duration_ms;
+    const tick = snapVerbPlayheadMs(verbPlayheadMs, loop);
+    let found: number | null = null;
+    for (let i = 0; i < verbTab.keyframe_count; i++) {
+      const kf = verbTab.keyframes[i];
+      if (!kf) continue;
+      if (snapVerbPlayheadMs(kf.time_ms, loop) === tick) {
+        found = i;
+        break;
+      }
+    }
+    setVerbSelectedKeyframe(found);
+  }, [verbTimelineMode, verbTab, verbPlayheadMs, timelineRev]);
+
+  useEffect(() => {
+    if (!verbTimelineMode) return;
+    let raf = 0;
+    const tick = () => {
+      setVerbLiveParams({ ...fc.params() });
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [verbTimelineMode, fc, timelineRev, verbPlayheadMs]);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -111,13 +329,10 @@ export function FaceSimulator() {
       const p = fc.params();
       if (!p) return;
       setParamsText(
-        fc
-          .paramFields()
-          .map(
-            (k: ParamField) =>
-              `${k.padEnd(18, " ")} ${String(p[k]).padStart(5, " ")}`,
-          )
-          .join("\n"),
+        PARAM_FIELDS_UI_ORDER.map(
+          (k: ParamField) =>
+            `${paramFieldLabel(k).padEnd(24, " ")} ${String(p[k]).padStart(5, " ")}`,
+        ).join("\n"),
       );
     }, 200);
     return () => clearInterval(id);
@@ -222,10 +437,14 @@ export function FaceSimulator() {
   }, []);
 
   async function onExpressionClick(name: string): Promise<void> {
+    verbDropdownAwaitingEngineRef.current = false;
     fc.requestExpression(name);
     await handleExpressionBridge(name, {
       emotionTriangulation: fc.emotionTriangulation(),
     });
+    if (verbTimelineMode && name.startsWith("Verb")) {
+      setVerbTimelineName(name as VerbTimelineName);
+    }
   }
 
   async function onOverlayClick(name: string): Promise<void> {
@@ -237,6 +456,7 @@ export function FaceSimulator() {
 
   /** Match robot `clearVerb` + emotion-driven face: end verb on bridge and snap preview off verb timelines. */
   async function onClearVerb(): Promise<void> {
+    verbDropdownAwaitingEngineRef.current = false;
     await postRaw("/api/raw/verb/clear", {});
     fc.requestExpression("Neutral");
     await handleExpressionBridge("Neutral");
@@ -270,32 +490,89 @@ export function FaceSimulator() {
             armDeg={armDeg}
             fps={fps}
           />
-          <BlendPanel
-            fc={fc}
-            blendOn={blendOn}
-            setBlendOn={setBlendOn}
-            staticOn={staticOn}
-            setStaticOn={setStaticOn}
-            autoSend={autoSend}
-            setAutoSend={setAutoSend}
-            markBlendDirty={markBlendDirty}
-            onBlendVaCommit={syncStaticSlidersFromBlendedParams}
-            onEmotionPointSelect={onEmotionPointSelect}
-          />
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              className={
+                !verbTimelineMode
+                  ? "rounded border border-face-accent bg-face-panel-2 px-3 py-1.5 text-sm font-inherit text-face-accent"
+                  : "rounded border border-face-border bg-face-panel px-3 py-1.5 text-sm font-inherit text-face-text hover:bg-face-panel-2"
+              }
+              onClick={setModeBlend}
+            >
+              Blend (V/A)
+            </button>
+            <button
+              type="button"
+              className={
+                verbTimelineMode
+                  ? "rounded border border-face-accent bg-face-panel-2 px-3 py-1.5 text-sm font-inherit text-face-accent"
+                  : "rounded border border-face-border bg-face-panel px-3 py-1.5 text-sm font-inherit text-face-text hover:bg-face-panel-2"
+              }
+              onClick={setModeVerbTimeline}
+            >
+              Verb timelines
+            </button>
+          </div>
+          {!verbTimelineMode ? (
+            <BlendPanel
+              fc={fc}
+              blendOn={blendOn}
+              setBlendOn={setBlendOn}
+              staticOn={staticOn}
+              setStaticOn={setStaticOn}
+              autoSend={autoSend}
+              setAutoSend={setAutoSend}
+              markBlendDirty={markBlendDirty}
+              onBlendVaCommit={syncStaticSlidersFromBlendedParams}
+              onEmotionPointSelect={onEmotionPointSelect}
+            />
+          ) : (
+            <VerbTimelinePanel
+              selectedVerb={verbTimelineName}
+              onVerbChange={(v) => {
+                verbDropdownAwaitingEngineRef.current = true;
+                setVerbTimelineName(v);
+              }}
+              tab={verbTab}
+              timelineRev={timelineRev}
+              playheadMs={verbPlayheadMs}
+              onPlayheadMs={setVerbPlayheadSnapped}
+              selectedKeyframeIndex={verbSelectedKeyframe}
+              onSelectKeyframe={setVerbSelectedKeyframe}
+              playSpeed={verbPlaySpeed}
+              onPlaySpeed={setVerbPlaySpeed}
+              onJumpToStart={() => {
+                setVerbPlayheadSnapped(0);
+                setVerbPlaySpeed(0);
+              }}
+              onLoopDurationMsCommit={commitVerbLoopDurationMs}
+            />
+          )}
         </div>
         <div className="col-span-4">
-          {(inspectorEmotion && inspectorParams) ? (
+          {verbTimelineMode ? (
+            <KeyframeInspector
+              verbName={verbTimelineName}
+              tab={verbTab}
+              params={verbLiveParams}
+              playheadMs={verbPlayheadMs}
+              selectedKeyframeIndex={verbSelectedKeyframe}
+              highlightFields={keyframeHighlightFields}
+              onTimelineMutated={bumpTimeline}
+            />
+          ) : inspectorEmotion && inspectorParams ? (
             <EmotionPointInspector
-                fc={fc}
-                emotion={inspectorEmotion}
-                params={inspectorParams}
-                onParamsChange={(next) => setInspectorParams(next)}
-                onDirty={() => {
-                  inspectorSendDirty.current = true;
-                }}
-                sendLive={inspectorSendLive}
-                setSendLive={setInspectorSendLive}
-              />
+              fc={fc}
+              emotion={inspectorEmotion}
+              params={inspectorParams}
+              onParamsChange={(next) => setInspectorParams(next)}
+              onDirty={() => {
+                inspectorSendDirty.current = true;
+              }}
+              sendLive={inspectorSendLive}
+              setSendLive={setInspectorSendLive}
+            />
           ) : (
             <StaticModePanel
               fc={fc}

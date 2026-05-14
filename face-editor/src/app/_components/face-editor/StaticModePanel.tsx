@@ -16,6 +16,7 @@ import {
   PARAM_LAYOUT,
 } from "../../_lib/face-editor/simulatorLayout";
 import type { SliderSnapState } from "./simulatorTypes";
+import Panel from "./atoms/Panel";
 
 export function StaticModePanel({
   fc,
@@ -74,13 +75,7 @@ export function StaticModePanel({
         </label>
       </h3>
 
-      <div
-        className={
-          staticOn
-            ? "my-1.5 rounded-md border border-face-border bg-face-panel px-3 py-2"
-            : "pointer-events-none my-1.5 rounded-md border border-face-border bg-face-panel px-3 py-2 opacity-50"
-        }
-      >
+        <Panel disabled={!staticOn}>
         <div className="my-2 flex flex-wrap items-center gap-2">
           <label className="text-sm text-face-muted">
             Load preset
@@ -357,7 +352,7 @@ export function StaticModePanel({
         <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-all rounded border border-face-border bg-face-canvas p-2 pl-2.5 font-mono text-[0.72em] text-face-text">
           {copyOut}
         </pre>
-      </div>
+      </Panel>
     </>
   );
 }
