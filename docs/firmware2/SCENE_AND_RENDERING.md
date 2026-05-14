@@ -261,7 +261,7 @@ The configuration data is split into:
     28 `ParamI16` entries per row. Emotions carry full strength
     presets; verbs and overlays leave the row zero-filled and bring
     their geometry through the verb timeline overrides.
-  - `kSparseVerbTimelines[]` — verb timeline override table.
+  - `kVerbTimelines[]` — verb keyframe timeline table (`VerbTimeline`).
   - `kMotion[]` — per-expression arm motion mode and parameters
     (used by `MotionBehaviors`; see [`MOTION.md`](MOTION.md)).
   - `kFrameAnim`, `kEmotionSim`, `kVerbSim` — animation and dynamics

@@ -1,10 +1,22 @@
 /**
- * Port of robot_v3/src/behaviour/EmotionBlend.cpp
- * Ported from control/scripts/emotion-blend-v3.js — no window globals.
+ * Port of `robot_v3/src/behaviour/EmotionBlend.cpp` — barycentric blend using
+ * `kBaseTargets`, `kArmPresets`, `kIdleAnim` from `FACE_CONFIG_DATA.ts`.
  */
 
+import {
+  type ArmPreset,
+  type IdleAnimRow,
+  type ParamI16,
+  FieldIndex,
+  GazeStyle,
+  BOB_AMP_FOLLOW_EMOTION_ARM,
+  kArmPresets,
+  kBaseTargets,
+  kIdleAnim,
+  expressionIndexFromName,
+} from "./FACE_CONFIG_DATA";
 import type { FaceParams } from "./faceParams";
-import type { ParamField } from "./faceParams";
+import { PARAM_FIELDS, faceParamsFromIndexed } from "./faceParams";
 import type {
   BlendTriangle,
   EmotionArmMotion,
@@ -17,90 +29,237 @@ function clampf(x: number, lo: number, hi: number): number {
   return x < lo ? lo : x > hi ? hi : x;
 }
 
-const ARM_PRESETS: Record<string, EmotionArmMotion> = {
-  Neutral: {
-    min_offset_deg: -25,
-    max_offset_deg: -15,
-    waggle_period_s: 5.0,
-    waggle_interval_s: 2.0,
-  },
-  Happy: {
-    min_offset_deg: -23,
-    max_offset_deg: -7,
-    waggle_period_s: 2.0,
-    waggle_interval_s: 1.0,
-  },
-  Excited: {
-    min_offset_deg: -15,
-    max_offset_deg: -5,
-    waggle_period_s: 1.0,
-    waggle_interval_s: 0.0,
-  },
-  Joyful: {
-    min_offset_deg: -15,
-    max_offset_deg: 15,
-    waggle_period_s: 0.9,
-    waggle_interval_s: 0.2,
-  },
-  Sad: {
-    min_offset_deg: -20,
-    max_offset_deg: -20,
-    waggle_period_s: 1.0,
-    waggle_interval_s: 0.0,
-  },
-  Sleepy: {
-    min_offset_deg: -22,
-    max_offset_deg: -14,
-    waggle_period_s: 5.0,
-    waggle_interval_s: 3.0,
-  },
-  Distressed: {
-    min_offset_deg: -6,
-    max_offset_deg: 6,
-    waggle_period_s: 0.9,
-    waggle_interval_s: 0.15,
-  },
-  Blissed: {
-    min_offset_deg: -16,
-    max_offset_deg: -4,
-    waggle_period_s: 3.0,
-    waggle_interval_s: 1.5,
-  },
-  Depressed: {
-    min_offset_deg: 0,
-    max_offset_deg: 0,
-    waggle_period_s: 1.0,
-    waggle_interval_s: 0.0,
-  },
-  Shocked: {
-    min_offset_deg: 0,
-    max_offset_deg: 0,
-    waggle_period_s: 1.0,
-    waggle_interval_s: 0.0,
-  },
-  Disappointed: {
-    min_offset_deg: -15,
-    max_offset_deg: -15,
-    waggle_period_s: 1.0,
-    waggle_interval_s: 0.0,
-  },
-};
+function blendParam3(
+  a: ParamI16,
+  b: ParamI16,
+  c: ParamI16,
+  la: number,
+  lb: number,
+  lc: number,
+): ParamI16 {
+  const wa = la * a.strength;
+  const wb = lb * b.strength;
+  const wc = lc * c.strength;
+  const W = wa + wb + wc;
+  if (W > 1e-6) {
+    const value = Math.round(
+      (wa * a.value + wb * b.value + wc * c.value) / W,
+    );
+    let strength = Math.round(
+      la * a.strength + lb * b.strength + lc * c.strength,
+    );
+    if (strength > 100) strength = 100;
+    return { value, strength };
+  }
+  const value = Math.round(
+    la * a.value + lb * b.value + lc * c.value,
+  );
+  return { value, strength: 0 };
+}
+
+function blendFloat(
+  a: number,
+  b: number,
+  c: number,
+  la: number,
+  lb: number,
+  lc: number,
+): number {
+  return a * la + b * lb + c * lc;
+}
+
+function blendArmThree(
+  A: ArmPreset,
+  B: ArmPreset,
+  C: ArmPreset,
+  la: number,
+  lb: number,
+  lc: number,
+): EmotionArmMotion {
+  const blendI = (
+    a: number,
+    b: number,
+    c: number,
+    la2: number,
+    lb2: number,
+    lc2: number,
+  ) => Math.round(a * la2 + b * lb2 + c * lc2);
+  return {
+    min_offset_deg: blendI(A.min_deg, B.min_deg, C.min_deg, la, lb, lc),
+    max_offset_deg: blendI(A.max_deg, B.max_deg, C.max_deg, la, lb, lc),
+    waggle_period_s: blendFloat(A.period_s, B.period_s, C.period_s, la, lb, lc),
+    waggle_interval_s: blendFloat(
+      A.interval_s,
+      B.interval_s,
+      C.interval_s,
+      la,
+      lb,
+      lc,
+    ),
+  };
+}
+
+function winningGazeStyle(
+  ga: GazeStyle,
+  gb: GazeStyle,
+  gc: GazeStyle,
+  la: number,
+  lb: number,
+  lc: number,
+): GazeStyle {
+  if (la >= lb && la >= lc) return ga;
+  if (lb >= lc) return gb;
+  return gc;
+}
+
+function blendIdleThree(
+  A: IdleAnimRow,
+  B: IdleAnimRow,
+  C: IdleAnimRow,
+  la: number,
+  lb: number,
+  lc: number,
+): IdleAnimRow {
+  const r: IdleAnimRow = {
+    blink_period_min_ms: Math.round(
+      blendFloat(
+        A.blink_period_min_ms,
+        B.blink_period_min_ms,
+        C.blink_period_min_ms,
+        la,
+        lb,
+        lc,
+      ),
+    ),
+    blink_period_max_ms: Math.round(
+      blendFloat(
+        A.blink_period_max_ms,
+        B.blink_period_max_ms,
+        C.blink_period_max_ms,
+        la,
+        lb,
+        lc,
+      ),
+    ),
+    blink_close_ms: Math.round(
+      blendFloat(A.blink_close_ms, B.blink_close_ms, C.blink_close_ms, la, lb, lc),
+    ),
+    blink_open_ms: Math.round(
+      blendFloat(A.blink_open_ms, B.blink_open_ms, C.blink_open_ms, la, lb, lc),
+    ),
+    bob_amplitude_px: 0,
+    gaze_style: GazeStyle.Off,
+    gaze_move_ms: 0,
+    gaze_rand_span_x: 0,
+    gaze_rand_span_y: 0,
+    gaze_reroll_min_ms: 0,
+    gaze_reroll_max_ms: 0,
+    gaze_scan_period_ms: 0,
+    gaze_amp_x: 0,
+    gaze_amp_y: 0,
+  };
+
+  const allBobHeur =
+    A.bob_amplitude_px === BOB_AMP_FOLLOW_EMOTION_ARM &&
+    B.bob_amplitude_px === BOB_AMP_FOLLOW_EMOTION_ARM &&
+    C.bob_amplitude_px === BOB_AMP_FOLLOW_EMOTION_ARM;
+  if (allBobHeur) {
+    r.bob_amplitude_px = BOB_AMP_FOLLOW_EMOTION_ARM;
+  } else {
+    const nz = (x: number) =>
+      x === BOB_AMP_FOLLOW_EMOTION_ARM ? 0.0 : x;
+    r.bob_amplitude_px = Math.round(
+      blendFloat(
+        nz(A.bob_amplitude_px),
+        nz(B.bob_amplitude_px),
+        nz(C.bob_amplitude_px),
+        la,
+        lb,
+        lc,
+      ),
+    );
+  }
+  r.gaze_style = winningGazeStyle(A.gaze_style, B.gaze_style, C.gaze_style, la, lb, lc);
+  r.gaze_move_ms = Math.round(
+    blendFloat(A.gaze_move_ms, B.gaze_move_ms, C.gaze_move_ms, la, lb, lc),
+  );
+  r.gaze_rand_span_x = Math.round(
+    blendFloat(
+      A.gaze_rand_span_x,
+      B.gaze_rand_span_x,
+      C.gaze_rand_span_x,
+      la,
+      lb,
+      lc,
+    ),
+  );
+  r.gaze_rand_span_y = Math.round(
+    blendFloat(
+      A.gaze_rand_span_y,
+      B.gaze_rand_span_y,
+      C.gaze_rand_span_y,
+      la,
+      lb,
+      lc,
+    ),
+  );
+  r.gaze_reroll_min_ms = Math.round(
+    blendFloat(
+      A.gaze_reroll_min_ms,
+      B.gaze_reroll_min_ms,
+      C.gaze_reroll_min_ms,
+      la,
+      lb,
+      lc,
+    ),
+  );
+  r.gaze_reroll_max_ms = Math.round(
+    blendFloat(
+      A.gaze_reroll_max_ms,
+      B.gaze_reroll_max_ms,
+      C.gaze_reroll_max_ms,
+      la,
+      lb,
+      lc,
+    ),
+  );
+  r.gaze_scan_period_ms = Math.round(
+    blendFloat(
+      A.gaze_scan_period_ms,
+      B.gaze_scan_period_ms,
+      C.gaze_scan_period_ms,
+      la,
+      lb,
+      lc,
+    ),
+  );
+  r.gaze_amp_x = Math.round(
+    blendFloat(A.gaze_amp_x, B.gaze_amp_x, C.gaze_amp_x, la, lb, lc),
+  );
+  r.gaze_amp_y = Math.round(
+    blendFloat(A.gaze_amp_y, B.gaze_amp_y, C.gaze_amp_y, la, lb, lc),
+  );
+  if (r.blink_period_max_ms < r.blink_period_min_ms) {
+    r.blink_period_max_ms = r.blink_period_min_ms;
+  }
+  return r;
+}
 
 export interface EmotionBlendDeps {
   triangulation: EmotionTriangulationTable;
-  paramFields: readonly ParamField[];
-  baseTargetForExpression: (name: string) => FaceParams;
 }
 
 export interface EmotionBlendApi {
   ready(): boolean;
   findTriangle(v: number, a: number): BlendTriangle | null;
   blendedFaceParams(v: number, a: number): FaceParams | null;
+  blendedFaceParamsIndexed(v: number, a: number): ParamI16[] | null;
   blendedEmotionArmMotion(v: number, a: number): EmotionArmMotion | null;
+  blendedIdleAnim(v: number, a: number): IdleAnimRow | null;
 }
 
 export function createEmotionBlend(deps: EmotionBlendDeps): EmotionBlendApi {
-  const { triangulation: t, paramFields, baseTargetForExpression } = deps;
+  const { triangulation: t } = deps;
 
   function ready(): boolean {
     return !!(t && Array.isArray(t.anchors) && Array.isArray(t.triangles));
@@ -150,85 +309,31 @@ export function createEmotionBlend(deps: EmotionBlendDeps): EmotionBlendApi {
     return null;
   }
 
-  function presetForEmotion(name: string): FaceParams | null {
-    return baseTargetForExpression(name);
+  function baseRowForAnchorEmotion(emotion: string): readonly ParamI16[] {
+    const idx = expressionIndexFromName(emotion);
+    return kBaseTargets[idx]!;
   }
 
-  function armPresetForEmotion(name: string): EmotionArmMotion {
-    return (
-      ARM_PRESETS[name] ?? {
-        min_offset_deg: -20,
-        max_offset_deg: -15,
-        waggle_period_s: 4.0,
-        waggle_interval_s: 2.0,
-      }
-    );
+  function armPresetForExpressionIndex(exIdx: number): ArmPreset {
+    if (exIdx < 0 || exIdx >= kArmPresets.length) return kArmPresets[0]!;
+    return kArmPresets[exIdx]!;
   }
 
-  function blendArmField(
-    a: number,
-    b: number,
-    c: number,
+  function blendThreeIndexed(
+    A: readonly ParamI16[],
+    B: readonly ParamI16[],
+    C: readonly ParamI16[],
     la: number,
     lb: number,
     lc: number,
-  ): number {
-    return Math.round(a * la + b * lb + c * lc);
-  }
-
-  function blendArmFloat(
-    a: number,
-    b: number,
-    c: number,
-    la: number,
-    lb: number,
-    lc: number,
-  ): number {
-    return a * la + b * lb + c * lc;
-  }
-
-  function blendArmThree(
-    Pa: EmotionArmMotion,
-    Pb: EmotionArmMotion,
-    Pc: EmotionArmMotion,
-    la: number,
-    lb: number,
-    lc: number,
-  ): EmotionArmMotion {
-    return {
-      min_offset_deg: blendArmField(
-        Pa.min_offset_deg,
-        Pb.min_offset_deg,
-        Pc.min_offset_deg,
-        la,
-        lb,
-        lc,
-      ),
-      max_offset_deg: blendArmField(
-        Pa.max_offset_deg,
-        Pb.max_offset_deg,
-        Pc.max_offset_deg,
-        la,
-        lb,
-        lc,
-      ),
-      waggle_period_s: blendArmFloat(
-        Pa.waggle_period_s,
-        Pb.waggle_period_s,
-        Pc.waggle_period_s,
-        la,
-        lb,
-        lc,
-      ),
-      waggle_interval_s: blendArmFloat(
-        Pa.waggle_interval_s,
-        Pb.waggle_interval_s,
-        Pc.waggle_interval_s,
-        la,
-        lb,
-        lc,
-      ),
-    };
+  ): ParamI16[] {
+    const out: ParamI16[] = [];
+    for (let i = 0; i < FieldIndex.Count; ++i) {
+      out.push(
+        blendParam3(A[i]!, B[i]!, C[i]!, la, lb, lc),
+      );
+    }
+    return out;
   }
 
   function normalizeArmMotion(r: EmotionArmMotion): EmotionArmMotion {
@@ -251,53 +356,6 @@ export function createEmotionBlend(deps: EmotionBlendDeps): EmotionBlendApi {
     };
   }
 
-  function blendedEmotionArmMotion(
-    v: number,
-    a: number,
-  ): EmotionArmMotion | null {
-    if (!ready()) return null;
-    v = clampf(v, -1, 1);
-    a = clampf(a, 0, 1);
-    const tri = findTriangle(v, a);
-    if (!tri) {
-      const idx = nearestAnchor(v, a);
-      const e = t.anchors[idx]!.emotion;
-      return normalizeArmMotion(armPresetForEmotion(e));
-    }
-    const [i0, i1, i2] = tri.indices;
-    const [l0, l1, l2] = tri.weights;
-    const Pa = armPresetForEmotion(t.anchors[i0]!.emotion);
-    const Pb = armPresetForEmotion(t.anchors[i1]!.emotion);
-    const Pc = armPresetForEmotion(t.anchors[i2]!.emotion);
-    return normalizeArmMotion(blendArmThree(Pa, Pb, Pc, l0, l1, l2));
-  }
-
-  function blendField(
-    a: number,
-    b: number,
-    c: number,
-    la: number,
-    lb: number,
-    lc: number,
-  ): number {
-    return Math.round(a * la + b * lb + c * lc);
-  }
-
-  function blendThree(
-    A: FaceParams,
-    B: FaceParams,
-    C: FaceParams,
-    la: number,
-    lb: number,
-    lc: number,
-  ): FaceParams {
-    const out = {} as FaceParams;
-    for (const k of paramFields) {
-      out[k] = blendField(A[k] | 0, B[k] | 0, C[k] | 0, la, lb, lc);
-    }
-    return out;
-  }
-
   function nearestAnchor(v: number, a: number): number {
     let bestD = Infinity;
     let best = 0;
@@ -314,7 +372,7 @@ export function createEmotionBlend(deps: EmotionBlendDeps): EmotionBlendApi {
     return best;
   }
 
-  function blendedFaceParams(v: number, a: number): FaceParams | null {
+  function blendedFaceParamsIndexed(v: number, a: number): ParamI16[] | null {
     if (!ready()) return null;
     v = clampf(v, -1, 1);
     a = clampf(a, 0, 1);
@@ -322,22 +380,106 @@ export function createEmotionBlend(deps: EmotionBlendDeps): EmotionBlendApi {
     if (!tri) {
       const idx = nearestAnchor(v, a);
       const e = t.anchors[idx]!.emotion;
-      const p = presetForEmotion(e);
-      return p ? { ...p } : null;
+      return [...baseRowForAnchorEmotion(e)];
     }
     const [i0, i1, i2] = tri.indices;
     const [l0, l1, l2] = tri.weights;
-    const A = presetForEmotion(t.anchors[i0]!.emotion);
-    const B = presetForEmotion(t.anchors[i1]!.emotion);
-    const C = presetForEmotion(t.anchors[i2]!.emotion);
-    if (!A || !B || !C) return null;
-    return blendThree(A, B, C, l0, l1, l2);
+    const eA = t.anchors[i0]!.emotion;
+    const eB = t.anchors[i1]!.emotion;
+    const eC = t.anchors[i2]!.emotion;
+    return blendThreeIndexed(
+      baseRowForAnchorEmotion(eA),
+      baseRowForAnchorEmotion(eB),
+      baseRowForAnchorEmotion(eC),
+      l0,
+      l1,
+      l2,
+    );
+  }
+
+  function blendedEmotionArmMotion(v: number, a: number): EmotionArmMotion | null {
+    if (!ready()) return null;
+    v = clampf(v, -1, 1);
+    a = clampf(a, 0, 1);
+    const tri = findTriangle(v, a);
+    if (!tri) {
+      const idx = nearestAnchor(v, a);
+      const e = t.anchors[idx]!.emotion;
+      const ex = expressionIndexFromName(e);
+      const p = armPresetForExpressionIndex(ex);
+      const one: EmotionArmMotion = {
+        min_offset_deg: p.min_deg,
+        max_offset_deg: p.max_deg,
+        waggle_period_s: p.period_s < 0.05 ? 0.05 : p.period_s,
+        waggle_interval_s: p.interval_s < 0 ? 0 : p.interval_s,
+      };
+      if (one.min_offset_deg > one.max_offset_deg) {
+        const tmp = one.min_offset_deg;
+        one.min_offset_deg = one.max_offset_deg;
+        one.max_offset_deg = tmp;
+      }
+      return normalizeArmMotion(one);
+    }
+    const [i0, i1, i2] = tri.indices;
+    const [l0, l1, l2] = tri.weights;
+    const eA = expressionIndexFromName(t.anchors[i0]!.emotion);
+    const eB = expressionIndexFromName(t.anchors[i1]!.emotion);
+    const eC = expressionIndexFromName(t.anchors[i2]!.emotion);
+    let r = blendArmThree(
+      armPresetForExpressionIndex(eA),
+      armPresetForExpressionIndex(eB),
+      armPresetForExpressionIndex(eC),
+      l0,
+      l1,
+      l2,
+    );
+    if (r.min_offset_deg > r.max_offset_deg) {
+      const tmp = r.min_offset_deg;
+      r.min_offset_deg = r.max_offset_deg;
+      r.max_offset_deg = tmp;
+    }
+    if (r.waggle_period_s < 0.05) r.waggle_period_s = 0.05;
+    if (r.waggle_interval_s < 0) r.waggle_interval_s = 0;
+    return r;
+  }
+
+  function blendedIdleAnim(v: number, a: number): IdleAnimRow | null {
+    if (!ready()) return null;
+    v = clampf(v, -1, 1);
+    a = clampf(a, 0, 1);
+    const tri = findTriangle(v, a);
+    if (!tri) {
+      const idx = nearestAnchor(v, a);
+      const e = t.anchors[idx]!.emotion;
+      const ex = expressionIndexFromName(e);
+      return { ...kIdleAnim[ex]! };
+    }
+    const [i0, i1, i2] = tri.indices;
+    const [l0, l1, l2] = tri.weights;
+    const eA = expressionIndexFromName(t.anchors[i0]!.emotion);
+    const eB = expressionIndexFromName(t.anchors[i1]!.emotion);
+    const eC = expressionIndexFromName(t.anchors[i2]!.emotion);
+    return blendIdleThree(
+      kIdleAnim[eA]!,
+      kIdleAnim[eB]!,
+      kIdleAnim[eC]!,
+      l0,
+      l1,
+      l2,
+    );
+  }
+
+  function blendedFaceParams(v: number, a: number): FaceParams | null {
+    const row = blendedFaceParamsIndexed(v, a);
+    return row ? faceParamsFromIndexed(row) : null;
   }
 
   return {
     ready,
     findTriangle,
     blendedFaceParams,
+    blendedFaceParamsIndexed,
     blendedEmotionArmMotion,
+    blendedIdleAnim,
   };
 }

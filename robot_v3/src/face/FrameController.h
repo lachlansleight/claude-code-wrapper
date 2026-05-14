@@ -19,14 +19,12 @@
  *    the current pose to the new target.
  *  - Maintain the blink schedule (close 80 ms, open 130 ms; period
  *    randomised per expression).
- *  - Drive the periodic "thinking head-tilt flip" — every 3–6 s the
- *    sign of `face_rot` and `pupil_dx` is smoothly inverted, so the
- *    head sways back and forth while thinking.
  *  - Compute a body-bob offset for body-bobbing expressions, in
  *    lockstep with `MotionBehaviors::periodMsForContext(ctx)` (or
  *    `periodMsFor` for verbs) so the face syncs with the arm.
- *  - Add a per-expression gaze offset (idle micro-glances during
- *    Neutral; small repeating motion otherwise).
+ *  - Add a per-expression gaze offset when **not** on a verb timeline
+ *    (idle micro-glances during Neutral; small repeating motion otherwise).
+ *    Verbs use gaze 0; geometry motion comes from `kVerbTimelines` keyframes.
  *  - Smooth the mood-ring colour (200 ms τ low-pass toward tweened
  *    `FaceParams::ring_*`) and the read/write stream-effect alphas (100 ms τ).
  *  - Detect Settings::settingsVersion() changes and refresh tween targets

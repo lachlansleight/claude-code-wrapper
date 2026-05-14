@@ -14,8 +14,7 @@ export function bridgeBase(): string {
 }
 
 export function bridgeToken(): string {
-  if (typeof window === "undefined") return "";
-  return (localStorage.getItem(BRIDGE_TOKEN_KEY) || "").trim();
+  return process.env.NEXT_PUBLIC_BRIDGE_TOKEN || "";
 }
 
 export async function postRaw(

@@ -1,12 +1,33 @@
 /**
- * Port of robot_v3/src/face/FrameController.cpp — v3 face animation driver.
- * Ported from control/scripts/frame-controller-v3.js
+ * Port of `robot_v3/src/face/FrameController.cpp` — tick order matches firmware
+ * (text-stream / progress-fade paths omitted; not used by the face simulator).
  */
 
 import { createEmotionBlend } from "./emotionBlend";
+import {
+  BOB_AMP_FOLLOW_EMOTION_ARM,
+  Expression,
+  FieldIndex,
+  GazeStyle,
+  EXPRESSIONS,
+  MotionMode,
+  type IdleAnimRow,
+  type ParamI16,
+  kBaseTargets,
+  kFrameAnim,
+  kIdleAnim,
+  kMotion,
+  expressionIndexFromName,
+  isEmotionExpressionIndex,
+} from "./FACE_CONFIG_DATA";
 import { EMOTION_TRIANGULATION } from "./emotionTriangulation";
-import type { FaceParams } from "./faceParams";
-import type { ParamField } from "./faceParams";
+import {
+  PARAM_FIELDS,
+  faceParamsFromIndexed,
+  indexedFromFaceParams,
+  type FaceParams,
+  type ParamField,
+} from "./faceParams";
 import { createFaceRenderer } from "./faceRenderer";
 import {
   baseTargetForExpression as presetTargetForExpression,
@@ -15,54 +36,134 @@ import {
   paramFieldsList,
 } from "./presets";
 import { createRobotSettings } from "./robotSettings";
+import {
+  cloneFaceParamsIndexed,
+  combineEmotionVerbFace,
+  smoothFaceValuesToward,
+} from "./sceneFaceCombine";
 import { TFTSprite, tft } from "./tftSprite";
 import type { BlendTriangle, EmotionArmMotion } from "./types";
+import {
+  expressionUsesVerbTimeline,
+  isVerbExpression,
+  resetVerbTransition,
+  sampleEffectiveVerb,
+  verbTransitionT,
+} from "./verbTimeline";
 
-function targetForExpression(name: string): FaceParams {
-  return presetTargetForExpression(name);
-}
+const PI = Math.PI;
 
-function lerpi(a: number, b: number, t: number): number {
+function lerpi16(a: number, b: number, t: number): number {
   return Math.round(a + (b - a) * t);
 }
 
-function lerpParams(a: FaceParams, b: FaceParams, t: number): FaceParams {
-  const r = {} as FaceParams;
-  for (const k of paramFieldsList()) {
-    r[k] = lerpi(a[k], b[k], t);
-  }
-  return r;
+function smoothstep01(t: number): number {
+  const x = t < 0 ? 0 : t > 1 ? 1 : t;
+  return x * x * (3 - 2 * x);
 }
 
-function motorPeriodMsFor(name: string): number {
-  switch (name) {
-    case "VerbThinking":
-      return 2000;
-    case "VerbWriting":
-      return 840;
-    case "VerbExecuting":
-      return 1000;
-    case "VerbStraining":
-      return 750;
-    case "Joyful":
-      return 900;
-    case "Excited":
-      return 1000;
-    case "VerbSleeping":
-      return 8000;
-    case "Sleepy":
-      return 5000;
-    case "Distressed":
-      return 900;
-    case "Cheeky":
-      return 880;
-    case "Gleeful":
-      return 900;
-    case "Frustrated":
-      return 820;
+function randInt(lo: number, hi: number): number {
+  return Math.floor(Math.random() * (hi - lo + 1)) + lo;
+}
+
+function periodMsForExpressionIndex(idx: number): number {
+  const m = kMotion[idx];
+  if (!m) return 0;
+  switch (m.mode) {
+    case MotionMode.Oscillate:
+    case MotionMode.Waggle:
+    case MotionMode.Thinking:
+      return m.period_ms;
     default:
       return 0;
   }
+}
+
+function periodMsForContext(
+  exprIdx: number,
+  blendMode: boolean,
+  blendV: number,
+  blendA: number,
+  emotionBlend: ReturnType<typeof createEmotionBlend>,
+): number {
+  if (isEmotionExpressionIndex(exprIdx) && emotionBlend.ready()) {
+    if (blendMode) {
+      const m = emotionBlend.blendedEmotionArmMotion(blendV, blendA);
+      if (m) {
+        const total = m.waggle_period_s + m.waggle_interval_s;
+        let msf = total * 1000.0;
+        if (msf < 50.0) msf = 50.0;
+        if (msf > 65535.0) return 65535;
+        return Math.round(msf);
+      }
+    } else {
+      const { v, a } = anchorVaForExprIdx(exprIdx);
+      const m = emotionBlend.blendedEmotionArmMotion(v, a);
+      if (m) {
+        const total = m.waggle_period_s + m.waggle_interval_s;
+        let msf = total * 1000.0;
+        if (msf < 50.0) msf = 50.0;
+        if (msf > 65535.0) return 65535;
+        return Math.round(msf);
+      }
+    }
+  }
+  return periodMsForExpressionIndex(exprIdx);
+}
+
+function anchorVaForExprIdx(exprIdx: number): { v: number; a: number } {
+  const an = EMOTION_TRIANGULATION.anchors.find(
+    (x) => expressionIndexFromName(x.emotion) === exprIdx,
+  );
+  return { v: an?.v ?? 0, a: an?.a ?? 0.5 };
+}
+
+function idleFor(
+  exprIdx: number,
+  blendMode: boolean,
+  blendV: number,
+  blendA: number,
+  emotionBlend: ReturnType<typeof createEmotionBlend>,
+): IdleAnimRow {
+  if (isEmotionExpressionIndex(exprIdx)) {
+    if (blendMode && emotionBlend.ready()) {
+      const row = emotionBlend.blendedIdleAnim(blendV, blendA);
+      if (row) return row;
+    }
+    if (!blendMode && emotionBlend.ready()) {
+      const an = EMOTION_TRIANGULATION.anchors.find(
+        (x) => expressionIndexFromName(x.emotion) === exprIdx,
+      );
+      if (an) {
+        const row = emotionBlend.blendedIdleAnim(an.v, an.a);
+        if (row) return row;
+      }
+    }
+  }
+  return { ...kIdleAnim[exprIdx]! };
+}
+
+function bodyBobAmpFor(
+  exprIdx: number,
+  idle: IdleAnimRow,
+  blendMode: boolean,
+  blendV: number,
+  blendA: number,
+  emotionBlend: ReturnType<typeof createEmotionBlend>,
+): number {
+  if (idle.bob_amplitude_px === BOB_AMP_FOLLOW_EMOTION_ARM) {
+    if (isEmotionExpressionIndex(exprIdx) && emotionBlend.ready()) {
+      const { v, a } = anchorVaForExprIdx(exprIdx);
+      const m = blendMode
+        ? emotionBlend.blendedEmotionArmMotion(blendV, blendA)
+        : emotionBlend.blendedEmotionArmMotion(v, a);
+      if (m && m.min_offset_deg !== m.max_offset_deg) {
+        return kFrameAnim.emotion_bob_amp_follow_arm;
+      }
+    }
+    return 0;
+  }
+  return idle.bob_amplitude_px;
 }
 
 export interface StaticOverrideState {
@@ -98,6 +199,8 @@ export interface FrameController {
     expression?: string;
   }): void;
   staticOverride(): StaticOverrideState;
+  /** Last values passed to `renderScene` (blink + gaze); meaningful when not in static mode. */
+  liveRenderMod(): { blinkAmt: number; gdx: number; gdy: number };
   armOffsetDeg(): number;
 }
 
@@ -106,66 +209,23 @@ export function createFrameController(): FrameController {
   const face = createFaceRenderer({ settings, tft });
   const emotionBlend = createEmotionBlend({
     triangulation: EMOTION_TRIANGULATION,
-    paramFields: paramFieldsList(),
-    baseTargetForExpression: presetTargetForExpression,
   });
 
-  function vaForExpression(name: string): { v: number; a: number } {
-    const tab = EMOTION_TRIANGULATION;
-    if (!tab || !Array.isArray(tab.anchors)) return { v: 0, a: 0.5 };
-    const an = tab.anchors.find((x) => x.emotion === name);
-    return an ? { v: an.v, a: an.a } : { v: 0, a: 0.5 };
-  }
+  const animCfg = () => kFrameAnim;
 
-  function motorPeriodMsForContext(
-    expr: string,
-    blendMode: boolean,
-    blendV: number,
-    blendA: number,
-  ): number {
-    if (blendMode && emotionBlend.ready()) {
-      const m = emotionBlend.blendedEmotionArmMotion(blendV, blendA);
-      if (m) {
-        return Math.round(
-          Math.max(0.05, m.waggle_period_s + m.waggle_interval_s) * 1000,
-        );
-      }
-    }
-    if (isEmotionExpression(expr) && emotionBlend.ready()) {
-      const va = vaForExpression(expr);
-      const m = emotionBlend.blendedEmotionArmMotion(va.v, va.a);
-      if (m) {
-        return Math.round(
-          Math.max(0.05, m.waggle_period_s + m.waggle_interval_s) * 1000,
-        );
-      }
-    }
-    return motorPeriodMsFor(expr);
-  }
-
-  const kTweenMs = 250;
-  const kTickIntervalMs = 33;
-  const kBlinkCloseMs = 80;
-  const kBlinkOpenMs = 130;
-  const kThinkingFlipDurMs = 600;
-  const kThinkingFlipMinMs = 3000;
-  const kThinkingFlipMaxMs = 6000;
-  const kIdleGlanceTweenMs = 200;
-
-  let sCurrentExpr = "Neutral";
-  let sFrom = targetForExpression("Neutral");
-  let sTo = sFrom;
-  let sTweenStartMs = 0;
-  let sLastExpr: string | null = null;
+  let sSmoothed: ParamI16[] = cloneFaceParamsIndexed(kBaseTargets[0]!);
+  let sLastRendered: ParamI16[] = cloneFaceParamsIndexed(kBaseTargets[0]!);
+  let sLastEmotionSmoothMs = 0;
 
   let sNextBlinkMs = 0;
   let sBlinkStartMs = 0;
   let sBlinkActive = false;
 
-  let sThinkFromSign = 1;
-  let sThinkToSign = 1;
-  let sThinkFlipStartMs = 0;
-  let sNextThinkFlipMs = 0;
+  let sLastTickMs = 0;
+  let sMoodR = 0;
+  let sMoodG = 0;
+  let sMoodB = 0;
+  let sLastMoodMs = 0;
 
   let sIdleGlanceDx = 0;
   let sIdleGlanceDy = 0;
@@ -174,9 +234,31 @@ export function createFrameController(): FrameController {
   let sIdleGlanceStartMs = 0;
   let sNextIdleGlanceMs = 0;
 
-  let sStartedAtMs = 0;
-  let sCurrentParams: FaceParams = { ...sFrom };
+  let sBodyBobPhaseRad = 0;
+  let sBodyBobPhaseLastMs = 0;
+  let sLastBobAmp = 0;
+  let sFromBobAmp = 0;
+  let sFromGdx = 0;
+  let sFromGdy = 0;
+  let sLastGdx = 0;
+  let sLastGdy = 0;
+  let sLastVerbForXfade = Expression.Count;
+
+  let sGazePhaseRad = 0;
+  let sGazePhaseLastMs = 0;
+  let sEyeWavePhaseRad = 0;
+  let sMouthWavePhaseRad = 0;
+  let sWavePhaseLastMs = 0;
+
+  let sLastExprIdx = -1;
+  let sVerbEnteredMs = 0;
   let sLastSettingsVersion = 0;
+
+  let sCurrentParams: FaceParams = faceParamsFromIndexed(sSmoothed);
+  let sLiveBlinkAmt = 0;
+  let sLiveGdx = 0;
+  let sLiveGdy = 0;
+  let sCurrentExpr = "Neutral";
 
   let sStaticMode = false;
   let sStaticOverride: StaticOverrideState = {
@@ -188,15 +270,9 @@ export function createFrameController(): FrameController {
   };
 
   let sBlendMode = false;
-  let sBlendV = 0.0;
-  let sBlendA = 0.0;
-  let sBlendLastParams: FaceParams = {
-    ...presetTargetForExpression("Neutral"),
-  };
+  let sBlendV = 0;
+  let sBlendA = 0.5;
   let sBlendLastTri: BlendTriangle | null = null;
-
-  let sBodyBobPhaseRad = 0;
-  let sBodyBobPhaseLastMs = 0;
 
   let sCurrentArmDeg = 0;
   let sArmLogicLastMs = 0;
@@ -205,81 +281,182 @@ export function createFrameController(): FrameController {
   let sArmEmotionDwellS = 0;
   let sPrevArmDriverEmotion = false;
 
+  const listeners: Array<(name: string) => void> = [];
+  let rafHandle: number | null = null;
+  let sprite: TFTSprite | null = null;
+  let outputCanvas: HTMLCanvasElement | null = null;
+
+  function now(): number {
+    return performance.now();
+  }
+
+  function tickDispatch(): void {
+    if (sStaticMode) tickStatic();
+    else if (sBlendMode) tickBlend();
+    else tick();
+    rafHandle = requestAnimationFrame(tickDispatch);
+  }
+
+  function breathPhase(t: number): number {
+    const periodMs = animCfg().breath_period_ms || 4000;
+    const u = (t % periodMs) / periodMs;
+    return Math.sin(u * 2 * PI);
+  }
+
+  function scheduleNextBlink(idle: IdleAnimRow, from: number): void {
+    if (idle.blink_period_min_ms === 0 && idle.blink_period_max_ms === 0) {
+      sNextBlinkMs = 0;
+      return;
+    }
+    if (idle.blink_period_max_ms < idle.blink_period_min_ms) {
+      sNextBlinkMs = 0;
+      return;
+    }
+    const p = randInt(idle.blink_period_min_ms, idle.blink_period_max_ms);
+    sNextBlinkMs = from + p;
+  }
+
+  function currentBlinkAmount(t: number, idle: IdleAnimRow): number {
+    if (!sBlinkActive) return 0;
+    const closeMs = idle.blink_close_ms || animCfg().default_blink_close_ms;
+    const openMs = idle.blink_open_ms || animCfg().default_blink_open_ms;
+    const d = t - sBlinkStartMs;
+    if (d < closeMs) return d / closeMs;
+    const d2 = d - closeMs;
+    if (d2 < openMs) return 1 - d2 / openMs;
+    sBlinkActive = false;
+    return 0;
+  }
+
+  function gazeFor(idle: IdleAnimRow, t: number): [number, number] {
+    let gdx = 0;
+    let gdy = 0;
+    const per = idle.gaze_scan_period_ms;
+    if (per !== 0) {
+      const dtMs = sGazePhaseLastMs === 0 ? 0 : t - sGazePhaseLastMs;
+      sGazePhaseRad += ((2 * PI) / per) * dtMs;
+      sGazePhaseRad %= 2 * PI;
+      if (sGazePhaseRad < 0) sGazePhaseRad += 2 * PI;
+    }
+    sGazePhaseLastMs = t;
+
+    switch (idle.gaze_style) {
+      case GazeStyle.IdleRandom: {
+        const moveMs =
+          idle.gaze_move_ms || animCfg().default_gaze_move_ms;
+        if (sIdleGlanceStartMs !== 0) {
+          const u = smoothstep01((t - sIdleGlanceStartMs) / moveMs);
+          gdx = lerpi16(sIdleGlanceFromDx, sIdleGlanceDx, u);
+          gdy = lerpi16(sIdleGlanceFromDy, sIdleGlanceDy, u);
+        } else {
+          gdx = sIdleGlanceDx;
+          gdy = sIdleGlanceDy;
+        }
+        if (sNextIdleGlanceMs === 0 || t >= sNextIdleGlanceMs) {
+          sIdleGlanceFromDx = gdx;
+          sIdleGlanceFromDy = gdy;
+          const sx = idle.gaze_rand_span_x > 0 ? idle.gaze_rand_span_x : 0;
+          const sy = idle.gaze_rand_span_y > 0 ? idle.gaze_rand_span_y : 0;
+          sIdleGlanceDx = randInt(-sx, sx);
+          sIdleGlanceDy = randInt(-sy, sy);
+          sIdleGlanceStartMs = t;
+          if (idle.gaze_reroll_max_ms >= idle.gaze_reroll_min_ms) {
+            sNextIdleGlanceMs =
+              t + randInt(idle.gaze_reroll_min_ms, idle.gaze_reroll_max_ms + 1);
+          } else {
+            sNextIdleGlanceMs = t + animCfg().invalid_gaze_reroll_fallback_ms;
+          }
+        }
+        break;
+      }
+      case GazeStyle.Orbit: {
+        if (per === 0) break;
+        gdx = Math.round(Math.sin(sGazePhaseRad) * idle.gaze_amp_x);
+        gdy = Math.round(Math.cos(sGazePhaseRad) * idle.gaze_amp_y);
+        break;
+      }
+      case GazeStyle.ScanX: {
+        if (per === 0) break;
+        gdx = Math.round(Math.sin(sGazePhaseRad) * idle.gaze_amp_x);
+        break;
+      }
+      default:
+        break;
+    }
+    return [gdx, gdy];
+  }
+
+  function bodyBobFor(
+    exprIdx: number,
+    idle: IdleAnimRow,
+    t: number,
+    blendMode: boolean,
+    blendV: number,
+    blendA: number,
+  ): number {
+    const period = periodMsForContext(exprIdx, blendMode, blendV, blendA, emotionBlend);
+    if (period === 0) {
+      sBodyBobPhaseLastMs = t;
+      sLastBobAmp = 0;
+      return 0;
+    }
+    const liveAmp = bodyBobAmpFor(exprIdx, idle, blendMode, blendV, blendA, emotionBlend);
+    const tt = verbTransitionT(t);
+    const effAmpF =
+      tt >= 1.0 ? liveAmp : sFromBobAmp + (liveAmp - sFromBobAmp) * tt;
+    const amp = Math.round(effAmpF);
+    sLastBobAmp = amp;
+    const integrate = liveAmp !== 0 || sFromBobAmp !== 0;
+    const twoPi = 2 * PI;
+    if (integrate) {
+      const dtMs = sBodyBobPhaseLastMs === 0 ? 0 : t - sBodyBobPhaseLastMs;
+      sBodyBobPhaseLastMs = t;
+      sBodyBobPhaseRad += (twoPi / period) * dtMs;
+      sBodyBobPhaseRad %= twoPi;
+      if (sBodyBobPhaseRad < 0) sBodyBobPhaseRad += twoPi;
+    } else {
+      sBodyBobPhaseLastMs = t;
+    }
+    if (amp === 0) return 0;
+    return Math.round(-Math.sin(sBodyBobPhaseRad) * amp);
+  }
+
+  function onExpressionChange(newExprIdx: number, t: number): void {
+    sLastExprIdx = newExprIdx;
+    sBlinkActive = false;
+    const idleNew = idleFor(
+      newExprIdx,
+      sBlendMode,
+      sBlendV,
+      sBlendA,
+      emotionBlend,
+    );
+    scheduleNextBlink(idleNew, t);
+
+    if (idleNew.gaze_style === GazeStyle.IdleRandom) {
+      sIdleGlanceFromDx = sIdleGlanceDx;
+      sIdleGlanceFromDy = sIdleGlanceDy;
+      sIdleGlanceStartMs = t;
+      sNextIdleGlanceMs = t;
+    } else {
+      sIdleGlanceDx = 0;
+      sIdleGlanceDy = 0;
+      sIdleGlanceFromDx = 0;
+      sIdleGlanceFromDy = 0;
+      sIdleGlanceStartMs = 0;
+      sNextIdleGlanceMs = 0;
+    }
+
+    if (isVerbExpression(newExprIdx as Expression)) {
+      sVerbEnteredMs = t;
+    }
+  }
+
   function resetEmotionArmPhase(): void {
     sArmEmotionInOsc = true;
     sArmEmotionOsc01 = 0;
     sArmEmotionDwellS = 0;
     sArmLogicLastMs = 0;
-  }
-
-  function bodyBobFor(
-    expr: string,
-    now: number,
-    blendMode: boolean,
-    blendV: number,
-    blendA: number,
-  ): number {
-    const period = motorPeriodMsForContext(expr, blendMode, blendV, blendA);
-    if (period === 0) {
-      sBodyBobPhaseLastMs = now;
-      return 0;
-    }
-
-    let amp = 0;
-    let integrate = false;
-    if (blendMode && emotionBlend.ready()) {
-      const m = emotionBlend.blendedEmotionArmMotion(blendV, blendA);
-      integrate = true;
-      if (m && m.min_offset_deg !== m.max_offset_deg) amp = 3;
-    } else if (isEmotionExpression(expr) && emotionBlend.ready()) {
-      const va = vaForExpression(expr);
-      const m = emotionBlend.blendedEmotionArmMotion(va.v, va.a);
-      integrate = true;
-      if (m && m.min_offset_deg !== m.max_offset_deg) amp = 3;
-    } else {
-      switch (expr) {
-        case "VerbSleeping":
-          amp = 10;
-          break;
-        case "VerbExecuting":
-        case "VerbStraining":
-        case "Excited":
-          amp = 5;
-          break;
-        case "Joyful":
-          amp = 7;
-          break;
-        case "Sleepy":
-          amp = 4;
-          break;
-        case "Distressed":
-          amp = 6;
-          break;
-        default:
-          amp = 0;
-          break;
-      }
-      integrate = amp !== 0;
-    }
-
-    const twoPi = 2 * Math.PI;
-    if (integrate) {
-      const dtMs = sBodyBobPhaseLastMs === 0 ? 0 : now - sBodyBobPhaseLastMs;
-      sBodyBobPhaseLastMs = now;
-      sBodyBobPhaseRad += (twoPi / period) * dtMs;
-      sBodyBobPhaseRad %= twoPi;
-      if (sBodyBobPhaseRad < 0) sBodyBobPhaseRad += twoPi;
-    } else {
-      sBodyBobPhaseLastMs = now;
-    }
-
-    if (amp === 0) return 0;
-    return -Math.sin(sBodyBobPhaseRad) * amp;
-  }
-
-  function breathPhase(t: number): number {
-    const u = (t % 4000) / 4000;
-    return Math.sin(u * 2 * Math.PI);
   }
 
   function tickEmotionArm(dt: number, arm: EmotionArmMotion): number {
@@ -315,59 +492,97 @@ export function createFrameController(): FrameController {
     return lo;
   }
 
-  function verbArmOffset(name: string, t: number): number {
-    switch (name) {
-      case "VerbReading":
+  function verbArmOffset(exprIdx: number, t: number): number {
+    const m = kMotion[exprIdx];
+    if (!m) return 0;
+    switch (exprIdx) {
+      case Expression.VerbReading:
         return -8;
-      case "OverlayWaking":
+      case Expression.OverlayWaking:
         return 18;
-      case "VerbThinking": {
-        const T = 2000;
+      case Expression.VerbThinking: {
+        const T = m.period_ms || 2000;
         const u = (t % T) / T;
-        return -15 + 5 * Math.sin(u * 2 * Math.PI);
+        return -15 + m.amplitude * Math.sin(u * 2 * PI);
       }
-      case "VerbWriting":
-        return 5 + 4 * Math.sin(((t % 840) / 840) * 2 * Math.PI);
-      case "VerbExecuting":
-        return -5 + 5 * Math.sin(((t % 1000) / 1000) * 2 * Math.PI);
-      case "VerbStraining":
-        return 5 * Math.sin(((t % 750) / 750) * 2 * Math.PI);
-      case "VerbSleeping":
-        return -20 + 5 * Math.sin(((t % 8000) / 8000) * 2 * Math.PI);
-      case "OverlayAttention":
-        return 15 * Math.sin(((t % 900) / 900) * 2 * Math.PI);
+      case Expression.VerbWriting: {
+        const T = m.period_ms || 840;
+        return m.center + m.amplitude * Math.sin(((t % T) / T) * 2 * PI);
+      }
+      case Expression.VerbExecuting: {
+        const T = m.period_ms || 1000;
+        return m.center + m.amplitude * Math.sin(((t % T) / T) * 2 * PI);
+      }
+      case Expression.VerbStraining: {
+        const T = m.period_ms || 750;
+        return m.amplitude * Math.sin(((t % T) / T) * 2 * PI);
+      }
+      case Expression.VerbSleeping: {
+        const T = m.period_ms || 8000;
+        return m.center + m.amplitude * Math.sin(((t % T) / T) * 2 * PI);
+      }
+      case Expression.OverlayAttention: {
+        const T = m.period_ms || 900;
+        return m.amplitude * Math.sin(((t % T) / T) * 2 * PI);
+      }
       default:
         return 0;
     }
   }
 
-  function updateArmOffset(t: number, expr: string): void {
-    const EB = emotionBlend;
+  function updateArmOffset(t: number, exprIdx: number): void {
     const dt =
       sArmLogicLastMs === 0 ? 0 : Math.min(0.5, (t - sArmLogicLastMs) / 1000);
     sArmLogicLastMs = t;
 
-    const armDriverEmotion = sBlendMode || isEmotionExpression(expr);
+    const armDriverEmotion =
+      sBlendMode || isEmotionExpressionIndex(exprIdx);
     if (armDriverEmotion && !sPrevArmDriverEmotion) {
       resetEmotionArmPhase();
     }
     sPrevArmDriverEmotion = armDriverEmotion;
 
-    if (sBlendMode && EB.ready()) {
-      const arm = EB.blendedEmotionArmMotion(sBlendV, sBlendA);
+    if (sBlendMode && emotionBlend.ready()) {
+      const arm = emotionBlend.blendedEmotionArmMotion(sBlendV, sBlendA);
       sCurrentArmDeg = arm ? tickEmotionArm(dt, arm) : 0;
       return;
     }
 
-    if (isEmotionExpression(expr) && EB.ready()) {
-      const va = vaForExpression(expr);
-      const arm = EB.blendedEmotionArmMotion(va.v, va.a);
+    if (isEmotionExpressionIndex(exprIdx) && emotionBlend.ready()) {
+      const an = EMOTION_TRIANGULATION.anchors.find(
+        (x) => expressionIndexFromName(x.emotion) === exprIdx,
+      );
+      const arm = an
+        ? emotionBlend.blendedEmotionArmMotion(an.v, an.a)
+        : null;
       sCurrentArmDeg = arm ? tickEmotionArm(dt, arm) : 0;
       return;
     }
 
     resetEmotionArmPhase();
-    sCurrentArmDeg = verbArmOffset(expr, t);
+    sCurrentArmDeg = verbArmOffset(exprIdx, t);
+  }
+
+  function pushSpriteToCanvas(): void {
+    if (!outputCanvas || !sprite) return;
+    const octx = outputCanvas.getContext("2d");
+    if (!octx) return;
+    octx.imageSmoothingEnabled = false;
+    octx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+    octx.drawImage(
+      sprite.canvas,
+      0,
+      0,
+      sprite.width,
+      sprite.height,
+      0,
+      0,
+      outputCanvas.width,
+      outputCanvas.height,
+    );
+    if (!sStaticMode) {
+      drawArmOverlay(octx, outputCanvas.width, outputCanvas.height, sCurrentArmDeg);
+    }
   }
 
   function drawArmOverlay(
@@ -379,9 +594,9 @@ export function createFrameController(): FrameController {
     const cx = w * 0.5;
     const cy = h * 0.5;
     const R = Math.min(w, h) * 0.5 - 14;
-    const offsetRad = (offsetDeg * Math.PI) / 180;
+    const offsetRad = (offsetDeg * PI) / 180;
     const thetaRight = -offsetRad;
-    const thetaLeft = Math.PI - thetaRight;
+    const thetaLeft = PI - thetaRight;
 
     function palmAtOrbital(thetaRad: number): void {
       const rx = cx + R * Math.cos(thetaRad);
@@ -415,321 +630,252 @@ export function createFrameController(): FrameController {
     palmAtOrbital(thetaLeft);
   }
 
-  function now(): number {
-    return performance.now() - sStartedAtMs;
-  }
-
-  function randRange(lo: number, hi: number): number {
-    return lo + Math.random() * (hi - lo);
-  }
-
-  function randInt(lo: number, hi: number): number {
-    return Math.floor(randRange(lo, hi));
-  }
-
-  function blinkPeriodMsFor(name: string): number {
-    switch (name) {
-      case "Neutral":
-        return randInt(4000, 6500);
-      case "VerbThinking":
-        return randInt(2000, 3500);
-      case "VerbReading":
-        return randInt(4000, 6000);
-      case "VerbWriting":
-        return randInt(3500, 5500);
-      case "VerbExecuting":
-      case "VerbStraining":
-        return randInt(4500, 7000);
-      case "Excited":
-        return randInt(2500, 4000);
-      case "Happy":
-        return randInt(3000, 4500);
-      default:
-        return 0;
-    }
-  }
-
-  function scheduleNextBlink(name: string, from: number): void {
-    const p = blinkPeriodMsFor(name);
-    sNextBlinkMs = p === 0 ? 0 : from + p;
-  }
-
-  function currentBlinkAmount(t: number): number {
-    if (!sBlinkActive) return 0;
-    const d = t - sBlinkStartMs;
-    if (d < kBlinkCloseMs) return d / kBlinkCloseMs;
-    const d2 = d - kBlinkCloseMs;
-    if (d2 < kBlinkOpenMs) return 1 - d2 / kBlinkOpenMs;
-    sBlinkActive = false;
-    return 0;
-  }
-
-  function currentThinkSign(t: number): number {
-    if (sThinkFlipStartMs === 0) return sThinkToSign;
-    const u = (t - sThinkFlipStartMs) / kThinkingFlipDurMs;
-    return (
-      sThinkFromSign + (sThinkToSign - sThinkFromSign) * face.smoothstep01(u)
-    );
-  }
-
-  function resetThinkTilt(t: number): void {
-    sThinkFromSign = 1;
-    sThinkToSign = 1;
-    sThinkFlipStartMs = 0;
-    sNextThinkFlipMs = t + randInt(kThinkingFlipMinMs, kThinkingFlipMaxMs + 1);
-  }
-
-  function maybeFlipThinkTilt(t: number): void {
-    if (sNextThinkFlipMs === 0 || t < sNextThinkFlipMs) return;
-    sThinkFromSign = currentThinkSign(t);
-    sThinkToSign = -sThinkFromSign;
-    sThinkFlipStartMs = t;
-    sNextThinkFlipMs =
-      t +
-      kThinkingFlipDurMs +
-      randInt(kThinkingFlipMinMs, kThinkingFlipMaxMs + 1);
-  }
-
-  function gazeFor(name: string, t: number): [number, number] {
-    let gdx = 0;
-    let gdy = 0;
-    switch (name) {
-      case "Neutral": {
-        if (sIdleGlanceStartMs !== 0) {
-          const u = face.smoothstep01(
-            (t - sIdleGlanceStartMs) / kIdleGlanceTweenMs,
-          );
-          gdx = lerpi(sIdleGlanceFromDx, sIdleGlanceDx, u);
-          gdy = lerpi(sIdleGlanceFromDy, sIdleGlanceDy, u);
-        } else {
-          gdx = sIdleGlanceDx;
-          gdy = sIdleGlanceDy;
-        }
-        if (sNextIdleGlanceMs === 0 || t >= sNextIdleGlanceMs) {
-          sIdleGlanceFromDx = gdx;
-          sIdleGlanceFromDy = gdy;
-          sIdleGlanceDx = randInt(-15, 16);
-          sIdleGlanceDy = randInt(-10, 11);
-          sIdleGlanceStartMs = t;
-          sNextIdleGlanceMs = t + randInt(1000, 10001);
-        }
-        break;
-      }
-      case "VerbThinking": {
-        const u = (t % 900) / 900;
-        gdx = Math.round(Math.sin(u * 2 * Math.PI) * 2);
-        gdy = Math.round(Math.cos(u * 2 * Math.PI) * 2);
-        break;
-      }
-      case "VerbReading": {
-        const u = (t % 1300) / 1300;
-        gdx = Math.round(Math.sin(u * 2 * Math.PI) * 6);
-        break;
-      }
-      case "VerbWriting": {
-        const u = (t % 2200) / 2200;
-        gdx = Math.round(Math.sin(u * 2 * Math.PI) * 2);
-        break;
-      }
-      case "VerbExecuting":
-      case "VerbStraining": {
-        const u = (t % 2500) / 2500;
-        gdx = Math.round(Math.sin(u * 2 * Math.PI) * 1);
-        break;
-      }
-      case "Excited": {
-        const u = (t % 3500) / 3500;
-        gdx = Math.round(Math.sin(u * 2 * Math.PI) * 3);
-        gdy = Math.round(Math.cos(u * 2 * Math.PI) * 2);
-        break;
-      }
-      case "Happy": {
-        const u = (t % 5500) / 5500;
-        gdx = Math.round(Math.sin(u * 2 * Math.PI) * 2);
-        break;
-      }
-      default:
-        break;
-    }
-    return [gdx, gdy];
-  }
-
-  function onExpressionChange(newExpr: string, t: number): void {
-    const u = (t - sTweenStartMs) / kTweenMs;
-    const cur = lerpParams(sFrom, sTo, face.smoothstep01(u));
-    if (sLastExpr === "VerbThinking" && newExpr !== "VerbThinking") {
-      const sign = currentThinkSign(t);
-      cur.face_rot = Math.round(cur.face_rot * sign);
-      cur.pupil_dx = Math.round(cur.pupil_dx * sign);
-    }
-    sFrom = cur;
-    sTo = targetForExpression(newExpr);
-    sTweenStartMs = t;
-    sLastExpr = newExpr;
-    sBlinkActive = false;
-    scheduleNextBlink(newExpr, t);
-    if (newExpr === "VerbThinking") resetThinkTilt(t);
-    if (newExpr === "Neutral") {
-      sIdleGlanceFromDx = sIdleGlanceDx;
-      sIdleGlanceFromDy = sIdleGlanceDy;
-      sIdleGlanceStartMs = t;
-      sNextIdleGlanceMs = t;
-    } else {
-      sIdleGlanceDx = 0;
-      sIdleGlanceDy = 0;
-      sIdleGlanceFromDx = 0;
-      sIdleGlanceFromDy = 0;
-      sIdleGlanceStartMs = 0;
-      sNextIdleGlanceMs = 0;
-    }
-  }
-
-  let rafHandle: number | null = null;
-  let sprite: TFTSprite | null = null;
-  let outputCanvas: HTMLCanvasElement | null = null;
-  let lastTickMs = 0;
-  const listeners: Array<(name: string) => void> = [];
-
   function notifyExpression(): void {
     for (const fn of listeners) fn(sCurrentExpr);
   }
 
-  function pushSpriteToCanvas(): void {
-    if (!outputCanvas || !sprite) return;
-    const octx = outputCanvas.getContext("2d");
-    if (!octx) return;
-    octx.imageSmoothingEnabled = false;
-    octx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
-    octx.drawImage(
-      sprite.canvas,
-      0,
-      0,
-      sprite.width,
-      sprite.height,
-      0,
-      0,
-      outputCanvas.width,
-      outputCanvas.height,
-    );
-    if (!sStaticMode) {
-      drawArmOverlay(
-        octx,
-        outputCanvas.width,
-        outputCanvas.height,
-        sCurrentArmDeg,
-      );
-    }
-  }
-
   function tick(): void {
     const t = now();
-    const expr = sCurrentExpr;
+    const exprIdx = expressionIndexFromName(sCurrentExpr);
+    const exprEnum = exprIdx as Expression;
 
     const settingsVersion = settings.version();
     if (settingsVersion !== sLastSettingsVersion) {
       sLastSettingsVersion = settingsVersion;
-      sTo = targetForExpression(expr);
+      const tgt = kBaseTargets[exprIdx]!;
+      if (tgt) smoothFaceValuesToward(sSmoothed, tgt, 1.0);
+      const flat = faceParamsFromIndexed(sSmoothed);
+      sMoodR = flat.ring_r;
+      sMoodG = flat.ring_g;
+      sMoodB = flat.ring_b;
+      sLastMoodMs = t;
     }
 
-    if (sStaticMode) {
-      if (t - lastTickMs >= kTickIntervalMs) {
-        lastTickMs = t;
-        sCurrentArmDeg = 0;
-        const o = sStaticOverride;
-        face.renderScene(sprite!, o.params, o.blinkAmt, o.gdx, o.gdy, t);
-        sCurrentParams = o.params;
-        pushSpriteToCanvas();
-      }
-      rafHandle = requestAnimationFrame(tick);
+    const tickInterval = animCfg().tick_interval_ms;
+    if (t - sLastTickMs < tickInterval) {
       return;
     }
+    sLastTickMs = t;
 
-    if (sBlendMode) {
-      if (t - lastTickMs >= kTickIntervalMs) {
-        lastTickMs = t;
-        const blender = emotionBlend;
-        let p = sBlendLastParams;
-        if (blender.ready()) {
-          const blended = blender.blendedFaceParams(sBlendV, sBlendA);
-          if (blended) p = blended;
-          sBlendLastTri = blender.findTriangle(sBlendV, sBlendA);
-        }
-        sBlendLastParams = p;
+    if (exprIdx !== sLastExprIdx) {
+      onExpressionChange(exprIdx, t);
+    }
 
-        updateArmOffset(t, sCurrentExpr);
+    const idle = idleFor(exprIdx, false, sBlendV, sBlendA, emotionBlend);
 
-        if (
-          sCurrentExpr !== "Joyful" &&
-          sCurrentExpr !== "Gleeful" &&
-          sCurrentExpr !== "VerbSleeping"
-        ) {
-          const b = breathPhase(t) * 1.5;
-          p = {
-            ...p,
-            eye_dy: Math.round(p.eye_dy + b),
-            mouth_dy: Math.round(p.mouth_dy + b / 2),
-          };
-        }
-        p = {
-          ...p,
-          face_y: Math.round(
-            p.face_y + bodyBobFor(sCurrentExpr, t, true, sBlendV, sBlendA),
-          ),
-        };
+    const emoDt =
+      sLastEmotionSmoothMs === 0 ? tickInterval : t - sLastEmotionSmoothMs;
+    sLastEmotionSmoothMs = t;
+    const emoAlpha =
+      1.0 - Math.exp(-emoDt / animCfg().emotion_geometry_smooth_tau_ms);
 
-        face.renderScene(sprite!, p, 0, 0, 0, t);
-        sCurrentParams = p;
-        pushSpriteToCanvas();
+    const targetRow: ParamI16[] | null = [...kBaseTargets[exprIdx]!];
+    if (targetRow) {
+      smoothFaceValuesToward(sSmoothed, targetRow, emoAlpha);
+    }
+
+    if (exprEnum !== sLastVerbForXfade) {
+      sFromBobAmp = sLastBobAmp;
+      sFromGdx = sLastGdx;
+      sFromGdy = sLastGdy;
+      sLastVerbForXfade = exprEnum;
+    }
+
+    const verbTime = isVerbExpression(exprEnum) ? Math.max(0, t - sVerbEnteredMs) : 0;
+    const verbHas: boolean[] = new Array(FieldIndex.Count).fill(false);
+    const verbVals: ParamI16[] = Array.from({ length: FieldIndex.Count }, () => ({
+      value: 0,
+      strength: 0,
+    }));
+    sampleEffectiveVerb(exprEnum, t, verbTime, verbHas, verbVals);
+
+    let combined = combineEmotionVerbFace(sSmoothed, verbHas, verbVals);
+    let pFlat = faceParamsFromIndexed(combined);
+
+    const moodDt = sLastMoodMs === 0 ? 0 : t - sLastMoodMs;
+    const moodAlpha = 1.0 - Math.exp(-moodDt / animCfg().mood_ring_tau_ms);
+    sMoodR += (pFlat.ring_r - sMoodR) * moodAlpha;
+    sMoodG += (pFlat.ring_g - sMoodG) * moodAlpha;
+    sMoodB += (pFlat.ring_b - sMoodB) * moodAlpha;
+    sLastMoodMs = t;
+
+    const exN = EXPRESSIONS[exprIdx]!;
+    if (
+      !expressionUsesVerbTimeline(exprEnum) &&
+      exN !== "Joyful" &&
+      exN !== "Gleeful" &&
+      exN !== "VerbSleeping"
+    ) {
+      const b = breathPhase(t) * animCfg().breath_eye_amp_px;
+      pFlat = {
+        ...pFlat,
+        eye_dy: Math.round(pFlat.eye_dy + b),
+        mouth_dy: Math.round(
+          pFlat.mouth_dy + b * animCfg().breath_mouth_scale,
+        ),
+      };
+    }
+
+    pFlat = {
+      ...pFlat,
+      face_y: Math.round(
+        pFlat.face_y + bodyBobFor(exprIdx, idle, t, false, sBlendV, sBlendA),
+      ),
+    };
+
+    if (!sBlinkActive) {
+      if (sNextBlinkMs === 0) scheduleNextBlink(idle, t);
+      else if (t >= sNextBlinkMs) {
+        sBlinkActive = true;
+        sBlinkStartMs = t;
+        sNextBlinkMs = 0;
       }
-      rafHandle = requestAnimationFrame(tick);
+    }
+    const blinkAmt = currentBlinkAmount(t, idle);
+    if (!sBlinkActive && sNextBlinkMs === 0) scheduleNextBlink(idle, t);
+
+    let liveGdx = 0;
+    let liveGdy = 0;
+    if (!expressionUsesVerbTimeline(exprEnum)) {
+      const gaze = gazeFor(idle, t);
+      liveGdx = gaze[0]!;
+      liveGdy = gaze[1]!;
+    }
+    const ttGaze = verbTransitionT(t);
+    let gdx: number;
+    let gdy: number;
+    if (ttGaze >= 1.0) {
+      gdx = liveGdx;
+      gdy = liveGdy;
+    } else {
+      gdx = Math.round(sFromGdx + (liveGdx - sFromGdx) * ttGaze);
+      gdy = Math.round(sFromGdy + (liveGdy - sFromGdy) * ttGaze);
+    }
+    sLastGdx = gdx;
+    sLastGdy = gdy;
+
+    const waveDtMs = sWavePhaseLastMs === 0 ? 0 : t - sWavePhaseLastMs;
+    sWavePhaseLastMs = t;
+    const kPiOver180000 = PI / 180000.0;
+    sEyeWavePhaseRad += pFlat.eye_wave_speed * waveDtMs * kPiOver180000;
+    sMouthWavePhaseRad += pFlat.mouth_wave_speed * waveDtMs * kPiOver180000;
+    const kTwoPi = 2 * PI;
+    sEyeWavePhaseRad %= kTwoPi;
+    if (sEyeWavePhaseRad < 0) sEyeWavePhaseRad += kTwoPi;
+    sMouthWavePhaseRad %= kTwoPi;
+    if (sMouthWavePhaseRad < 0) sMouthWavePhaseRad += kTwoPi;
+
+    updateArmOffset(t, exprIdx);
+
+    combined = indexedFromFaceParams(pFlat);
+    sLastRendered = [...combined];
+
+    sLiveBlinkAmt = blinkAmt;
+    sLiveGdx = gdx;
+    sLiveGdy = gdy;
+
+    if (sprite) {
+      face.renderScene(sprite, pFlat, blinkAmt, gdx, gdy, t);
+    }
+    sCurrentParams = { ...pFlat };
+    pushSpriteToCanvas();
+  }
+
+  function tickStatic(): void {
+    const t = now();
+    const tickInterval = animCfg().tick_interval_ms;
+    if (t - sLastTickMs < tickInterval) {
       return;
     }
+    sLastTickMs = t;
+    const p = { ...sStaticOverride.params };
+    sLiveBlinkAmt = sStaticOverride.blinkAmt;
+    sLiveGdx = sStaticOverride.gdx;
+    sLiveGdy = sStaticOverride.gdy;
+    if (sprite) {
+      face.renderScene(
+        sprite,
+        p,
+        sStaticOverride.blinkAmt,
+        sStaticOverride.gdx,
+        sStaticOverride.gdy,
+        t,
+      );
+    }
+    sCurrentParams = { ...p };
+    sLastRendered = indexedFromFaceParams(p);
+    pushSpriteToCanvas();
+  }
 
-    if (t - lastTickMs >= kTickIntervalMs) {
-      lastTickMs = t;
+  function tickBlend(): void {
+    const t = now();
+    if (t - sLastTickMs < animCfg().tick_interval_ms) {
+      return;
+    }
+    sLastTickMs = t;
+    const exprIdx = expressionIndexFromName(sCurrentExpr);
+    const idle = idleFor(exprIdx, true, sBlendV, sBlendA, emotionBlend);
 
-      if (expr !== sLastExpr) onExpressionChange(expr, t);
+    const blended = emotionBlend.blendedFaceParamsIndexed(sBlendV, sBlendA);
+    if (!blended) {
+      return;
+    }
+    smoothFaceValuesToward(sSmoothed, blended, 1.0);
 
-      const u = (t - sTweenStartMs) / kTweenMs;
-      const te = face.smoothstep01(u);
-      let p = lerpParams(sFrom, sTo, te);
+    const verbHas: boolean[] = new Array(FieldIndex.Count).fill(false);
+    const verbVals: ParamI16[] = Array.from({ length: FieldIndex.Count }, () => ({
+      value: 0,
+      strength: 0,
+    }));
+    sampleEffectiveVerb(Expression.Count, t, 0, verbHas, verbVals);
 
-      if (expr !== "Joyful" && expr !== "Gleeful" && expr !== "VerbSleeping") {
-        const b = breathPhase(t) * 1.5;
-        p.eye_dy = Math.round(p.eye_dy + b);
-        p.mouth_dy = Math.round(p.mouth_dy + b / 2);
-      }
+    let combined = combineEmotionVerbFace(sSmoothed, verbHas, verbVals);
+    let pFlat = faceParamsFromIndexed(combined);
 
-      updateArmOffset(t, expr);
+    const moodDt = sLastMoodMs === 0 ? 0 : t - sLastMoodMs;
+    const moodAlpha = 1.0 - Math.exp(-moodDt / animCfg().mood_ring_tau_ms);
+    sMoodR += (pFlat.ring_r - sMoodR) * moodAlpha;
+    sMoodG += (pFlat.ring_g - sMoodG) * moodAlpha;
+    sMoodB += (pFlat.ring_b - sMoodB) * moodAlpha;
+    sLastMoodMs = t;
 
-      p.face_y = Math.round(p.face_y + bodyBobFor(expr, t, false, 0, 0));
-
-      if (expr === "VerbThinking") {
-        maybeFlipThinkTilt(t);
-        const sign = currentThinkSign(t);
-        p.face_rot = Math.round(p.face_rot * sign);
-        p.pupil_dx = Math.round(p.pupil_dx * sign);
-      }
-
-      if (!sBlinkActive) {
-        if (sNextBlinkMs === 0) scheduleNextBlink(expr, t);
-        else if (t >= sNextBlinkMs) {
-          sBlinkActive = true;
-          sBlinkStartMs = t;
-          sNextBlinkMs = 0;
-        }
-      }
-      const blinkAmt = currentBlinkAmount(t);
-      if (!sBlinkActive && sNextBlinkMs === 0) scheduleNextBlink(expr, t);
-
-      const [gdx, gdy] = gazeFor(expr, t);
-
-      face.renderScene(sprite!, p, blinkAmt, gdx, gdy, t);
-      sCurrentParams = p;
-      pushSpriteToCanvas();
+    if (
+      sCurrentExpr !== "Joyful" &&
+      sCurrentExpr !== "Gleeful" &&
+      sCurrentExpr !== "VerbSleeping"
+    ) {
+      const b = breathPhase(t) * animCfg().breath_eye_amp_px;
+      pFlat = {
+        ...pFlat,
+        eye_dy: Math.round(pFlat.eye_dy + b),
+        mouth_dy: Math.round(
+          pFlat.mouth_dy + b * animCfg().breath_mouth_scale,
+        ),
+      };
     }
 
-    rafHandle = requestAnimationFrame(tick);
+    pFlat = {
+      ...pFlat,
+      face_y: Math.round(
+        pFlat.face_y +
+          bodyBobFor(exprIdx, idle, t, true, sBlendV, sBlendA),
+      ),
+    };
+
+    updateArmOffset(t, exprIdx);
+
+    if (emotionBlend.ready()) {
+      sBlendLastTri = emotionBlend.findTriangle(sBlendV, sBlendA);
+    }
+
+    sLiveBlinkAmt = 0;
+    sLiveGdx = 0;
+    sLiveGdy = 0;
+    if (sprite) {
+      face.renderScene(sprite, pFlat, 0, 0, 0, t);
+    }
+    sCurrentParams = { ...pFlat };
+    pushSpriteToCanvas();
   }
 
   const knownExpressions = new Set(expressionsList());
@@ -737,18 +883,24 @@ export function createFrameController(): FrameController {
   return {
     start(canvas: HTMLCanvasElement): void {
       if (rafHandle) return;
-      sStartedAtMs = performance.now();
       sprite = new TFTSprite(240, 240);
       outputCanvas = canvas;
-      sFrom = targetForExpression(sCurrentExpr);
-      sTo = sFrom;
-      sLastExpr = sCurrentExpr;
-      sTweenStartMs = 0;
+      resetVerbTransition();
+      sSmoothed = cloneFaceParamsIndexed(kBaseTargets[0]!);
+      sLastRendered = cloneFaceParamsIndexed(kBaseTargets[0]!);
+      sLastExprIdx = -1;
+      sLastTickMs = 0;
+      sLastEmotionSmoothMs = 0;
       sLastSettingsVersion = settings.version();
+      const flat = faceParamsFromIndexed(sSmoothed);
+      sMoodR = flat.ring_r;
+      sMoodG = flat.ring_g;
+      sMoodB = flat.ring_b;
+      sLastMoodMs = 0;
+      sPrevArmDriverEmotion = isEmotionExpression(sCurrentExpr);
       resetEmotionArmPhase();
-      sPrevArmDriverEmotion = false;
       sCurrentArmDeg = 0;
-      rafHandle = requestAnimationFrame(tick);
+      rafHandle = requestAnimationFrame(tickDispatch);
     },
 
     stop(): void {
@@ -776,7 +928,7 @@ export function createFrameController(): FrameController {
     },
 
     params(): FaceParams {
-      return sCurrentParams;
+      return { ...sCurrentParams };
     },
 
     paramFields(): ParamField[] {
@@ -792,13 +944,10 @@ export function createFrameController(): FrameController {
       if (sStaticMode) {
         sBlendMode = false;
         sStaticOverride.params = { ...sCurrentParams };
+        sLastTickMs = 0;
       } else {
-        sFrom = { ...sCurrentParams };
-        sTo = targetForExpression(sCurrentExpr);
-        sTweenStartMs = now();
-        sLastExpr = sCurrentExpr;
-        sBlinkActive = false;
-        sNextBlinkMs = 0;
+        sLastExprIdx = -1;
+        sLastTickMs = 0;
       }
     },
 
@@ -811,14 +960,11 @@ export function createFrameController(): FrameController {
       if (sBlendMode) {
         sStaticMode = false;
         sPrevArmDriverEmotion = isEmotionExpression(sCurrentExpr);
+        sLastTickMs = 0;
       } else {
         sPrevArmDriverEmotion = isEmotionExpression(sCurrentExpr);
-        sFrom = { ...sCurrentParams };
-        sTo = targetForExpression(sCurrentExpr);
-        sTweenStartMs = now();
-        sLastExpr = sCurrentExpr;
-        sBlinkActive = false;
-        sNextBlinkMs = 0;
+        sLastExprIdx = -1;
+        sLastTickMs = 0;
       }
     },
 
@@ -868,6 +1014,14 @@ export function createFrameController(): FrameController {
         gdx: sStaticOverride.gdx,
         gdy: sStaticOverride.gdy,
         expression: sStaticOverride.expression,
+      };
+    },
+
+    liveRenderMod(): { blinkAmt: number; gdx: number; gdy: number } {
+      return {
+        blinkAmt: sLiveBlinkAmt,
+        gdx: sLiveGdx,
+        gdy: sLiveGdy,
       };
     },
 

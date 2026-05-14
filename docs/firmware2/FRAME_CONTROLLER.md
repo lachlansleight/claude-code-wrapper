@@ -29,14 +29,10 @@ namespace Face {
 
 2. **Expression-change edge.** When `ctx.effective_expression` differs from
    the last frame, run `onExpressionChange()`:
-   - On **leaving `VerbThinking`**, normalize `face_rot` and `pupil_dx` by
-     the current think-tilt sign so they snap to neutral on exit (otherwise
-     you get a visible pop).
    - On **`Happy → Neutral`**, capture the current per-turn read/write tool
      counts so the activity-dot rings can fade out over ~280 ms while the
      live counters reset.
-   - Schedule the next blink, reset think-tilt timing, reset the
-     idle-glance state.
+   - Schedule the next blink and reset idle-glance state for the new row.
 
 3. **Throttle gate.** Default tick interval is 33 ms (~30 Hz). When
    `read_stream_alpha` or `write_stream_alpha` is non-zero (i.e. a stream
@@ -94,11 +90,11 @@ namespace Face {
    ring lives in continuous RGB so changing emotions doesn't blink it —
    it cross-fades.
 
-9. **Think tilt.** Only while `VerbThinking`. Every 3–6 s (random per
-   flip, range from idle config) flip the sign of an adjustable head
-   sway and pupil offset. The transition is smoothed in over 250 ms via
-   `smoothstep01()`. On exit the sign normalization in step 2 prevents a
-   pop.
+9. **Breath and body bob.** A slow sine **breath** nudges `eye_dy` and
+   `mouth_dy` on the combined `FaceParams` unless `expressionUsesVerbTimeline`
+   is true (also skipped for Joyful, Gleeful, and VerbSleeping). **Body bob**
+   adds to `face_y` every frame from `bodyBobFor(...)` (arm-synced phase;
+   amplitude cross-fades on expression change like gaze).
 
 10. **Blink.** Schedule and play eyelid closes. Both timing and shape
     come from the per-expression `IdleAnimRow` in the face config:
@@ -107,14 +103,14 @@ namespace Face {
     `FaceRenderer::drawFace()` which collapses the eye envelope when the
     blink is past 60%.
 
-11. **Idle gaze offset.** Per the active expression's `gaze_style`:
-    - `IdleRandom` — small random pupil offsets at idle pace.
-    - `Orbit` — slow circular orbit.
-    - `ScanX` — back-and-forth horizontal scan.
-    - `Off` — pinned forward.
+11. **Idle gaze offset.** Only when the effective expression is **not**
+    on a verb timeline (`expressionUsesVerbTimeline` is false): per the
+    active expression's `gaze_style`, advance `gazeFor(...)` (IdleRandom,
+    Orbit, ScanX, or Off). While a verb timeline is active, live gaze stays
+    `(0, 0)` — verb geometry comes from the timeline, not idle wander.
 
     The live `(gdx, gdy)` is then cross-faded against the snapshot
-    captured at the last verb-change edge, using
+    captured at the last expression-change edge, using
     `Face::verbTransitionT(now)`. Same fade applies to the bob
     amplitude inside `bodyBobFor`. See
     [`VERB_SYSTEM.md`](VERB_SYSTEM.md#modification-pass-cross-fade) for
@@ -135,22 +131,22 @@ namespace Face {
 
 ## Final modification pass
 
-The "modification pass" terminology refers to steps 9–11 above: the
-blink amount, gaze offset, body bob (covered below), and think tilt are
-all applied to the *resolved* emotion+verb FaceParams immediately before
-rendering. They do not enter the `FaceParams` blend itself — they are
-arguments to `FaceRenderer::drawFace()` and small per-frame additions to
-fields like `face_rot` and `face_y`.
+The "modification pass" terminology refers to steps 9–12 above: breath
+and body bob on the combined `FaceParams`, then blink amount, gaze
+offset, and the render dispatch. Breath, bob, and gaze do not enter the
+emotion+verb `FaceParams` blend itself — breath and bob are small
+per-frame additions to fields; gaze is passed separately to
+`FaceRenderer::drawFace()`.
 
 The order of application matters:
 
 ```
 sSmoothedEmotion ← lerp from ctx.base_face_params       (step 5)
 combined ← combineEmotionVerbFace(smoothed, verb)        (step 7)
-combined.face_rot += thinkTiltSigned                     (step 9)
-combined.face_y += breathOffset (sine, ~4 s period)      (within tick)
-gaze_dx, gaze_dy ← idleGlanceFor(expression)             (step 11)
+combined.eye_dy / mouth_dy += breathOffset (when allowed) (step 9)
+combined.face_y += bodyBobFor(...)                       (step 9)
 blinkAmt ← currentBlinkAmount()                          (step 10)
+gaze_dx, gaze_dy ← gazeFor or (0,0) on verb timeline     (step 11)
 drawFace(sprite, combined, blinkAmt, gaze_dx, gaze_dy, ...)
 ```
 
@@ -182,7 +178,7 @@ The bob's amplitude is read from the same source.
 `FaceParams::ring_r/g/b` is a per-emotion color baked into the preset
 table. `EmotionBlend` interpolates them like any other field, weighted
 by strength. Verbs that want to change the ring color set
-`ring_r/g/b` (with strength) in their sparse-override row in
+`ring_r/g/b` (with strength) in their verb timeline keyframes in
 `FACE_CONFIG_DATA.h` — for example `VerbThinking` pulls the ring
 toward a blue-purple. `MoodRingRenderer::moodRingShouldDraw(expression)`
 suppresses the ring entirely for a whitelist of states (e.g. Neutral,

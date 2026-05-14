@@ -48,6 +48,24 @@ export function FaceSimulator() {
     fc.onExpressionChange((n: string) => setCurrentExpr(n));
   }, [fc]);
 
+  /** Mirror animated face (expression mode) into static sliders — verb timelines, bob, breath, etc. */
+  useEffect(() => {
+    if (staticOn || blendOn) return;
+    let raf = 0;
+    const step = () => {
+      const m = fc.liveRenderMod();
+      setSliderSnap({
+        params: { ...fc.params() },
+        blinkAmt: m.blinkAmt,
+        gdx: m.gdx,
+        gdy: m.gdy,
+      });
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [fc, staticOn, blendOn]);
+
   useEffect(() => {
     const id = window.setInterval(() => {
       setArmDeg(`${fc.armOffsetDeg().toFixed(0)}°`);
@@ -196,7 +214,6 @@ export function FaceSimulator() {
           />
         </div>
         <div>
-          z
           <StaticModePanel
             fc={fc}
             expressions={expressions}

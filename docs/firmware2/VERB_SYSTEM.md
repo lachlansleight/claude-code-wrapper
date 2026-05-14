@@ -13,7 +13,7 @@ two ways:
 Source files:
 
 - `src/behaviour/VerbSystem.{h,cpp}` — the state machine.
-- `src/face/VerbTimeline.{h,cpp}` — sample sparse field overrides for
+- `src/face/VerbTimeline.{h,cpp}` — sample keyframed verb timelines for
   the active verb.
 - Verb-related data lives in `src/face/FACE_CONFIG_DATA.h`.
 
@@ -129,7 +129,7 @@ namespace VerbSystem {
 Verb changes do **not** snap on. The verb timeline sampler in
 `face/VerbTimeline.{h,cpp}` cross-fades over **500 ms**
 (`kVerbTransitionDurMs`) between the previous effective sample and the
-new target's sparse-override sample. This applies to every transition:
+new target's timeline sample. This applies to every transition:
 
 - **None → verb** — strength of every overridden field ramps from 0 → 1.
 - **verb → None** — strength of every overridden field ramps from 1 → 0.
@@ -165,15 +165,16 @@ expression and would otherwise snap on a verb change:
 
 - **Body bob amplitude** (`bodyBobAmpFor` is a pure function of the
   effective expression / context).
-- **Gaze offset** (different verbs use IdleRandom / Orbit / ScanX
-  patterns).
+- **Gaze offset** — idle patterns (IdleRandom / Orbit / ScanX) only run
+  when the effective expression is **not** on a verb timeline; during
+  verbs the live gaze is `(0, 0)` so geometry comes from the timeline.
 
-Both are cross-faded over the same 500 ms window using
-`Face::verbTransitionT(now)`. At the verb-change edge,
-`FrameController` snapshots last frame's rendered bob amplitude and
-gaze offset; over the next 500 ms each value is lerped from that
-snapshot toward the new live value. The integrated body-bob phase
-keeps running so the oscillation is continuous across the fade.
+Body bob amplitude is cross-faded over the same 500 ms window using
+`Face::verbTransitionT(now)`. Gaze uses the same fade: at the verb edge
+the last rendered offset is snapshotted, then lerped toward the new
+live value (verb → emotion can ramp out of a frozen offset smoothly).
+The integrated body-bob phase keeps running so the oscillation is
+continuous across the fade.
 
 Two pieces are intentionally **not** cross-faded:
 
@@ -215,31 +216,39 @@ to ramp the verb out toward an empty sample.
 ## Verb timeline (face geometry overrides)
 
 Each verb can override face geometry on top of whatever the emotion
-blend produced. The format today is **sparse override** — a per-field
-list of `{ FieldIndex, value, strength }` triples. The verb's
-overrides for the 28 `FaceParams` fields are read out into two parallel
-arrays (`hasField[28]`, `fieldVals[28]`), and `FrameController` then
-calls `combineEmotionVerbFace()` to merge them with the smoothed
-emotion preset (see [`FRAME_CONTROLLER.md`](FRAME_CONTROLLER.md), step
-7).
+blend produced. All verb-specific face tuning lives in **`VerbTimeline`
+rows** in `FACE_CONFIG_DATA.h`: a `loop_duration_ms`, a small list of
+**keyframes**, and per-keyframe **sparse overrides**
+(`KeyframeOverride`: field index, `targetValue`, `strength`). The
+sampler expands overrides into `hasField[28]` / `fieldVals[28]`, and
+`FrameController` calls `combineEmotionVerbFace()` to merge with the
+smoothed emotion preset (see [`FRAME_CONTROLLER.md`](FRAME_CONTROLLER.md)).
 
 ```cpp
-struct SparseOverride {
-    FieldIndex field;
-    int16_t    value;
-    uint8_t    strength;   // 0..100
+struct KeyframeOverride {
+    uint8_t  field;         // Face::FieldIndex
+    int16_t  targetValue;
+    uint8_t  strength;      // 0..100
 };
 
-struct SparseVerbTimeline {
-    Expression verb;
-    uint8_t    count;
-    SparseOverride entries[32];
+struct VerbKeyframe {
+    uint32_t time_ms;
+    uint8_t  override_count;
+    KeyframeOverride overrides[kVerbKeyframeOverridesMax];
+};
+
+struct VerbTimeline {
+    Face::Expression verb;
+    uint32_t         loop_duration_ms;
+    uint8_t          keyframe_count;
+    VerbKeyframe     keyframes[kVerbKeyframesMax];
 };
 ```
 
-Currently five verbs ship overrides: `VerbThinking`, `VerbReading`,
-`VerbWriting`, `VerbExecuting`, `VerbStraining`. `VerbSleeping` has no
-overrides yet (it falls through to the emotion blend for geometry).
+All six verb expressions have a row in `kVerbTimelines[]`. Shipped
+data uses **one keyframe at `time_ms == 0`** (strength 100 on every
+authored field) and a **1000 ms** loop placeholder; multi-keyframe
+curves are supported by the sampler.
 
 The sampling function is:
 
@@ -251,15 +260,26 @@ void sampleVerbTimeline(
     ParamI16*  fieldVals);  // out: 28
 ```
 
-`time_in_verb_ms` is **currently ignored** — sparse overrides are
-constant for the lifetime of the verb. The signature already accepts
-time so future keyframed timelines can be dropped in without changing
-any caller. When that lands, the planned shape is: each verb gets a
-list of keyframes, each keyframe is `{ t_ms, SparseOverride[] }`, and
-`sampleVerbTimeline` lerps neighbouring keyframes' values (and
-strengths) at the requested time. Field strength stays the gate so
-fields the verb *doesn't* address keep falling through to the emotion
-blend.
+`time_in_verb_ms` is taken **modulo** `loop_duration_ms` (non-zero).
+With a single keyframe, the sample is the merged result of that
+keyframe's overrides (see below). With multiple keyframes, the timeline
+first builds a **cumulative state** after each keyframe in order, then
+**lerps** between the cumulative state at the segment's left and right
+keyframe indices (including the wrap segment from the last keyframe
+back toward keyframe 0).
+
+**Cumulative merge:** for keyframes `0 .. i` applied in order, each
+override replaces that field's value; **`strength == 0` clears** the
+field so the verb stops overriding it from that point onward (relinquish
+to the emotion blend). A field set only in an early keyframe therefore
+**holds** for the rest of the loop until a later keyframe touches it or
+clears it with strength 0.
+
+**Segment lerp:** for each `FaceParams` field, the sampler uses the same
+rules as the verb cross-fade (`both` → lerp value and strength; `from`
+only → decay strength toward 0 as `u → 1`; `to` only → ramp strength up
+from 0). Fields absent from both cumulative endpoints stay off
+(`hasField == false`).
 
 ## Verb → Expression → mood ring color
 
@@ -280,5 +300,5 @@ blend.
 
 The accent colour is the source of the activity-dot tint and the
 accent palette entry. The mood ring colour comes from the
-`ring_r/g/b` values in the verb's sparse-override row, blended with
+`ring_r/g/b` values in the verb's timeline overrides, blended with
 the emotion ring via the same combine as any other field.

@@ -1,6 +1,9 @@
 /**
- * Ordered keys matching firmware `FrameController::kBaseTargets` row layout.
+ * Ordered keys matching firmware `FrameController::kBaseTargets` row layout
+ * (`Face::FieldIndex` order — keep aligned with `FACE_CONFIG_DATA.ts`).
  */
+import type { FaceParamsIndexed, ParamI16 } from "./FACE_CONFIG_DATA";
+
 export const PARAM_FIELDS = [
   "eye_dy",
   "eye_rx",
@@ -31,3 +34,15 @@ export const PARAM_FIELDS = [
 export type ParamField = (typeof PARAM_FIELDS)[number];
 
 export type FaceParams = { [K in ParamField]: number };
+
+export function faceParamsFromIndexed(row: readonly ParamI16[]): FaceParams {
+  const o = {} as FaceParams;
+  for (let i = 0; i < PARAM_FIELDS.length; ++i) {
+    o[PARAM_FIELDS[i]!] = row[i]!.value;
+  }
+  return o;
+}
+
+export function indexedFromFaceParams(p: FaceParams): ParamI16[] {
+  return PARAM_FIELDS.map((k) => ({ value: p[k] ?? 0, strength: 100 }));
+}

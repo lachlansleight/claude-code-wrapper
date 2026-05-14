@@ -1,0 +1,696 @@
+/**
+ * Mirror of `robot_v3/src/face/FACE_CONFIG_DATA.h` (+ `VerbTimeline.h` transition ms).
+ * **Generated** — run `python scripts/sync_face_config_data_ts.py` after editing the header.
+ */
+
+export const EXPRESSION_COUNT = 22 as const;
+
+/** PascalCase names in `Face::Expression` enum order (index = enum value). */
+export const EXPRESSIONS = [
+  "Neutral",
+  "Happy",
+  "Excited",
+  "Joyful",
+  "Sad",
+  "VerbThinking",
+  "VerbReading",
+  "VerbWriting",
+  "VerbExecuting",
+  "VerbStraining",
+  "VerbSleeping",
+  "OverlayWaking",
+  "OverlayAttention",
+  "Sleepy",
+  "Distressed",
+  "Blissed",
+  "Depressed",
+  "Shocked",
+  "Disappointed",
+  "Cheeky",
+  "Gleeful",
+  "Frustrated",
+] as const;
+
+export type ExpressionName = (typeof EXPRESSIONS)[number];
+
+export enum Expression {
+  Neutral = 0,
+  Happy,
+  Excited,
+  Joyful,
+  Sad,
+  VerbThinking,
+  VerbReading,
+  VerbWriting,
+  VerbExecuting,
+  VerbStraining,
+  VerbSleeping,
+  OverlayWaking,
+  OverlayAttention,
+  Sleepy,
+  Distressed,
+  Blissed,
+  Depressed,
+  Shocked,
+  Disappointed,
+  Cheeky,
+  Gleeful,
+  Frustrated,
+  Count = 22,
+}
+
+export const kExpressionIsEmotion: readonly boolean[] = [
+  true, true, true, true, true, false, false, false, false, false, false,
+  false, false, true, true, true, true, true, true, true, true, true,
+] as const;
+
+export const kEmotionNames = [
+  "neutral", "happy", "excited", "joyful", "sad", "sleepy",
+  "distressed", "blissed", "depressed", "shocked", "disappointed", "cheeky",
+  "gleeful", "frustrated",
+] as const;
+
+export const kEmotionPoints: readonly { readonly v: number; readonly a: number }[] = [
+  { v: 0.0, a: 0.5 },
+  { v: 0.5, a: 0.5 },
+  { v: 1.0, a: 0.6 },
+  { v: 1.0, a: 1.0 },
+  { v: -0.5, a: 0.5 },
+  { v: -0.2, a: 0.0 },
+  { v: -1.0, a: 1.0 },
+  { v: 1.0, a: 0.0 },
+  { v: -1.0, a: 0.0 },
+  { v: -0.3, a: 1.0 },
+  { v: -1.0, a: 0.3 },
+  { v: 0.5, a: 0.7 },
+  { v: 0.6, a: 1.0 },
+  { v: -0.6, a: 0.8 },
+] as const;
+
+/** NamedEmotion enum discriminant order; tie-break (earlier wins). */
+export const kPickOrderIndices = [
+  12, 11, 5, 6, 13, 9, 7, 8, 10, 0, 1, 2, 3, 4,
+] as const;
+
+/** Maps NamedEmotion index → Face::Expression index. */
+export const kNamedEmotionToExpressionIndex: readonly number[] = [
+  0, 1, 2, 3, 4, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+] as const;
+
+export enum FieldIndex {
+  EyeDy = 0,
+  EyeRx,
+  EyeOpenAmt,
+  EyeArcAmt,
+  EyeThick,
+  EyeWaveAmp,
+  EyeWaveFreq,
+  EyeWaveSpeed,
+  PupilDx,
+  PupilDy,
+  PupilR,
+  MouthDy,
+  MouthRx,
+  MouthOpenAmt,
+  MouthArcAmt,
+  MouthThick,
+  MouthWaveAmp,
+  MouthWaveFreq,
+  MouthWaveSpeed,
+  FaceRot,
+  FaceY,
+  RingR,
+  RingG,
+  RingB,
+  Count = 24,
+}
+
+export interface ParamI16 {
+  value: number;
+  strength: number;
+}
+
+export const P = (value: number, strength = 100): ParamI16 => ({ value, strength });
+
+export type FaceParamsIndexed = readonly ParamI16[];
+
+export const kBaseTargets: readonly FaceParamsIndexed[] = [
+  // Neutral
+  [P(3), P(30), P(26), P(0), P(3), P(0), P(0), P(0), P(0), P(3), P(15), P(2), P(15), P(1), P(0), P(3), P(0), P(0), P(0), P(0), P(3), P(0), P(0), P(0)],
+  // Happy
+  [P(7), P(30), P(23), P(0), P(3), P(0), P(0), P(0), P(0), P(5), P(16), P(2), P(24), P(2), P(20), P(3), P(0), P(0), P(0), P(0), P(7), P(0), P(0), P(0)],
+  // Excited
+  [P(-1), P(29), P(28), P(0), P(3), P(0), P(0), P(0), P(0), P(0), P(17), P(3), P(27), P(2), P(48), P(3), P(0), P(0), P(0), P(0), P(3), P(40), P(252), P(79)],
+  // Joyful
+  [P(-11), P(20), P(2), P(-64), P(4), P(0), P(0), P(0), P(0), P(0), P(14), P(2), P(37), P(14), P(69), P(4), P(0), P(0), P(0), P(0), P(-13), P(255), P(228), P(38)],
+  // Sad
+  [P(7), P(28), P(15), P(0), P(3), P(0), P(0), P(0), P(0), P(3), P(11), P(-6), P(20), P(1), P(-14), P(3), P(0), P(1), P(3), P(0), P(6), P(4), P(1), P(3)],
+  // VerbThinking
+  [P(2), P(28), P(26), P(0), P(3), P(0), P(0), P(0), P(9), P(-8), P(15), P(1), P(12), P(1), P(15), P(3), P(0), P(0), P(0), P(-12), P(2), P(36), P(56), P(120)],
+  // VerbReading
+  [P(1), P(27), P(24), P(0), P(3), P(0), P(0), P(0), P(0), P(13), P(15), P(0), P(13), P(1), P(19), P(3), P(0), P(0), P(0), P(0), P(18), P(78), P(146), P(210)],
+  // VerbWriting
+  [P(0), P(28), P(25), P(24), P(3), P(0), P(0), P(0), P(0), P(-9), P(15), P(0), P(19), P(7), P(31), P(3), P(0), P(0), P(0), P(0), P(-13), P(104), P(118), P(228)],
+  // VerbExecuting
+  [P(0), P(30), P(13), P(0), P(3), P(0), P(0), P(0), P(0), P(-3), P(11), P(0), P(11), P(1), P(13), P(3), P(0), P(55), P(0), P(0), P(1), P(156), P(64), P(216)],
+  // VerbStraining
+  [P(1), P(30), P(22), P(0), P(3), P(0), P(3), P(25), P(0), P(-3), P(10), P(1), P(18), P(1), P(0), P(3), P(4), P(96), P(364), P(0), P(0), P(210), P(75), P(220)],
+  // VerbSleeping
+  [P(2), P(30), P(0), P(15), P(3), P(0), P(0), P(1), P(0), P(3), P(15), P(1), P(15), P(0), P(0), P(3), P(0), P(0), P(1), P(0), P(17), P(0), P(0), P(0)],
+  // OverlayWaking
+  [P(2), P(31), P(34), P(0), P(3), P(0), P(0), P(1), P(0), P(3), P(13), P(1), P(9), P(12), P(0), P(3), P(0), P(0), P(1), P(0), P(-2), P(0), P(0), P(0)],
+  // OverlayAttention
+  [P(3), P(30), P(31), P(0), P(3), P(0), P(83), P(707), P(0), P(3), P(12), P(0), P(17), P(13), P(26), P(1), P(0), P(48), P(707), P(0), P(0), P(255), P(20), P(40)],
+  // Sleepy
+  [P(15), P(28), P(17), P(24), P(3), P(0), P(0), P(0), P(0), P(-13), P(15), P(2), P(13), P(2), P(8), P(3), P(0), P(17), P(90), P(0), P(13), P(0), P(0), P(0)],
+  // Distressed
+  [P(5), P(30), P(30), P(0), P(3), P(0), P(0), P(0), P(0), P(7), P(10), P(-5), P(24), P(5), P(-46), P(3), P(0), P(0), P(0), P(0), P(-17), P(255), P(48), P(24)],
+  // Blissed
+  [P(4), P(20), P(0), P(24), P(3), P(0), P(0), P(0), P(0), P(0), P(15), P(8), P(26), P(6), P(29), P(3), P(0), P(0), P(0), P(0), P(7), P(0), P(0), P(0)],
+  // Depressed
+  [P(23), P(30), P(8), P(74), P(3), P(0), P(0), P(0), P(0), P(-2), P(6), P(4), P(13), P(0), P(-11), P(3), P(0), P(17), P(90), P(0), P(9), P(0), P(0), P(0)],
+  // Shocked
+  [P(2), P(30), P(37), P(0), P(3), P(1), P(85), P(720), P(0), P(3), P(9), P(15), P(17), P(13), P(0), P(1), P(2), P(49), P(720), P(0), P(0), P(255), P(255), P(255)],
+  // Disappointed
+  [P(5), P(21), P(0), P(27), P(3), P(0), P(0), P(0), P(0), P(3), P(8), P(-15), P(25), P(2), P(-21), P(3), P(0), P(0), P(2), P(0), P(0), P(225), P(53), P(93)],
+  // Cheeky
+  [P(-10), P(28), P(17), P(-131), P(3), P(0), P(0), P(0), P(0), P(3), P(15), P(-18), P(20), P(2), P(34), P(3), P(0), P(0), P(0), P(0), P(-3), P(0), P(0), P(0)],
+  // Gleeful
+  [P(-10), P(27), P(13), P(-137), P(3), P(0), P(0), P(1), P(0), P(1), P(14), P(-17), P(27), P(7), P(61), P(3), P(0), P(0), P(1), P(0), P(2), P(39), P(248), P(78)],
+  // Frustrated
+  [P(1), P(30), P(22), P(0), P(3), P(0), P(1), P(5), P(0), P(-3), P(10), P(0), P(18), P(0), P(0), P(3), P(4), P(96), P(348), P(0), P(1), P(212), P(75), P(212)],
+] as const;
+
+export const kVerbKeyframeOverridesMax = 32 as const;
+export const kVerbKeyframesMax = 16 as const;
+
+export interface KeyframeOverride {
+  field: FieldIndex;
+  targetValue: number;
+  strength: number;
+}
+
+export interface VerbKeyframe {
+  time_ms: number;
+  override_count: number;
+  overrides: readonly KeyframeOverride[];
+}
+
+export interface VerbTimeline {
+  verb: Expression;
+  loop_duration_ms: number;
+  keyframe_count: number;
+  keyframes: readonly VerbKeyframe[];
+}
+
+export const kVerbTimelines: readonly VerbTimeline[] = [
+{
+  verb: Expression.VerbThinking,
+  loop_duration_ms: 7000,
+  keyframe_count: 5,
+  keyframes: [
+    {
+      time_ms: 0,
+      override_count: 24,
+      overrides: [
+        { field: FieldIndex.EyeDy, targetValue: 2, strength: 100 },
+        { field: FieldIndex.EyeRx, targetValue: 28, strength: 100 },
+        { field: FieldIndex.EyeOpenAmt, targetValue: 26, strength: 100 },
+        { field: FieldIndex.EyeArcAmt, targetValue: 0, strength: 100 },
+        { field: FieldIndex.EyeThick, targetValue: 3, strength: 100 },
+        { field: FieldIndex.EyeWaveAmp, targetValue: 0, strength: 100 },
+        { field: FieldIndex.EyeWaveFreq, targetValue: 0, strength: 100 },
+        { field: FieldIndex.EyeWaveSpeed, targetValue: 0, strength: 100 },
+        { field: FieldIndex.PupilDx, targetValue: 9, strength: 100 },
+        { field: FieldIndex.PupilDy, targetValue: -8, strength: 100 },
+        { field: FieldIndex.PupilR, targetValue: 15, strength: 100 },
+        { field: FieldIndex.MouthDy, targetValue: 1, strength: 100 },
+        { field: FieldIndex.MouthRx, targetValue: 12, strength: 100 },
+        { field: FieldIndex.MouthOpenAmt, targetValue: 1, strength: 100 },
+        { field: FieldIndex.MouthArcAmt, targetValue: 15, strength: 100 },
+        { field: FieldIndex.MouthThick, targetValue: 3, strength: 100 },
+        { field: FieldIndex.MouthWaveAmp, targetValue: 0, strength: 100 },
+        { field: FieldIndex.MouthWaveFreq, targetValue: 0, strength: 100 },
+        { field: FieldIndex.MouthWaveSpeed, targetValue: 0, strength: 100 },
+        { field: FieldIndex.FaceRot, targetValue: -12, strength: 100 },
+        { field: FieldIndex.FaceY, targetValue: 2, strength: 100 },
+        { field: FieldIndex.RingR, targetValue: 36, strength: 100 },
+        { field: FieldIndex.RingG, targetValue: 56, strength: 100 },
+        { field: FieldIndex.RingB, targetValue: 120, strength: 100 },
+      ],
+    },
+    {
+      time_ms: 3000,
+      override_count: 2,
+      overrides: [
+        { field: FieldIndex.FaceRot, targetValue: -12, strength: 100 },
+        { field: FieldIndex.PupilDx, targetValue: 9, strength: 100 },
+      ],
+    },
+    {
+      time_ms: 3500,
+      override_count: 2,
+      overrides: [
+        { field: FieldIndex.FaceRot, targetValue: 12, strength: 100 },
+        { field: FieldIndex.PupilDx, targetValue: -9, strength: 100 },
+      ],
+    },
+    {
+      time_ms: 6500,
+      override_count: 2,
+      overrides: [
+        { field: FieldIndex.FaceRot, targetValue: 12, strength: 100 },
+        { field: FieldIndex.PupilDx, targetValue: -9, strength: 100 },
+      ],
+    },
+    {
+      time_ms: 7000,
+      override_count: 2,
+      overrides: [
+        { field: FieldIndex.FaceRot, targetValue: -12, strength: 100 },
+        { field: FieldIndex.PupilDx, targetValue: 9, strength: 100 },
+      ],
+    },
+  ],
+},
+{
+  verb: Expression.VerbReading,
+  loop_duration_ms: 1300,
+  keyframe_count: 4,
+  keyframes: [
+    {
+      time_ms: 0,
+      override_count: 24,
+      overrides: [
+        { field: FieldIndex.EyeDy, targetValue: 1, strength: 100 },
+        { field: FieldIndex.EyeRx, targetValue: 27, strength: 100 },
+        { field: FieldIndex.EyeOpenAmt, targetValue: 24, strength: 100 },
+        { field: FieldIndex.EyeArcAmt, targetValue: 0, strength: 100 },
+        { field: FieldIndex.EyeThick, targetValue: 3, strength: 100 },
+        { field: FieldIndex.EyeWaveAmp, targetValue: 0, strength: 100 },
+        { field: FieldIndex.EyeWaveFreq, targetValue: 0, strength: 100 },
+        { field: FieldIndex.EyeWaveSpeed, targetValue: 0, strength: 100 },
+        { field: FieldIndex.PupilDx, targetValue: 0, strength: 100 },
+        { field: FieldIndex.PupilDy, targetValue: 13, strength: 100 },
+        { field: FieldIndex.PupilR, targetValue: 15, strength: 100 },
+        { field: FieldIndex.MouthDy, targetValue: 0, strength: 100 },
+        { field: FieldIndex.MouthRx, targetValue: 13, strength: 100 },
+        { field: FieldIndex.MouthOpenAmt, targetValue: 1, strength: 100 },
+        { field: FieldIndex.MouthArcAmt, targetValue: 19, strength: 100 },
+        { field: FieldIndex.MouthThick, targetValue: 3, strength: 100 },
+        { field: FieldIndex.MouthWaveAmp, targetValue: 0, strength: 100 },
+        { field: FieldIndex.MouthWaveFreq, targetValue: 0, strength: 100 },
+        { field: FieldIndex.MouthWaveSpeed, targetValue: 0, strength: 100 },
+        { field: FieldIndex.FaceRot, targetValue: 0, strength: 100 },
+        { field: FieldIndex.FaceY, targetValue: 18, strength: 100 },
+        { field: FieldIndex.RingR, targetValue: 78, strength: 100 },
+        { field: FieldIndex.RingG, targetValue: 146, strength: 100 },
+        { field: FieldIndex.RingB, targetValue: 210, strength: 100 },
+      ],
+    },
+    {
+      time_ms: 800,
+      override_count: 1,
+      overrides: [
+        { field: FieldIndex.PupilDx, targetValue: -12, strength: 100 },
+      ],
+    },
+    {
+      time_ms: 1200,
+      override_count: 1,
+      overrides: [
+        { field: FieldIndex.PupilDx, targetValue: 12, strength: 100 },
+      ],
+    },
+    {
+      time_ms: 1300,
+      override_count: 1,
+      overrides: [
+        { field: FieldIndex.PupilDx, targetValue: 12, strength: 100 },
+      ],
+    },
+  ],
+},
+{
+  verb: Expression.VerbWriting,
+  loop_duration_ms: 1000,
+  keyframe_count: 1,
+  keyframes: [
+    {
+      time_ms: 0,
+      override_count: 24,
+      overrides: [
+        { field: FieldIndex.EyeDy, targetValue: 0, strength: 100 },
+        { field: FieldIndex.EyeRx, targetValue: 28, strength: 100 },
+        { field: FieldIndex.EyeOpenAmt, targetValue: 25, strength: 100 },
+        { field: FieldIndex.EyeArcAmt, targetValue: 24, strength: 100 },
+        { field: FieldIndex.EyeThick, targetValue: 3, strength: 100 },
+        { field: FieldIndex.EyeWaveAmp, targetValue: 0, strength: 100 },
+        { field: FieldIndex.EyeWaveFreq, targetValue: 0, strength: 100 },
+        { field: FieldIndex.EyeWaveSpeed, targetValue: 0, strength: 100 },
+        { field: FieldIndex.PupilDx, targetValue: 0, strength: 100 },
+        { field: FieldIndex.PupilDy, targetValue: -9, strength: 100 },
+        { field: FieldIndex.PupilR, targetValue: 15, strength: 100 },
+        { field: FieldIndex.MouthDy, targetValue: 0, strength: 100 },
+        { field: FieldIndex.MouthRx, targetValue: 19, strength: 100 },
+        { field: FieldIndex.MouthOpenAmt, targetValue: 7, strength: 100 },
+        { field: FieldIndex.MouthArcAmt, targetValue: 31, strength: 100 },
+        { field: FieldIndex.MouthThick, targetValue: 3, strength: 100 },
+        { field: FieldIndex.MouthWaveAmp, targetValue: 0, strength: 100 },
+        { field: FieldIndex.MouthWaveFreq, targetValue: 0, strength: 100 },
+        { field: FieldIndex.MouthWaveSpeed, targetValue: 0, strength: 100 },
+        { field: FieldIndex.FaceRot, targetValue: 0, strength: 100 },
+        { field: FieldIndex.FaceY, targetValue: -13, strength: 100 },
+        { field: FieldIndex.RingR, targetValue: 104, strength: 100 },
+        { field: FieldIndex.RingG, targetValue: 118, strength: 100 },
+        { field: FieldIndex.RingB, targetValue: 228, strength: 100 },
+      ],
+    },
+  ],
+},
+{
+  verb: Expression.VerbExecuting,
+  loop_duration_ms: 1000,
+  keyframe_count: 1,
+  keyframes: [
+    {
+      time_ms: 0,
+      override_count: 24,
+      overrides: [
+        { field: FieldIndex.EyeDy, targetValue: 0, strength: 100 },
+        { field: FieldIndex.EyeRx, targetValue: 30, strength: 100 },
+        { field: FieldIndex.EyeOpenAmt, targetValue: 13, strength: 100 },
+        { field: FieldIndex.EyeArcAmt, targetValue: 0, strength: 100 },
+        { field: FieldIndex.EyeThick, targetValue: 3, strength: 100 },
+        { field: FieldIndex.EyeWaveAmp, targetValue: 0, strength: 100 },
+        { field: FieldIndex.EyeWaveFreq, targetValue: 0, strength: 100 },
+        { field: FieldIndex.EyeWaveSpeed, targetValue: 0, strength: 100 },
+        { field: FieldIndex.PupilDx, targetValue: 0, strength: 100 },
+        { field: FieldIndex.PupilDy, targetValue: -3, strength: 100 },
+        { field: FieldIndex.PupilR, targetValue: 11, strength: 100 },
+        { field: FieldIndex.MouthDy, targetValue: 0, strength: 100 },
+        { field: FieldIndex.MouthRx, targetValue: 11, strength: 100 },
+        { field: FieldIndex.MouthOpenAmt, targetValue: 1, strength: 100 },
+        { field: FieldIndex.MouthArcAmt, targetValue: 13, strength: 100 },
+        { field: FieldIndex.MouthThick, targetValue: 3, strength: 100 },
+        { field: FieldIndex.MouthWaveAmp, targetValue: 0, strength: 100 },
+        { field: FieldIndex.MouthWaveFreq, targetValue: 55, strength: 100 },
+        { field: FieldIndex.MouthWaveSpeed, targetValue: 0, strength: 100 },
+        { field: FieldIndex.FaceRot, targetValue: 0, strength: 100 },
+        { field: FieldIndex.FaceY, targetValue: 1, strength: 100 },
+        { field: FieldIndex.RingR, targetValue: 156, strength: 100 },
+        { field: FieldIndex.RingG, targetValue: 64, strength: 100 },
+        { field: FieldIndex.RingB, targetValue: 216, strength: 100 },
+      ],
+    },
+  ],
+},
+{
+  verb: Expression.VerbStraining,
+  loop_duration_ms: 1000,
+  keyframe_count: 1,
+  keyframes: [
+    {
+      time_ms: 0,
+      override_count: 24,
+      overrides: [
+        { field: FieldIndex.EyeDy, targetValue: 1, strength: 100 },
+        { field: FieldIndex.EyeRx, targetValue: 30, strength: 100 },
+        { field: FieldIndex.EyeOpenAmt, targetValue: 22, strength: 100 },
+        { field: FieldIndex.EyeArcAmt, targetValue: 0, strength: 100 },
+        { field: FieldIndex.EyeThick, targetValue: 3, strength: 100 },
+        { field: FieldIndex.EyeWaveAmp, targetValue: 0, strength: 100 },
+        { field: FieldIndex.EyeWaveFreq, targetValue: 3, strength: 100 },
+        { field: FieldIndex.EyeWaveSpeed, targetValue: 25, strength: 100 },
+        { field: FieldIndex.PupilDx, targetValue: 0, strength: 100 },
+        { field: FieldIndex.PupilDy, targetValue: -3, strength: 100 },
+        { field: FieldIndex.PupilR, targetValue: 10, strength: 100 },
+        { field: FieldIndex.MouthDy, targetValue: 1, strength: 100 },
+        { field: FieldIndex.MouthRx, targetValue: 18, strength: 100 },
+        { field: FieldIndex.MouthOpenAmt, targetValue: 1, strength: 100 },
+        { field: FieldIndex.MouthArcAmt, targetValue: 0, strength: 100 },
+        { field: FieldIndex.MouthThick, targetValue: 3, strength: 100 },
+        { field: FieldIndex.MouthWaveAmp, targetValue: 4, strength: 100 },
+        { field: FieldIndex.MouthWaveFreq, targetValue: 96, strength: 100 },
+        { field: FieldIndex.MouthWaveSpeed, targetValue: 364, strength: 100 },
+        { field: FieldIndex.FaceRot, targetValue: 0, strength: 100 },
+        { field: FieldIndex.FaceY, targetValue: 0, strength: 100 },
+        { field: FieldIndex.RingR, targetValue: 210, strength: 100 },
+        { field: FieldIndex.RingG, targetValue: 75, strength: 100 },
+        { field: FieldIndex.RingB, targetValue: 220, strength: 100 },
+      ],
+    },
+  ],
+},
+{
+  verb: Expression.VerbSleeping,
+  loop_duration_ms: 1000,
+  keyframe_count: 1,
+  keyframes: [
+    {
+      time_ms: 0,
+      override_count: 24,
+      overrides: [
+        { field: FieldIndex.EyeDy, targetValue: 2, strength: 100 },
+        { field: FieldIndex.EyeRx, targetValue: 30, strength: 100 },
+        { field: FieldIndex.EyeOpenAmt, targetValue: 0, strength: 100 },
+        { field: FieldIndex.EyeArcAmt, targetValue: 15, strength: 100 },
+        { field: FieldIndex.EyeThick, targetValue: 3, strength: 100 },
+        { field: FieldIndex.EyeWaveAmp, targetValue: 0, strength: 100 },
+        { field: FieldIndex.EyeWaveFreq, targetValue: 0, strength: 100 },
+        { field: FieldIndex.EyeWaveSpeed, targetValue: 1, strength: 100 },
+        { field: FieldIndex.PupilDx, targetValue: 0, strength: 100 },
+        { field: FieldIndex.PupilDy, targetValue: 3, strength: 100 },
+        { field: FieldIndex.PupilR, targetValue: 15, strength: 100 },
+        { field: FieldIndex.MouthDy, targetValue: 1, strength: 100 },
+        { field: FieldIndex.MouthRx, targetValue: 15, strength: 100 },
+        { field: FieldIndex.MouthOpenAmt, targetValue: 0, strength: 100 },
+        { field: FieldIndex.MouthArcAmt, targetValue: 0, strength: 100 },
+        { field: FieldIndex.MouthThick, targetValue: 3, strength: 100 },
+        { field: FieldIndex.MouthWaveAmp, targetValue: 0, strength: 100 },
+        { field: FieldIndex.MouthWaveFreq, targetValue: 0, strength: 100 },
+        { field: FieldIndex.MouthWaveSpeed, targetValue: 1, strength: 100 },
+        { field: FieldIndex.FaceRot, targetValue: 0, strength: 100 },
+        { field: FieldIndex.FaceY, targetValue: 17, strength: 100 },
+        { field: FieldIndex.RingR, targetValue: 0, strength: 100 },
+        { field: FieldIndex.RingG, targetValue: 0, strength: 100 },
+        { field: FieldIndex.RingB, targetValue: 0, strength: 100 },
+      ],
+    },
+  ],
+},
+] as const;
+
+export const kVerbTimelineCount = kVerbTimelines.length;
+
+export interface ArmPreset {
+  min_deg: number;
+  max_deg: number;
+  period_s: number;
+  interval_s: number;
+}
+
+export const kArmPresets: readonly ArmPreset[] = [
+  { min_deg: -25, max_deg: -15, period_s: 2.0, interval_s: 1.0 },
+  { min_deg: -23, max_deg: -7, period_s: 1.5, interval_s: 0.5 },
+  { min_deg: -15, max_deg: -5, period_s: 1.0, interval_s: 0.0 },
+  { min_deg: 10, max_deg: 25, period_s: 0.9, interval_s: 0.2 },
+  { min_deg: -25, max_deg: -15, period_s: 2.0, interval_s: 1.0 },
+  { min_deg: -25, max_deg: -15, period_s: 2.0, interval_s: 1.0 },
+  { min_deg: -25, max_deg: -15, period_s: 2.0, interval_s: 1.0 },
+  { min_deg: -25, max_deg: -15, period_s: 2.0, interval_s: 1.0 },
+  { min_deg: -25, max_deg: -15, period_s: 2.0, interval_s: 1.0 },
+  { min_deg: -25, max_deg: -15, period_s: 2.0, interval_s: 1.0 },
+  { min_deg: -25, max_deg: -15, period_s: 2.0, interval_s: 1.0 },
+  { min_deg: -25, max_deg: -15, period_s: 2.0, interval_s: 1.0 },
+  { min_deg: -25, max_deg: -15, period_s: 2.0, interval_s: 1.0 },
+  { min_deg: -25, max_deg: -20, period_s: 3.0, interval_s: 6.0 },
+  { min_deg: -15, max_deg: -5, period_s: 1.0, interval_s: 0.0 },
+  { min_deg: -25, max_deg: -20, period_s: 3.0, interval_s: 6.0 },
+  { min_deg: -25, max_deg: -20, period_s: 3.0, interval_s: 6.0 },
+  { min_deg: -15, max_deg: -5, period_s: 1.0, interval_s: 0.0 },
+  { min_deg: -23, max_deg: -7, period_s: 1.5, interval_s: 0.5 },
+  { min_deg: -20, max_deg: -5, period_s: 1.4, interval_s: 0.45 },
+  { min_deg: 10, max_deg: 25, period_s: 0.9, interval_s: 0.2 },
+  { min_deg: -18, max_deg: -8, period_s: 1.1, interval_s: 0.15 },
+] as const;
+
+export enum MotionMode {
+  None = 0,
+  Static,
+  RandomDrift,
+  Oscillate,
+  Waggle,
+  Thinking,
+}
+
+export interface ExprMotionRow {
+  mode: MotionMode;
+  center: number;
+  amplitude: number;
+  period_ms: number;
+  period_jitter_ms: number;
+  slew_ms: number;
+}
+
+export const kMotion: readonly ExprMotionRow[] = [
+  { mode: MotionMode.RandomDrift, center: -20, amplitude: 5, period_ms: 5000, period_jitter_ms: 5000, slew_ms: 500 },
+  { mode: MotionMode.RandomDrift, center: -15, amplitude: 8, period_ms: 2000, period_jitter_ms: 1000, slew_ms: 500 },
+  { mode: MotionMode.Oscillate, center: -10, amplitude: 5, period_ms: 1000, period_jitter_ms: 0, slew_ms: 0 },
+  { mode: MotionMode.Waggle, center: 0, amplitude: 15, period_ms: 900, period_jitter_ms: 0, slew_ms: 0 },
+  { mode: MotionMode.None, center: 0, amplitude: 0, period_ms: 0, period_jitter_ms: 0, slew_ms: 0 },
+  { mode: MotionMode.Thinking, center: -15, amplitude: 5, period_ms: 2000, period_jitter_ms: 0, slew_ms: 0 },
+  { mode: MotionMode.Static, center: -8, amplitude: 0, period_ms: 0, period_jitter_ms: 0, slew_ms: 0 },
+  { mode: MotionMode.Oscillate, center: 5, amplitude: 4, period_ms: 840, period_jitter_ms: 0, slew_ms: 250 },
+  { mode: MotionMode.Oscillate, center: -5, amplitude: 5, period_ms: 1000, period_jitter_ms: 0, slew_ms: 0 },
+  { mode: MotionMode.Oscillate, center: 0, amplitude: 5, period_ms: 750, period_jitter_ms: 0, slew_ms: 0 },
+  { mode: MotionMode.Oscillate, center: -20, amplitude: 5, period_ms: 8000, period_jitter_ms: 0, slew_ms: 0 },
+  { mode: MotionMode.Static, center: 18, amplitude: 0, period_ms: 0, period_jitter_ms: 0, slew_ms: 0 },
+  { mode: MotionMode.Waggle, center: 0, amplitude: 15, period_ms: 900, period_jitter_ms: 0, slew_ms: 0 },
+  { mode: MotionMode.Oscillate, center: -18, amplitude: 4, period_ms: 5000, period_jitter_ms: 0, slew_ms: 0 },
+  { mode: MotionMode.Oscillate, center: 0, amplitude: 6, period_ms: 900, period_jitter_ms: 0, slew_ms: 0 },
+  { mode: MotionMode.RandomDrift, center: -10, amplitude: 6, period_ms: 3000, period_jitter_ms: 1500, slew_ms: 500 },
+  { mode: MotionMode.None, center: 0, amplitude: 0, period_ms: 0, period_jitter_ms: 0, slew_ms: 0 },
+  { mode: MotionMode.Static, center: 0, amplitude: 0, period_ms: 0, period_jitter_ms: 0, slew_ms: 0 },
+  { mode: MotionMode.None, center: 0, amplitude: 0, period_ms: 0, period_jitter_ms: 0, slew_ms: 0 },
+  { mode: MotionMode.Waggle, center: 0, amplitude: 12, period_ms: 880, period_jitter_ms: 0, slew_ms: 0 },
+  { mode: MotionMode.Waggle, center: 0, amplitude: 15, period_ms: 900, period_jitter_ms: 0, slew_ms: 0 },
+  { mode: MotionMode.Oscillate, center: 0, amplitude: 6, period_ms: 820, period_jitter_ms: 0, slew_ms: 0 },
+] as const;
+
+/** Same sentinel as firmware `FaceConfig::kBobAmpFollowEmotionArm` (int16 0x8000). */
+export const BOB_AMP_FOLLOW_EMOTION_ARM = -32768;
+
+export enum GazeStyle {
+  Off = 0,
+  IdleRandom,
+  Orbit,
+  ScanX,
+}
+
+export interface IdleAnimRow {
+  blink_period_min_ms: number;
+  blink_period_max_ms: number;
+  blink_close_ms: number;
+  blink_open_ms: number;
+  bob_amplitude_px: number;
+  gaze_style: GazeStyle;
+  gaze_move_ms: number;
+  gaze_rand_span_x: number;
+  gaze_rand_span_y: number;
+  gaze_reroll_min_ms: number;
+  gaze_reroll_max_ms: number;
+  gaze_scan_period_ms: number;
+  gaze_amp_x: number;
+  gaze_amp_y: number;
+}
+
+export const kIdleAnim: readonly IdleAnimRow[] = [
+  // Neutral
+  { blink_period_min_ms: 4000, blink_period_max_ms: 6499, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: BOB_AMP_FOLLOW_EMOTION_ARM, gaze_style: GazeStyle.IdleRandom, gaze_move_ms: 200, gaze_rand_span_x: 15, gaze_rand_span_y: 10, gaze_reroll_min_ms: 1000, gaze_reroll_max_ms: 10000, gaze_scan_period_ms: 0, gaze_amp_x: 0, gaze_amp_y: 0 },
+  // Happy
+  { blink_period_min_ms: 3000, blink_period_max_ms: 4499, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: BOB_AMP_FOLLOW_EMOTION_ARM, gaze_style: GazeStyle.ScanX, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 5500, gaze_amp_x: 2, gaze_amp_y: 0 },
+  // Excited
+  { blink_period_min_ms: 2500, blink_period_max_ms: 3999, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: BOB_AMP_FOLLOW_EMOTION_ARM, gaze_style: GazeStyle.Orbit, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 3500, gaze_amp_x: 3, gaze_amp_y: 2 },
+  // Joyful
+  { blink_period_min_ms: 0, blink_period_max_ms: 0, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: BOB_AMP_FOLLOW_EMOTION_ARM, gaze_style: GazeStyle.Off, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 0, gaze_amp_x: 0, gaze_amp_y: 0 },
+  // Sad
+  { blink_period_min_ms: 0, blink_period_max_ms: 0, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: BOB_AMP_FOLLOW_EMOTION_ARM, gaze_style: GazeStyle.Off, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 0, gaze_amp_x: 0, gaze_amp_y: 0 },
+  // VerbThinking
+  { blink_period_min_ms: 2000, blink_period_max_ms: 3499, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: 0, gaze_style: GazeStyle.Orbit, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 900, gaze_amp_x: 2, gaze_amp_y: 2 },
+  // VerbReading
+  { blink_period_min_ms: 4000, blink_period_max_ms: 5999, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: 0, gaze_style: GazeStyle.ScanX, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 1300, gaze_amp_x: 6, gaze_amp_y: 0 },
+  // VerbWriting
+  { blink_period_min_ms: 3500, blink_period_max_ms: 5499, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: 0, gaze_style: GazeStyle.ScanX, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 2200, gaze_amp_x: 2, gaze_amp_y: 0 },
+  // VerbExecuting
+  { blink_period_min_ms: 4500, blink_period_max_ms: 6999, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: 5, gaze_style: GazeStyle.ScanX, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 2500, gaze_amp_x: 1, gaze_amp_y: 0 },
+  // VerbStraining
+  { blink_period_min_ms: 4500, blink_period_max_ms: 6999, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: 5, gaze_style: GazeStyle.ScanX, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 2500, gaze_amp_x: 1, gaze_amp_y: 0 },
+  // VerbSleeping
+  { blink_period_min_ms: 0, blink_period_max_ms: 0, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: 10, gaze_style: GazeStyle.Off, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 0, gaze_amp_x: 0, gaze_amp_y: 0 },
+  // OverlayWaking
+  { blink_period_min_ms: 0, blink_period_max_ms: 0, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: 0, gaze_style: GazeStyle.Off, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 0, gaze_amp_x: 0, gaze_amp_y: 0 },
+  // OverlayAttention
+  { blink_period_min_ms: 0, blink_period_max_ms: 0, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: 0, gaze_style: GazeStyle.Off, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 0, gaze_amp_x: 0, gaze_amp_y: 0 },
+  // Sleepy
+  { blink_period_min_ms: 5000, blink_period_max_ms: 7999, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: BOB_AMP_FOLLOW_EMOTION_ARM, gaze_style: GazeStyle.Off, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 0, gaze_amp_x: 0, gaze_amp_y: 0 },
+  // Distressed
+  { blink_period_min_ms: 2000, blink_period_max_ms: 3999, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: BOB_AMP_FOLLOW_EMOTION_ARM, gaze_style: GazeStyle.Off, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 0, gaze_amp_x: 0, gaze_amp_y: 0 },
+  // Blissed
+  { blink_period_min_ms: 3500, blink_period_max_ms: 5499, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: BOB_AMP_FOLLOW_EMOTION_ARM, gaze_style: GazeStyle.Off, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 0, gaze_amp_x: 0, gaze_amp_y: 0 },
+  // Depressed
+  { blink_period_min_ms: 2000, blink_period_max_ms: 3999, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: BOB_AMP_FOLLOW_EMOTION_ARM, gaze_style: GazeStyle.Off, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 0, gaze_amp_x: 0, gaze_amp_y: 0 },
+  // Shocked
+  { blink_period_min_ms: 2000, blink_period_max_ms: 3999, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: BOB_AMP_FOLLOW_EMOTION_ARM, gaze_style: GazeStyle.Off, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 0, gaze_amp_x: 0, gaze_amp_y: 0 },
+  // Disappointed
+  { blink_period_min_ms: 2000, blink_period_max_ms: 3999, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: BOB_AMP_FOLLOW_EMOTION_ARM, gaze_style: GazeStyle.Off, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 0, gaze_amp_x: 0, gaze_amp_y: 0 },
+  // Cheeky
+  { blink_period_min_ms: 2800, blink_period_max_ms: 4199, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: BOB_AMP_FOLLOW_EMOTION_ARM, gaze_style: GazeStyle.Off, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 0, gaze_amp_x: 0, gaze_amp_y: 0 },
+  // Gleeful
+  { blink_period_min_ms: 2200, blink_period_max_ms: 3799, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: BOB_AMP_FOLLOW_EMOTION_ARM, gaze_style: GazeStyle.Off, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 0, gaze_amp_x: 0, gaze_amp_y: 0 },
+  // Frustrated
+  { blink_period_min_ms: 1800, blink_period_max_ms: 3199, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: BOB_AMP_FOLLOW_EMOTION_ARM, gaze_style: GazeStyle.Off, gaze_move_ms: 0, gaze_rand_span_x: 0, gaze_rand_span_y: 0, gaze_reroll_min_ms: 0, gaze_reroll_max_ms: 0, gaze_scan_period_ms: 0, gaze_amp_x: 0, gaze_amp_y: 0 },
+] as const;
+
+export const kEmotionSim = {
+  tau_ms_activation: 6000.0,
+  tau_ms_valence: 90000.0,
+  tau_ms_raw_follow: 50.0,
+  snap_hysteresis_dist: 0.05,
+  snap_hysteresis_hold_ms: 100,
+  dist_sq_tie_eps: -7,
+  baseline_activation: 0.5,
+} as const;
+
+export const kFrameAnim = {
+  mood_ring_tau_ms: 200.0,
+  emotion_geometry_smooth_tau_ms: 250.0,
+  tick_interval_ms: 33,
+  tick_interval_stream_ms: 16,
+  thinking_flip_dur_ms: 600,
+  thinking_flip_min_ms: 3000,
+  thinking_flip_max_ms: 6000,
+  progress_fade_ms: 280,
+  effects_fade_ms: 100,
+  breath_period_ms: 4000,
+  breath_eye_amp_px: 1.5,
+  breath_mouth_scale: 0.5,
+  emotion_bob_amp_follow_arm: 3,
+  default_blink_close_ms: 80,
+  default_blink_open_ms: 130,
+  default_gaze_move_ms: 200,
+  invalid_gaze_reroll_fallback_ms: 1000,
+} as const;
+
+export const kVerbSim = {
+  strain_delay_ms: 5000,
+  default_overlay_duration_ms: 1000,
+} as const;
+
+export const kMotionRuntime = {
+  default_static_slew_ms: 250,
+  default_drift_slew_ms: 500,
+} as const;
+
+
+/** `Face::kVerbTransitionDurMs` / `VerbTimeline.h` */
+export const kVerbTransitionDurMs = 500 as const;
+
+export function expressionIndexFromName(name: string): number {
+  const i = EXPRESSIONS.indexOf(name as ExpressionName);
+  return i >= 0 ? i : 0;
+}
+
+export function isEmotionExpressionIndex(idx: number): boolean {
+  return idx >= 0 && idx < kExpressionIsEmotion.length && !!kExpressionIsEmotion[idx];
+}
+
+export function armPresetForExpressionIndex(idx: number): ArmPreset {
+  if (idx < 0 || idx >= kArmPresets.length) return kArmPresets[0]!;
+  return kArmPresets[idx]!;
+}
+
+export function expressionForNamedEmotionIndex(namedIdx: number): number {
+  if (namedIdx < 0 || namedIdx >= kNamedEmotionToExpressionIndex.length) return 0;
+  return kNamedEmotionToExpressionIndex[namedIdx]!;
+}

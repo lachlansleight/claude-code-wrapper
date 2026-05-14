@@ -117,13 +117,19 @@ export interface EmotionPoint {
   a: number; // float [0..1]
 }
 
-export interface SparseOverride {
+export interface KeyframeOverride {
   field: FieldIndex;
-  value: number; // int16
-  strength: number; // uint8 (usually 100 in current firmware data)
+  targetValue: number; // int16
+  strength: number; // uint8 [0..100]
 }
 
-export interface SparseVerbTimeline {
+export interface VerbKeyframe {
+  time_ms: number;
+  override_count: number;
+  overrides: KeyframeOverride[]; // max kVerbKeyframeOverridesMax in firmware (32)
+}
+
+export interface VerbTimeline {
   verb: Extract<
     Expression,
     | "VerbThinking"
@@ -133,7 +139,9 @@ export interface SparseVerbTimeline {
     | "VerbStraining"
     | "VerbSleeping"
   >;
-  overrides: SparseOverride[]; // max 32 in firmware struct today
+  loop_duration_ms: number;
+  keyframe_count: number;
+  keyframes: VerbKeyframe[]; // max kVerbKeyframesMax in firmware (16)
 }
 
 export interface ArmPreset {
@@ -232,7 +240,7 @@ export interface FaceConfigDataDocument {
   emotion_points: Record<NamedEmotion, EmotionPoint>;
   pick_order: NamedEmotion[];
   base_targets: Record<Expression, FaceParams>;
-  verb_timelines: SparseVerbTimeline[];
+  verb_timelines: VerbTimeline[];
   arm_presets: Record<Expression, ArmPreset>;
   motion_rows: Record<Expression, ExprMotionRow>;
   idle_anim_rows: Record<Expression, IdleAnimRow>;

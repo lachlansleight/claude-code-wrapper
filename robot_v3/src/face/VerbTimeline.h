@@ -12,9 +12,10 @@ namespace Face {
 /// verb-to-verb. Mirrors `kVerbTransitionMs` in the simulator.
 constexpr uint32_t kVerbTransitionDurMs = 500;
 
-/// Sparse verb face overrides sampled directly from authored timelines
-/// (`FACE_CONFIG_DATA.h::kVerbTimelines`). Returns an all-empty sample for
-/// non-verb expressions. Stateless.
+/// True for the six verb expressions that use `FaceConfig::kVerbTimelines`.
+bool expressionUsesVerbTimeline(Expression e);
+
+/// Sample keyframed verb face overrides from `FACE_CONFIG_DATA.h::kVerbTimelines`.
 void sampleVerbTimeline(Expression verb, uint32_t time_in_verb_ms, bool* hasField,
                         ParamI16* fieldVals);
 

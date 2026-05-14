@@ -22,24 +22,6 @@ static FaceParams sSmoothedEmotion;
 static FaceParams sLastRendered;
 static uint32_t sLastEmotionSmoothMs = 0;
 
-// Verb-vs-non-verb is decided inside `sampleEffectiveVerb`; the helper here
-// is retained only because other call-sites query "is this expression a verb"
-// for non-sampling reasons.
-static bool verbUsesTimeline(Expression s) {
-  switch (s) {
-    case Expression::VerbThinking:
-    case Expression::VerbReading:
-    case Expression::VerbWriting:
-    case Expression::VerbExecuting:
-    case Expression::VerbStraining:
-    case Expression::VerbSleeping:
-      return true;
-    default:
-      return false;
-  }
-}
-
-static uint32_t sNextBlinkMs = 0;
 static uint32_t sBlinkStartMs = 0;
 static bool sBlinkActive = false;
 
@@ -56,11 +38,7 @@ static float sWriteStreamAlpha = 0.0f;
 static uint32_t sLastEffectsMs = 0;
 static uint32_t sLastSettingsVersion = 0;
 
-static float sThinkFromSign = 1.0f;
-static float sThinkToSign = 1.0f;
-static uint32_t sThinkFlipStartMs = 0;
-static uint32_t sNextThinkFlipMs = 0;
-
+static uint32_t sNextBlinkMs = 0;
 static int16_t sIdleGlanceDx = 0;
 static int16_t sIdleGlanceDy = 0;
 static int16_t sIdleGlanceFromDx = 0;
@@ -261,31 +239,6 @@ static float currentBlinkAmount(uint32_t now, const FaceConfig::IdleAnimRow& idl
   return 0.0f;
 }
 
-static float currentThinkSign(uint32_t now) {
-  if (sThinkFlipStartMs == 0) return sThinkToSign;
-  const float t = (float)(now - sThinkFlipStartMs) / (float)animCfg().thinking_flip_dur_ms;
-  return sThinkFromSign + (sThinkToSign - sThinkFromSign) * smoothstep01(t);
-}
-
-static void resetThinkTilt(uint32_t now) {
-  sThinkFromSign = 1.0f;
-  sThinkToSign = 1.0f;
-  sThinkFlipStartMs = 0;
-  sNextThinkFlipMs =
-      now + (uint32_t)random((long)animCfg().thinking_flip_min_ms,
-                             (long)animCfg().thinking_flip_max_ms + 1);
-}
-
-static void maybeFlipThinkTilt(uint32_t now) {
-  if (sNextThinkFlipMs == 0 || now < sNextThinkFlipMs) return;
-  sThinkFromSign = currentThinkSign(now);
-  sThinkToSign = -sThinkFromSign;
-  sThinkFlipStartMs = now;
-  sNextThinkFlipMs =
-      now + animCfg().thinking_flip_dur_ms +
-      (uint32_t)random((long)animCfg().thinking_flip_min_ms, (long)animCfg().thinking_flip_max_ms + 1);
-}
-
 void begin() {
   randomSeed(esp_random());
 
@@ -309,11 +262,6 @@ void begin() {
   sNextBlinkMs = 0;
   sBlinkActive = false;
   sLastTickMs = 0;
-
-  sThinkFromSign = 1.0f;
-  sThinkToSign = 1.0f;
-  sThinkFlipStartMs = 0;
-  sNextThinkFlipMs = 0;
 
   sMoodR = (float)sSmoothedEmotion.ring_r.value;
   sMoodG = (float)sSmoothedEmotion.ring_g.value;
@@ -343,16 +291,8 @@ const FaceParams& baseTargetFor(Expression e) {
 }
 
 static void onExpressionChange(Expression newExpr, uint32_t now, const SceneContext& ctx) {
-  FaceParams currentFrame = sLastRendered;
-
   const bool hadOld = (sLastExprIdx >= 0);
   const Expression oldExpr = hadOld ? (Expression)(uint8_t)sLastExprIdx : Expression::VerbSleeping;
-
-  if (hadOld && oldExpr == Expression::VerbThinking && newExpr != Expression::VerbThinking) {
-    const float sign = currentThinkSign(now);
-    currentFrame.face_rot.value = (int16_t)((float)currentFrame.face_rot.value * sign);
-    currentFrame.pupil_dx.value = (int16_t)((float)currentFrame.pupil_dx.value * sign);
-  }
 
   if (hadOld && oldExpr == Expression::Happy && newExpr == Expression::Neutral) {
     sFadeReadCount = ctx.read_tools_this_turn;
@@ -369,10 +309,6 @@ static void onExpressionChange(Expression newExpr, uint32_t now, const SceneCont
   sBlinkActive = false;
   const FaceConfig::IdleAnimRow idleNew = idleFor(ctx, newExpr);
   scheduleNextBlink(idleNew, now);
-
-  if (newExpr == Expression::VerbThinking) {
-    resetThinkTilt(now);
-  }
 
   if (idleNew.gaze_style == FaceConfig::GazeStyle::IdleRandom) {
     sIdleGlanceFromDx = sIdleGlanceDx;
@@ -470,7 +406,7 @@ void tick(const SceneContext& ctx) {
   sMoodB += ((float)p.ring_b.value - sMoodB) * moodAlpha;
   sLastMoodMs = now;
 
-  if (sNow != Expression::Joyful && sNow != Expression::Gleeful &&
+  if (!expressionUsesVerbTimeline(sNow) && sNow != Expression::Joyful && sNow != Expression::Gleeful &&
       sNow != Expression::VerbSleeping) {
     const int16_t b = (int16_t)(breathPhase(now) * animCfg().breath_eye_amp_px);
     p.eye_dy.value = (int16_t)(p.eye_dy.value + b);
@@ -478,13 +414,6 @@ void tick(const SceneContext& ctx) {
   }
 
   p.face_y.value = (int16_t)(p.face_y.value + bodyBobFor(ctx, idle, now));
-
-  if (sNow == Expression::VerbThinking) {
-    maybeFlipThinkTilt(now);
-    const float sign = currentThinkSign(now);
-    p.face_rot.value = (int16_t)((float)p.face_rot.value * sign);
-    p.pupil_dx.value = (int16_t)((float)p.pupil_dx.value * sign);
-  }
 
   if (!sBlinkActive) {
     if (sNextBlinkMs == 0) {
@@ -501,7 +430,9 @@ void tick(const SceneContext& ctx) {
   }
 
   int16_t liveGdx = 0, liveGdy = 0;
-  gazeFor(idle, now, liveGdx, liveGdy);
+  if (!expressionUsesVerbTimeline(sNow)) {
+    gazeFor(idle, now, liveGdx, liveGdy);
+  }
   // Cross-fade gaze across the verb transition window so picking up a new
   // verb's gaze pattern (Orbit / ScanX / IdleRandom) doesn't snap.
   const float ttGaze = verbTransitionT(now);
