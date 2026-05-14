@@ -26,6 +26,7 @@ export function BlendPanel({
   setAutoSend,
   markBlendDirty,
   onBlendVaCommit,
+  onEmotionPointSelect,
 }: {
   fc: FrameController;
   blendOn: boolean;
@@ -37,6 +38,8 @@ export function BlendPanel({
   markBlendDirty: () => void;
   /** Called whenever V/A changes (pointer, sliders, numbers) — e.g. sync static sliders from blended params. */
   onBlendVaCommit: () => void;
+  /** User pressed on an emotion point (V/A anchor) — open emotion point inspector. */
+  onEmotionPointSelect?: (emotion: string) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dragRef = useRef<{ kind: DragKind; anchorIndex: number } | null>(null);
@@ -121,6 +124,11 @@ export function BlendPanel({
           </label>
         </div>
       </h3>
+      <p className="mb-1.5 text-[0.78em] text-face-muted">
+        Coloured rings are <strong className="font-semibold text-face-text">emotion points</strong>{" "}
+        (V/A anchors). Drag empty space for blend cursor; drag a ring to move that point. Click a
+        ring to open the emotion point inspector.
+      </p>
 
       <div
         className={
@@ -149,6 +157,8 @@ export function BlendPanel({
               if (hit !== null) {
                 dragRef.current = { kind: "anchor", anchorIndex: hit };
                 el.style.cursor = "grabbing";
+                const em = tri.anchors[hit]?.emotion;
+                if (em) onEmotionPointSelect?.(em);
               } else {
                 dragRef.current = { kind: "va", anchorIndex: -1 };
                 const [v, a] = canvasClientToVa(
@@ -187,7 +197,6 @@ export function BlendPanel({
                   }
                   retriangulateEmotionAnchors(tri);
                   redraw();
-                  onBlendVaCommit();
                   markBlendDirty();
                 } else if (d?.kind === "va") {
                   const [v, a] = canvasClientToVa(

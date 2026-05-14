@@ -13,7 +13,6 @@ import {
   MotionMode,
   type IdleAnimRow,
   type ParamI16,
-  kBaseTargets,
   kFrameAnim,
   kIdleAnim,
   kMotion,
@@ -22,6 +21,7 @@ import {
 } from "./FACE_CONFIG_DATA";
 import { EMOTION_TRIANGULATION } from "./emotionTriangulation";
 import { cloneMutableEmotionTriangulation } from "./emotionTriangulationLive";
+import { cloneMutableBaseTargets } from "./mutableBaseTargets";
 import {
   PARAM_FIELDS,
   faceParamsFromIndexed,
@@ -194,7 +194,11 @@ export interface FrameController {
   onExpressionChange(fn: (name: string) => void): void;
   params(): FaceParams;
   paramFields(): ParamField[];
+  /** Shipped preset row (ignores editor mutations to live base targets). */
   baseTargetForExpression(name: string): FaceParams;
+  /** Current editor-local base row as `FaceParams` (mutable copy). */
+  liveBaseFaceParams(name: string): FaceParams;
+  patchLiveBaseFaceParams(name: string, partial: Partial<FaceParams>): void;
   setStaticMode(on: boolean): void;
   isStatic(): boolean;
   setBlendMode(on: boolean): void;
@@ -230,8 +234,10 @@ export function createFrameController(
   const liveTriangulation =
     opts?.triangulation ??
     cloneMutableEmotionTriangulation(EMOTION_TRIANGULATION);
+  const liveBaseTargets = cloneMutableBaseTargets();
   const emotionBlend = createEmotionBlend({
     triangulation: liveTriangulation as EmotionTriangulationTable,
+    baseTargets: liveBaseTargets,
   });
 
   const settings = createRobotSettings();
@@ -239,8 +245,8 @@ export function createFrameController(
 
   const animCfg = () => kFrameAnim;
 
-  let sSmoothed: ParamI16[] = cloneFaceParamsIndexed(kBaseTargets[0]!);
-  let sLastRendered: ParamI16[] = cloneFaceParamsIndexed(kBaseTargets[0]!);
+  let sSmoothed: ParamI16[] = cloneFaceParamsIndexed(liveBaseTargets[0]!);
+  let sLastRendered: ParamI16[] = cloneFaceParamsIndexed(liveBaseTargets[0]!);
   let sLastEmotionSmoothMs = 0;
 
   let sNextBlinkMs = 0;
@@ -684,7 +690,7 @@ export function createFrameController(
     const settingsVersion = settings.version();
     if (settingsVersion !== sLastSettingsVersion) {
       sLastSettingsVersion = settingsVersion;
-      const tgt = kBaseTargets[exprIdx]!;
+      const tgt = liveBaseTargets[exprIdx]!;
       if (tgt) smoothFaceValuesToward(sSmoothed, tgt, 1.0);
       const flat = faceParamsFromIndexed(sSmoothed);
       sMoodR = flat.ring_r;
@@ -718,7 +724,7 @@ export function createFrameController(
     const emoAlpha =
       1.0 - Math.exp(-emoDt / animCfg().emotion_geometry_smooth_tau_ms);
 
-    const targetRow: ParamI16[] | null = [...kBaseTargets[exprIdx]!];
+    const targetRow: ParamI16[] | null = [...liveBaseTargets[exprIdx]!];
     if (targetRow) {
       smoothFaceValuesToward(sSmoothed, targetRow, emoAlpha);
     }
@@ -942,8 +948,8 @@ export function createFrameController(
       sprite = new TFTSprite(240, 240);
       outputCanvas = canvas;
       resetVerbTransition();
-      sSmoothed = cloneFaceParamsIndexed(kBaseTargets[0]!);
-      sLastRendered = cloneFaceParamsIndexed(kBaseTargets[0]!);
+      sSmoothed = cloneFaceParamsIndexed(liveBaseTargets[0]!);
+      sLastRendered = cloneFaceParamsIndexed(liveBaseTargets[0]!);
       sLastExprIdx = -1;
       sLastTickMs = 0;
       sLastEmotionSmoothMs = 0;
@@ -993,6 +999,21 @@ export function createFrameController(
 
     baseTargetForExpression(name: string): FaceParams {
       return presetTargetForExpression(name);
+    },
+
+    liveBaseFaceParams(name: string): FaceParams {
+      const i = expressionIndexFromName(name);
+      const row = liveBaseTargets[i];
+      if (!row) return { ...faceParamsFromIndexed(liveBaseTargets[0]!) };
+      return { ...faceParamsFromIndexed(row) };
+    },
+
+    patchLiveBaseFaceParams(name: string, partial: Partial<FaceParams>): void {
+      const i = expressionIndexFromName(name);
+      const row = liveBaseTargets[i];
+      if (!row) return;
+      const cur = faceParamsFromIndexed(row);
+      liveBaseTargets[i] = indexedFromFaceParams({ ...cur, ...partial });
     },
 
     setStaticMode(on: boolean): void {

@@ -247,6 +247,8 @@ function blendIdleThree(
 
 export interface EmotionBlendDeps {
   triangulation: EmotionTriangulationTable;
+  /** When set, blend geometry rows come from this table (same shape as `kBaseTargets`). */
+  baseTargets?: readonly (readonly ParamI16[])[];
 }
 
 export interface EmotionBlendApi {
@@ -260,6 +262,7 @@ export interface EmotionBlendApi {
 
 export function createEmotionBlend(deps: EmotionBlendDeps): EmotionBlendApi {
   const { triangulation: t } = deps;
+  const baseTable = deps.baseTargets ?? kBaseTargets;
 
   function ready(): boolean {
     return !!(t && Array.isArray(t.anchors) && Array.isArray(t.triangles));
@@ -311,7 +314,8 @@ export function createEmotionBlend(deps: EmotionBlendDeps): EmotionBlendApi {
 
   function baseRowForAnchorEmotion(emotion: string): readonly ParamI16[] {
     const idx = expressionIndexFromName(emotion);
-    return kBaseTargets[idx]!;
+    if (idx < 0 || idx >= baseTable.length) return kBaseTargets[0]!;
+    return baseTable[idx]!;
   }
 
   function armPresetForExpressionIndex(exIdx: number): ArmPreset {

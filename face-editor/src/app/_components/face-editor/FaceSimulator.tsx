@@ -2,11 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFrameController } from "../../_lib/face-engine/frameController";
-import type { FaceParams, ParamField } from "../../_lib/face-engine/faceParams";
+import {
+  PARAM_FIELDS,
+  type FaceParams,
+  type ParamField,
+} from "../../_lib/face-engine/faceParams";
 import { formatKBaseTargetsCpp } from "../../_lib/face-editor/cppRowFormat";
 import { postRaw } from "../../_lib/face-editor/bridge";
 import { OVERLAY_MAP } from "../../_lib/face-editor/simulatorLayout";
 import { BlendPanel } from "./BlendPanel";
+import { EmotionPointInspector } from "./EmotionPointInspector";
 import { ExpressionPickers, handleExpressionBridge } from "./ExpressionPickers";
 import { FaceStage } from "./FaceStage";
 import { LiveParamsReadout } from "./LiveParamsReadout";
@@ -17,7 +22,7 @@ export function FaceSimulator() {
   const faceCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const [currentExpr, setCurrentExpr] = useState(fc.currentExpression());
-  const [blendOn, setBlendOn] = useState(false);
+  const [blendOn, setBlendOn] = useState(true);
   const [staticOn, setStaticOn] = useState(false);
   const [autoSend, setAutoSend] = useState(false);
   const [overlayMs, setOverlayMs] = useState(1200);
@@ -34,6 +39,17 @@ export function FaceSimulator() {
   }));
 
   const blendSendDirty = useRef(false);
+  const inspectorSendDirty = useRef(false);
+  const inspectorLiveRef = useRef<{
+    emotion: string;
+    params: FaceParams;
+  } | null>(null);
+
+  const [inspectorEmotion, setInspectorEmotion] = useState<string | null>(null);
+  const [inspectorParams, setInspectorParams] = useState<FaceParams | null>(
+    null,
+  );
+  const [inspectorSendLive, setInspectorSendLive] = useState(false);
 
   useEffect(() => {
     const canvas = faceCanvasRef.current;
@@ -118,6 +134,45 @@ export function FaceSimulator() {
     return () => clearInterval(id);
   }, [blendOn, autoSend, fc]);
 
+  useEffect(() => {
+    if (inspectorEmotion && inspectorParams) {
+      inspectorLiveRef.current = {
+        emotion: inspectorEmotion,
+        params: inspectorParams,
+      };
+    } else {
+      inspectorLiveRef.current = null;
+    }
+  }, [inspectorEmotion, inspectorParams]);
+
+  useEffect(() => {
+    if (!blendOn || staticOn) {
+      setInspectorEmotion(null);
+      setInspectorParams(null);
+      setInspectorSendLive(false);
+    }
+  }, [blendOn, staticOn]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (!inspectorSendDirty.current) return;
+      inspectorSendDirty.current = false;
+      if (!inspectorSendLive || !blendOn) return;
+      const cur = inspectorLiveRef.current;
+      if (!cur) return;
+      void postRaw("/api/raw/face/live-base-row", {
+        expression: cur.emotion,
+        values: PARAM_FIELDS.map((f) => cur.params[f]),
+      });
+    }, 100);
+    return () => clearInterval(id);
+  }, [inspectorSendLive, blendOn]);
+
+  const onEmotionPointSelect = useCallback((emotion: string) => {
+    setInspectorEmotion(emotion);
+    setInspectorParams({ ...fc.liveBaseFaceParams(emotion) });
+  }, [fc]);
+
   function markBlendDirty(): void {
     blendSendDirty.current = true;
   }
@@ -152,6 +207,15 @@ export function FaceSimulator() {
     refreshCopyOutput();
   }, [blendOn, fc, refreshCopyOutput]);
 
+  /** Keep `fc` blend flag in sync with React (checkbox alone only updates on user click). */
+  useEffect(() => {
+    fc.setBlendMode(blendOn);
+    if (blendOn) {
+      syncStaticSlidersFromBlendedParams();
+      markBlendDirty();
+    }
+  }, [fc, blendOn, syncStaticSlidersFromBlendedParams]);
+
   useEffect(() => {
     refreshCopyOutput();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot after mount
@@ -182,15 +246,10 @@ export function FaceSimulator() {
 
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-0 text-face-text">
-      <h1 className="my-2 text-xl">Face Simulator — v3</h1>
-      <p className="mb-4 text-sm text-face-muted">
-        Browser preview of robot_v3 face renderer + frame controller. Pick an
-        expression to drive the tween, or use Static mode to tune FaceParams.
-        The C++ row is paste-ready for kBaseTargets[].
-      </p>
+      <h1 className="my-2 text-[24px] font-mono font-semibold">Face Editor</h1>
 
-      <div className="grid grid-cols-1 items-start gap-6 min-[881px]:grid-cols-4">
-        <div>
+      <div className="grid grid-cols-1 items-start gap-0 min-[881px]:grid-cols-12">
+        <div className="col-span-2">
           <ExpressionPickers
             expressions={expressions}
             currentExpr={currentExpr}
@@ -204,7 +263,7 @@ export function FaceSimulator() {
           {/* <LiveParamsReadout text={paramsText} /> */}
         </div>
 
-        <div className="col-span-2">
+        <div className="col-span-6">
           <FaceStage
             canvasRef={faceCanvasRef}
             currentExpr={currentExpr}
@@ -221,23 +280,38 @@ export function FaceSimulator() {
             setAutoSend={setAutoSend}
             markBlendDirty={markBlendDirty}
             onBlendVaCommit={syncStaticSlidersFromBlendedParams}
+            onEmotionPointSelect={onEmotionPointSelect}
           />
         </div>
-        <div>
-          <StaticModePanel
-            fc={fc}
-            expressions={expressions}
-            blendOn={blendOn}
-            setBlendOn={setBlendOn}
-            staticOn={staticOn}
-            setStaticOn={setStaticOn}
-            staticPreset={staticPreset}
-            setStaticPreset={setStaticPreset}
-            sliderSnap={sliderSnap}
-            setSliderSnap={setSliderSnap}
-            copyOut={copyOut}
-            refreshCopyOutput={refreshCopyOutput}
-          />
+        <div className="col-span-4">
+          {(inspectorEmotion && inspectorParams) ? (
+            <EmotionPointInspector
+                fc={fc}
+                emotion={inspectorEmotion}
+                params={inspectorParams}
+                onParamsChange={(next) => setInspectorParams(next)}
+                onDirty={() => {
+                  inspectorSendDirty.current = true;
+                }}
+                sendLive={inspectorSendLive}
+                setSendLive={setInspectorSendLive}
+              />
+          ) : (
+            <StaticModePanel
+              fc={fc}
+              expressions={expressions}
+              blendOn={blendOn}
+              setBlendOn={setBlendOn}
+              staticOn={staticOn}
+              setStaticOn={setStaticOn}
+              staticPreset={staticPreset}
+              setStaticPreset={setStaticPreset}
+              sliderSnap={sliderSnap}
+              setSliderSnap={setSliderSnap}
+              copyOut={copyOut}
+              refreshCopyOutput={refreshCopyOutput}
+            />
+          )}
         </div>
       </div>
     </div>

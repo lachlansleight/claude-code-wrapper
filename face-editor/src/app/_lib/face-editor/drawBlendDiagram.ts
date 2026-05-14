@@ -104,6 +104,7 @@ export function drawBlendDiagram(
   }
 
   const labelLift = BLEND_ANCHOR_RING_R + 8;
+  const labelPadX = 4;
   for (const an of data.anchors) {
     const [x, y] = vaToCanvas(an.v, an.a, w, h);
     const col = EMOTION_COLOR[an.emotion] || "#e6e8ee";
@@ -114,9 +115,16 @@ export function drawBlendDiagram(
     ctx.stroke();
     ctx.fillStyle = col;
     ctx.font = "10px ui-monospace, monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    ctx.fillText(an.emotion, x, y - labelLift);
+    const inBottomHalf = y > h * 0.5;
+    const inRightHalf = x > w * 0.5;
+    ctx.textAlign = inRightHalf ? "right" : "left";
+    if (inBottomHalf) {
+      ctx.textBaseline = "bottom";
+      ctx.fillText(an.emotion, inRightHalf ? x - labelPadX : x + labelPadX, y - labelLift);
+    } else {
+      ctx.textBaseline = "top";
+      ctx.fillText(an.emotion, inRightHalf ? x - labelPadX : x + labelPadX, y + labelLift);
+    }
   }
 
   const [px, py] = vaToCanvas(va.v, va.a, w, h);
