@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { buildFaceConfigStateFromSource } from "../../_lib/face-engine/mutableFaceConfig";
+import { loadFaceConfigFromDisk } from "../../_lib/face-config-codegen";
+import { repoRootFromCwd } from "../../_lib/face-config-codegen/paths";
 import type { FaceConfigState } from "../../_lib/face-engine/faceConfigState";
 
 export const runtime = "nodejs";
@@ -10,7 +11,7 @@ export type LoadFaceConfigResponse =
 
 export async function GET(): Promise<NextResponse<LoadFaceConfigResponse>> {
     try {
-        const config = buildFaceConfigStateFromSource();
+        const config = loadFaceConfigFromDisk(repoRootFromCwd());
         return NextResponse.json({ ok: true, config });
     } catch (e) {
         const message = e instanceof Error ? e.message : String(e);

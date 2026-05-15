@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { FrameController } from "../../_lib/face-engine/frameController";
 import type { FaceParams, ParamField } from "../../_lib/face-engine/faceParams";
+import { emotionVA } from "../../_lib/face-editor/simulatorBlendShared";
 import { EMOTION_COLOR } from "../../_lib/face-editor/simulatorLayout";
 import { ParamSliderGrid } from "./ParamSliderGrid";
 import Panel from "./atoms/Panel";
@@ -29,6 +30,7 @@ export function EmotionPointInspector({
     setSendLive: (v: boolean) => void;
 }) {
     const [sliderMode, setSliderMode] = useState<"value" | "strength">("value");
+    const { v, a } = emotionVA(emotion, fc.emotionTriangulation());
 
     return (
         <>
@@ -41,15 +43,10 @@ export function EmotionPointInspector({
                 {emotion}
             </h3>
             <Panel>
-                <label className="mb-2 flex cursor-pointer items-center gap-2 text-[0.85em] font-semibold text-face-muted">
-                    <input
-                        type="checkbox"
-                        checked={sendLive}
-                        onChange={e => setSendLive(e.target.checked)}
-                    />
-                    Send live (robot) — POST /api/raw/face/live-base-row when values change
-                </label>
-
+                <div className="mb-2 flex justify-center gap-6 text-sm font-mono text-face-muted">
+                    <span>valence {v.toFixed(2)}</span>
+                    <span>arousal {a.toFixed(2)}</span>
+                </div>
                 <ParamSliderGrid
                     sliderMode={sliderMode}
                     onSliderModeChange={setSliderMode}

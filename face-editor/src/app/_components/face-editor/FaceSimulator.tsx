@@ -31,6 +31,7 @@ import { StaticModePanel } from "./StaticModePanel";
 import { VerbTimelinePanel, type VerbTimelineName } from "./VerbTimelinePanel";
 import { VerbButtons } from "./VerbButtons";
 import PanelModeSwitcher from "./PanelModeSwitcher";
+import { SaveFaceConfigButton } from "./SaveFaceConfigButton";
 
 export function FaceSimulator() {
     const [faceConfig, setFaceConfig] = useState<FaceConfigState | null>(null);
@@ -512,6 +513,7 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
         <div className="mx-auto max-w-[1600px] px-4 py-0 text-face-text">
             <div className="grid grid-cols-1 items-start gap-0 min-[881px]:grid-cols-12">
                 <div className="col-span-3">
+                    <SaveFaceConfigButton fc={fc} />
                     <PanelModeSwitcher
                         mode={simulatorMode}
                         setMode={m => {
