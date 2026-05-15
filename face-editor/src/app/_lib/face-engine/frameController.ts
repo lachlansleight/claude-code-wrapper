@@ -389,8 +389,7 @@ export function createFrameController(
 
     switch (idle.gaze_style) {
       case GazeStyle.IdleRandom: {
-        const moveMs =
-          idle.gaze_move_ms || animCfg().default_gaze_move_ms;
+        const moveMs = idle.gaze_move_ms || animCfg().default_gaze_move_ms;
         if (sIdleGlanceStartMs !== 0) {
           const u = smoothstep01((t - sIdleGlanceStartMs) / moveMs);
           gdx = lerpi16(sIdleGlanceFromDx, sIdleGlanceDx, u);
@@ -598,8 +597,7 @@ export function createFrameController(
       sArmLogicLastMs === 0 ? 0 : Math.min(0.5, (t - sArmLogicLastMs) / 1000);
     sArmLogicLastMs = t;
 
-    const armDriverEmotion =
-      sBlendMode || isEmotionExpressionIndex(exprIdx);
+    const armDriverEmotion = sBlendMode || isEmotionExpressionIndex(exprIdx);
     if (armDriverEmotion && !sPrevArmDriverEmotion) {
       resetEmotionArmPhase();
     }
@@ -615,9 +613,7 @@ export function createFrameController(
       const an = liveTriangulation.anchors.find(
         (x) => expressionIndexFromName(x.emotion) === exprIdx,
       );
-      const arm = an
-        ? emotionBlend.blendedEmotionArmMotion(an.v, an.a)
-        : null;
+      const arm = an ? emotionBlend.blendedEmotionArmMotion(an.v, an.a) : null;
       sCurrentArmDeg = arm ? tickEmotionArm(dt, arm) : 0;
       return;
     }
@@ -644,7 +640,12 @@ export function createFrameController(
       outputCanvas.height,
     );
     if (!sStaticMode) {
-      drawArmOverlay(octx, outputCanvas.width, outputCanvas.height, sCurrentArmDeg);
+      drawArmOverlay(
+        octx,
+        outputCanvas.width,
+        outputCanvas.height,
+        sCurrentArmDeg,
+      );
     }
   }
 
@@ -763,10 +764,13 @@ export function createFrameController(
       }
     }
     const verbHas: boolean[] = new Array(FieldIndex.Count).fill(false);
-    const verbVals: ParamI16[] = Array.from({ length: FieldIndex.Count }, () => ({
-      value: 0,
-      strength: 0,
-    }));
+    const verbVals: ParamI16[] = Array.from(
+      { length: FieldIndex.Count },
+      () => ({
+        value: 0,
+        strength: 0,
+      }),
+    );
     sampleEffectiveVerb(
       exprEnum,
       t,
@@ -797,9 +801,7 @@ export function createFrameController(
       pFlat = {
         ...pFlat,
         eye_dy: Math.round(pFlat.eye_dy + b),
-        mouth_dy: Math.round(
-          pFlat.mouth_dy + b * animCfg().breath_mouth_scale,
-        ),
+        mouth_dy: Math.round(pFlat.mouth_dy + b * animCfg().breath_mouth_scale),
       };
     }
 
@@ -917,10 +919,13 @@ export function createFrameController(
     smoothFaceValuesToward(sSmoothed, blended, 1.0);
 
     const verbHas: boolean[] = new Array(FieldIndex.Count).fill(false);
-    const verbVals: ParamI16[] = Array.from({ length: FieldIndex.Count }, () => ({
-      value: 0,
-      strength: 0,
-    }));
+    const verbVals: ParamI16[] = Array.from(
+      { length: FieldIndex.Count },
+      () => ({
+        value: 0,
+        strength: 0,
+      }),
+    );
     sampleEffectiveVerb(
       Expression.Count,
       t,
@@ -949,17 +954,14 @@ export function createFrameController(
       pFlat = {
         ...pFlat,
         eye_dy: Math.round(pFlat.eye_dy + b),
-        mouth_dy: Math.round(
-          pFlat.mouth_dy + b * animCfg().breath_mouth_scale,
-        ),
+        mouth_dy: Math.round(pFlat.mouth_dy + b * animCfg().breath_mouth_scale),
       };
     }
 
     pFlat = {
       ...pFlat,
       face_y: Math.round(
-        pFlat.face_y +
-          bodyBobFor(exprIdx, idle, t, true, sBlendV, sBlendA),
+        pFlat.face_y + bodyBobFor(exprIdx, idle, t, true, sBlendV, sBlendA),
       ),
     };
 
@@ -1113,7 +1115,9 @@ export function createFrameController(
       return liveVerbTimelines;
     },
 
-    setVerbTimelinePreview(p: { verb: Expression; timeMs: number } | null): void {
+    setVerbTimelinePreview(
+      p: { verb: Expression; timeMs: number } | null,
+    ): void {
       sVerbTimelinePreview = p;
     },
 

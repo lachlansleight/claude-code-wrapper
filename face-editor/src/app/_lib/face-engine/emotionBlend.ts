@@ -42,18 +42,14 @@ function blendParam3(
   const wc = lc * c.strength;
   const W = wa + wb + wc;
   if (W > 1e-6) {
-    const value = Math.round(
-      (wa * a.value + wb * b.value + wc * c.value) / W,
-    );
+    const value = Math.round((wa * a.value + wb * b.value + wc * c.value) / W);
     let strength = Math.round(
       la * a.strength + lb * b.strength + lc * c.strength,
     );
     if (strength > 100) strength = 100;
     return { value, strength };
   }
-  const value = Math.round(
-    la * a.value + lb * b.value + lc * c.value,
-  );
+  const value = Math.round(la * a.value + lb * b.value + lc * c.value);
   return { value, strength: 0 };
 }
 
@@ -142,7 +138,14 @@ function blendIdleThree(
       ),
     ),
     blink_close_ms: Math.round(
-      blendFloat(A.blink_close_ms, B.blink_close_ms, C.blink_close_ms, la, lb, lc),
+      blendFloat(
+        A.blink_close_ms,
+        B.blink_close_ms,
+        C.blink_close_ms,
+        la,
+        lb,
+        lc,
+      ),
     ),
     blink_open_ms: Math.round(
       blendFloat(A.blink_open_ms, B.blink_open_ms, C.blink_open_ms, la, lb, lc),
@@ -166,8 +169,7 @@ function blendIdleThree(
   if (allBobHeur) {
     r.bob_amplitude_px = BOB_AMP_FOLLOW_EMOTION_ARM;
   } else {
-    const nz = (x: number) =>
-      x === BOB_AMP_FOLLOW_EMOTION_ARM ? 0.0 : x;
+    const nz = (x: number) => (x === BOB_AMP_FOLLOW_EMOTION_ARM ? 0.0 : x);
     r.bob_amplitude_px = Math.round(
       blendFloat(
         nz(A.bob_amplitude_px),
@@ -179,7 +181,14 @@ function blendIdleThree(
       ),
     );
   }
-  r.gaze_style = winningGazeStyle(A.gaze_style, B.gaze_style, C.gaze_style, la, lb, lc);
+  r.gaze_style = winningGazeStyle(
+    A.gaze_style,
+    B.gaze_style,
+    C.gaze_style,
+    la,
+    lb,
+    lc,
+  );
   r.gaze_move_ms = Math.round(
     blendFloat(A.gaze_move_ms, B.gaze_move_ms, C.gaze_move_ms, la, lb, lc),
   );
@@ -333,9 +342,7 @@ export function createEmotionBlend(deps: EmotionBlendDeps): EmotionBlendApi {
   ): ParamI16[] {
     const out: ParamI16[] = [];
     for (let i = 0; i < FieldIndex.Count; ++i) {
-      out.push(
-        blendParam3(A[i]!, B[i]!, C[i]!, la, lb, lc),
-      );
+      out.push(blendParam3(A[i]!, B[i]!, C[i]!, la, lb, lc));
     }
     return out;
   }
@@ -401,7 +408,10 @@ export function createEmotionBlend(deps: EmotionBlendDeps): EmotionBlendApi {
     );
   }
 
-  function blendedEmotionArmMotion(v: number, a: number): EmotionArmMotion | null {
+  function blendedEmotionArmMotion(
+    v: number,
+    a: number,
+  ): EmotionArmMotion | null {
     if (!ready()) return null;
     v = clampf(v, -1, 1);
     a = clampf(a, 0, 1);

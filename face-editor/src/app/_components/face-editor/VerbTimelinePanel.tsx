@@ -106,10 +106,7 @@ export function VerbTimelinePanel({
       if (rect.width <= 0) return 0;
       const u = (clientX - rect.left) / rect.width;
       const raw = u * displayMs;
-      return snapVerbPlayheadMs(
-        Math.max(0, Math.min(displayMs, raw)),
-        loopMs,
-      );
+      return snapVerbPlayheadMs(Math.max(0, Math.min(displayMs, raw)), loopMs);
     },
     [displayMs, loopMs],
   );
@@ -174,9 +171,7 @@ export function VerbTimelinePanel({
           <select
             className="rounded border border-face-border bg-face-panel px-2 py-1 font-mono text-face-text"
             value={selectedVerb}
-            onChange={(e) =>
-              onVerbChange(e.target.value as VerbTimelineName)
-            }
+            onChange={(e) => onVerbChange(e.target.value as VerbTimelineName)}
           >
             {VERB_TIMELINE_NAMES.map((n) => (
               <option key={n} value={n}>
@@ -210,19 +205,17 @@ export function VerbTimelinePanel({
           · view {displayMs}ms
         </span>
         <span className="text-face-muted hidden sm:inline">·</span>
-        <span className="text-[0.78em] text-face-muted">
-          rev {timelineRev}
-        </span>
+        <span className="text-[0.78em] text-face-muted">rev {timelineRev}</span>
       </div>
 
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
         <button
-            type="button"
-            className="rounded border border-face-border bg-face-panel px-2 py-1 text-xs font-inherit text-face-text hover:bg-face-panel-2"
-            onClick={onJumpToStart}
-          >
-            <FaFastBackward />
-          </button>
+          type="button"
+          className="rounded border border-face-border bg-face-panel px-2 py-1 text-xs font-inherit text-face-text hover:bg-face-panel-2"
+          onClick={onJumpToStart}
+        >
+          <FaFastBackward />
+        </button>
         {playSpeed === 0 ? (
           <button
             type="button"
@@ -373,7 +366,8 @@ export function VerbTimelinePanel({
                     transform: "translateX(-50%)",
                   }}
                 >
-                  {(kind === "major") || (kind === "half" && rulerTicks.length < 20) ? (
+                  {kind === "major" ||
+                  (kind === "half" && rulerTicks.length < 20) ? (
                     <span className="absolute left-1/2 top-0 -translate-x-1/2 font-mono text-[10px] tabular-nums leading-none text-face-muted">
                       {t}
                     </span>

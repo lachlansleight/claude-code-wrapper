@@ -22,21 +22,23 @@ export function cloneMutableEmotionTriangulation(
       a: a.a,
       emotion: a.emotion,
     })),
-    triangles: src.triangles.map((t) => [
-      t[0]!,
-      t[1]!,
-      t[2]!,
-    ]),
+    triangles: src.triangles.map((t) => [t[0]!, t[1]!, t[2]!]),
   };
 }
 
 /** Replaces `tri.triangles` with a Delaunay triangulation of current anchor V/A. */
-export function retriangulateEmotionAnchors(tri: MutableEmotionTriangulation): void {
+export function retriangulateEmotionAnchors(
+  tri: MutableEmotionTriangulation,
+): void {
   if (tri.anchors.length < 3) {
     tri.triangles.length = 0;
     return;
   }
-  const d = Delaunator.from(tri.anchors, (p) => p.v, (p) => p.a);
+  const d = Delaunator.from(
+    tri.anchors,
+    (p) => p.v,
+    (p) => p.a,
+  );
   const next: [number, number, number][] = [];
   for (let i = 0; i < d.triangles.length; i += 3) {
     next.push([d.triangles[i]!, d.triangles[i + 1]!, d.triangles[i + 2]!]);

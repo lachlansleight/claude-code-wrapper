@@ -29,10 +29,7 @@ import { ExpressionPickers, handleExpressionBridge } from "./ExpressionPickers";
 import { FaceStage } from "./FaceStage";
 import { KeyframeInspector } from "./KeyframeInspector";
 import { StaticModePanel } from "./StaticModePanel";
-import {
-  VerbTimelinePanel,
-  type VerbTimelineName,
-} from "./VerbTimelinePanel";
+import { VerbTimelinePanel, type VerbTimelineName } from "./VerbTimelinePanel";
 import PanelModeSwitcher from "./PanelModeSwitcher";
 
 export function FaceSimulator() {
@@ -384,10 +381,13 @@ export function FaceSimulator() {
     return () => clearInterval(id);
   }, [inspectorSendLive, blendOn]);
 
-  const onEmotionPointSelect = useCallback((emotion: string) => {
-    setInspectorEmotion(emotion);
-    setInspectorParams({ ...fc.liveBaseFaceParams(emotion) });
-  }, [fc]);
+  const onEmotionPointSelect = useCallback(
+    (emotion: string) => {
+      setInspectorEmotion(emotion);
+      setInspectorParams({ ...fc.liveBaseFaceParams(emotion) });
+    },
+    [fc],
+  );
 
   function markBlendDirty(): void {
     blendSendDirty.current = true;
@@ -469,17 +469,17 @@ export function FaceSimulator() {
     <div className="mx-auto max-w-[1600px] px-4 py-0 text-face-text">
       <div className="grid grid-cols-1 items-start gap-0 min-[881px]:grid-cols-12">
         <div className="col-span-2">
-        <PanelModeSwitcher
-              mode={simulatorMode}
-              setMode={m => {
-                if(m === "blend") {
-                  setModeBlend();
-                }
-                if(m === "verbTimeline") {
-                  setModeVerbTimeline();
-                }
-              }}
-            />
+          <PanelModeSwitcher
+            mode={simulatorMode}
+            setMode={(m) => {
+              if (m === "blend") {
+                setModeBlend();
+              }
+              if (m === "verbTimeline") {
+                setModeVerbTimeline();
+              }
+            }}
+          />
           {/* <ExpressionPickers
             expressions={expressions}
             currentExpr={currentExpr}
@@ -489,7 +489,6 @@ export function FaceSimulator() {
             onOverlayClick={onOverlayClick}
             onClearVerb={onClearVerb}
           /> */}
-
 
           {/* <LiveParamsReadout text={paramsText} /> */}
         </div>

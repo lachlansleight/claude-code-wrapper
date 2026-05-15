@@ -40,7 +40,8 @@ export function EmotionPointInspector({
             checked={sendLive}
             onChange={(e) => setSendLive(e.target.checked)}
           />
-          Send live (robot) — POST /api/raw/face/live-base-row when values change
+          Send live (robot) — POST /api/raw/face/live-base-row when values
+          change
         </label>
 
         <ParamSliderGrid

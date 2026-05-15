@@ -4,7 +4,10 @@ import {
   kVerbKeyframeOverridesMax,
   kVerbKeyframesMax,
 } from "./FACE_CONFIG_DATA";
-import type { MutableVerbKeyframe, MutableVerbTimeline } from "./mutableVerbTimelines";
+import type {
+  MutableVerbKeyframe,
+  MutableVerbTimeline,
+} from "./mutableVerbTimelines";
 
 /** Quantize verb playhead / keyframe authoring to render ticks (matches typical frame step). */
 export const VERB_PLAYHEAD_QUANT_MS = 60;

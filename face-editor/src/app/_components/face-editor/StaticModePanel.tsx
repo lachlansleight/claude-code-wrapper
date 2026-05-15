@@ -75,7 +75,7 @@ export function StaticModePanel({
         </label>
       </h3>
 
-        <Panel disabled={!staticOn}>
+      <Panel disabled={!staticOn}>
         <div className="my-2 flex flex-wrap items-center gap-2">
           <button
             type="button"

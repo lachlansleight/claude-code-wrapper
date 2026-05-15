@@ -1,8 +1,5 @@
 import type { ParamField } from "../face-engine/faceParams";
-import {
-  PARAM_UI_SECTIONS,
-  paramFieldLabel,
-} from "../face-engine/faceParams";
+import { PARAM_UI_SECTIONS, paramFieldLabel } from "../face-engine/faceParams";
 
 export type SliderRowDef = [
   field: string,

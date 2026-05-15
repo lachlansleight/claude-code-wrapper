@@ -33,16 +33,19 @@ export function KeyframeInspector({
         {verbName} · keyframes
       </h3>
       <p className="mb-1.5 text-[0.78em] text-face-muted">
-        Sliders reflect the rendered face at the playhead. Green rows match overrides
-        on the selected keyframe. Drag to edit at the playhead, add on the selection, or
-        create a keyframe at the playhead.
+        Sliders reflect the rendered face at the playhead. Green rows match
+        overrides on the selected keyframe. Drag to edit at the playhead, add on
+        the selection, or create a keyframe at the playhead.
       </p>
       <Panel>
         <ParamSliderGrid
           params={params}
           highlightFields={highlightFields}
           removeColumn={{
-            removeableFields: tab !== undefined && selectedKeyframeIndex !== null ? highlightFields : new Set(),
+            removeableFields:
+              tab !== undefined && selectedKeyframeIndex !== null
+                ? highlightFields
+                : new Set(),
             onRemove: (field) => {
               if (!tab) return;
               if (selectedKeyframeIndex === null) return;
@@ -52,7 +55,7 @@ export function KeyframeInspector({
                 fieldIndexFromParamField(field),
               );
               onTimelineMutated();
-            }
+            },
           }}
           onFieldChange={(field, v) => {
             if (!tab) return;

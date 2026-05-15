@@ -120,10 +120,18 @@ export function drawBlendDiagram(
     ctx.textAlign = inRightHalf ? "right" : "left";
     if (inBottomHalf) {
       ctx.textBaseline = "bottom";
-      ctx.fillText(an.emotion, inRightHalf ? x - labelPadX : x + labelPadX, y - labelLift);
+      ctx.fillText(
+        an.emotion,
+        inRightHalf ? x - labelPadX : x + labelPadX,
+        y - labelLift,
+      );
     } else {
       ctx.textBaseline = "top";
-      ctx.fillText(an.emotion, inRightHalf ? x - labelPadX : x + labelPadX, y + labelLift);
+      ctx.fillText(
+        an.emotion,
+        inRightHalf ? x - labelPadX : x + labelPadX,
+        y + labelLift,
+      );
     }
   }
 
@@ -152,9 +160,7 @@ export function computeBlendMetaHtml(
   tri: EmotionTriangulationTable,
 ): string {
   const va = fc.blendVA();
-  const foundTri = blendApi.ready()
-    ? blendApi.findTriangle(va.v, va.a)
-    : null;
+  const foundTri = blendApi.ready() ? blendApi.findTriangle(va.v, va.a) : null;
   let armPlain = "";
   let armHtml = "";
   if (blendApi.ready()) {

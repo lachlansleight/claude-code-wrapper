@@ -19,7 +19,9 @@ function clamp01f(x: number): number {
   return x;
 }
 
-function tableFor(verb: Expression): (typeof kVerbTimelines)[number] | undefined {
+function tableFor(
+  verb: Expression,
+): (typeof kVerbTimelines)[number] | undefined {
   for (const tab of kVerbTimelines) {
     if (tab.verb === verb) return tab;
   }
@@ -33,7 +35,11 @@ export type VerbTimelineSampleSource = {
   keyframes: readonly {
     time_ms: number;
     override_count: number;
-    overrides: readonly { field: FieldIndex; targetValue: number; strength: number }[];
+    overrides: readonly {
+      field: FieldIndex;
+      targetValue: number;
+      strength: number;
+    }[];
   }[];
 };
 
@@ -189,7 +195,15 @@ export function sampleVerbTimelineFromTable(
   }));
   cumulativeState(tab, i0, leftHas, leftVals);
   cumulativeState(tab, i1, rightHas, rightVals);
-  lerpFieldSnapshots(leftHas, leftVals, rightHas, rightVals, u, hasField, fieldVals);
+  lerpFieldSnapshots(
+    leftHas,
+    leftVals,
+    rightHas,
+    rightVals,
+    u,
+    hasField,
+    fieldVals,
+  );
 }
 
 export function sampleVerbTimeline(

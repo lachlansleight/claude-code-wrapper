@@ -97,7 +97,9 @@ export function ExpressionPickers({
               min={100}
               max={60000}
               value={overlayMs}
-              onChange={(e) => onOverlayMsChange(Number(e.target.value) || 1200)}
+              onChange={(e) =>
+                onOverlayMsChange(Number(e.target.value) || 1200)
+              }
               className="ml-1.5 w-[7.5em] rounded border border-face-border bg-face-panel px-2.5 py-1.5 text-sm text-face-text"
             />
           </label>
@@ -118,7 +120,7 @@ export function ExpressionPickers({
             </button>
           ))}
         </div>
-        </Panel>
+      </Panel>
     </>
   );
 }

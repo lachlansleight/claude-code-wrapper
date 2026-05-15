@@ -168,7 +168,8 @@ export function BlendPanel({
               const rect = el.getBoundingClientRect();
               const cx = (e.clientX - rect.left) * (W / rect.width);
               const cy = (e.clientY - rect.top) * (H / rect.height);
-              const tri = fc.emotionTriangulation() as MutableEmotionTriangulation;
+              const tri =
+                fc.emotionTriangulation() as MutableEmotionTriangulation;
 
               if (el.hasPointerCapture(e.pointerId)) {
                 const d = dragRef.current;
