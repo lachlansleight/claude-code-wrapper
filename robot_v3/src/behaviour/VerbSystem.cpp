@@ -181,46 +181,23 @@ DebugState debugState() {
 }
 
 const char* verbName(Verb v) {
-  switch (v) {
-    case Verb::None:
-      return "none";
-    case Verb::Thinking:
-      return "thinking";
-    case Verb::Reading:
-      return "reading";
-    case Verb::Writing:
-      return "writing";
-    case Verb::Executing:
-      return "executing";
-    case Verb::Straining:
-      return "straining";
-    case Verb::Sleeping:
-      return "sleeping";
-    case Verb::Waking:
-      return "waking";
-    case Verb::AttractingAttention:
-      return "attracting_attention";
-    default:
-      return "?";
-  }
+  const uint8_t i = (uint8_t)v;
+  if (i >= (uint8_t)Verb::Count) return "?";
+  return FaceConfig::kVerbSlugs[i];
 }
 
 bool parseVerb(const char* text, Verb* outVerb) {
   if (!text || !outVerb) return false;
-  if (ieq(text, "none")) *outVerb = Verb::None;
-  else if (ieq(text, "thinking")) *outVerb = Verb::Thinking;
-  else if (ieq(text, "reading")) *outVerb = Verb::Reading;
-  else if (ieq(text, "writing")) *outVerb = Verb::Writing;
-  else if (ieq(text, "executing")) *outVerb = Verb::Executing;
-  else if (ieq(text, "straining")) *outVerb = Verb::Straining;
-  else if (ieq(text, "sleeping")) *outVerb = Verb::Sleeping;
-  else if (ieq(text, "waking")) *outVerb = Verb::Waking;
-  else if (ieq(text, "attracting_attention") || ieq(text, "attractingattention")) {
-    *outVerb = Verb::AttractingAttention;
-  } else {
-    return false;
+  if (ieq(text, "attractingattention")) {
+    text = "attracting_attention";
   }
-  return true;
+  for (uint8_t i = 0; i < (uint8_t)Verb::Count; ++i) {
+    if (ieq(text, FaceConfig::kVerbSlugs[i])) {
+      *outVerb = (Verb)i;
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // namespace VerbSystem

@@ -43,21 +43,9 @@ export type VerbTimelineSampleSource = {
 
 export type VerbTimelineTableResolver = (verb: Expression) => VerbTimelineSampleSource | undefined;
 
-/** Same predicate as firmware `Face::expressionUsesVerbTimeline`. */
+/** True when `kVerbTimelines` contains a row for this expression index. */
 export function expressionUsesVerbTimeline(e: Expression): boolean {
-    switch (e) {
-        case Expression.VerbThinking:
-        case Expression.VerbReading:
-        case Expression.VerbWriting:
-        case Expression.VerbExecuting:
-        case Expression.VerbStraining:
-        case Expression.VerbSleeping:
-        case Expression.VerbWaking:
-        case Expression.VerbAttractingAttention:
-            return true;
-        default:
-            return false;
-    }
+    return kVerbTimelines.some(tab => tab.verb === e);
 }
 
 /** @deprecated Use `expressionUsesVerbTimeline` (name aligned with firmware). */

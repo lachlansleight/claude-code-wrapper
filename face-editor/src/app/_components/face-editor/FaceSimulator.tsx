@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { expressionIndexFromName, Expression } from "../../_lib/face-engine/faceConfigTypes";
+import { Expression } from "../../_lib/face-engine/FACE_CONFIG_DATA";
+import { expressionIndexFromName } from "../../_lib/face-engine/faceConfigHelpers";
 import type { FaceConfigState } from "../../_lib/face-engine/faceConfigState";
 import { cloneFaceConfigState } from "../../_lib/face-engine/mutableFaceConfig";
 import {
@@ -30,7 +31,9 @@ import { EmotionPointInspector } from "./EmotionPointInspector";
 import { FaceStage } from "./FaceStage";
 import { KeyframeInspector } from "./KeyframeInspector";
 import { StaticModePanel } from "./StaticModePanel";
-import { VerbTimelinePanel, type VerbTimelineName } from "./VerbTimelinePanel";
+import { VerbTimelinePanel } from "./VerbTimelinePanel";
+import { EmotionSchemaPanel } from "./EmotionSchemaPanel";
+import { VerbSchemaPanel } from "./VerbSchemaPanel";
 import { VerbButtons } from "./VerbButtons";
 import PanelModeSwitcher from "./PanelModeSwitcher";
 import { SaveFaceConfigButton } from "./SaveFaceConfigButton";
@@ -118,7 +121,8 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
     const [inspectorSendLive, setInspectorSendLive] = useState(false);
 
     const [simulatorMode, setSimulatorMode] = useState<"blend" | "verbTimeline">("blend");
-    const [verbTimelineName, setVerbTimelineName] = useState<VerbTimelineName>("VerbThinking");
+    const [verbTimelineName, setVerbTimelineName] = useState("VerbThinking");
+    const [schemaRev, setSchemaRev] = useState(0);
     const [verbPlayheadMs, setVerbPlayheadMs] = useState(0);
     const [verbPlaySpeed, setVerbPlaySpeed] = useState<0 | 0.25 | 0.5 | 1 | 2>(0);
     const [verbSelectedKeyframe, setVerbSelectedKeyframe] = useState<number | null>(null);
@@ -271,8 +275,8 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
             }
             return;
         }
-        if (currentExpr !== verbTimelineName) {
-            setVerbTimelineName(currentExpr as VerbTimelineName);
+        if (currentExpr !== verbTimelineName && fc.verbTimelineNames().includes(currentExpr)) {
+            setVerbTimelineName(currentExpr);
             setVerbPlayheadMs(0);
             setVerbSelectedKeyframe(null);
         }
@@ -490,7 +494,7 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
         verbDropdownAwaitingEngineRef.current = false;
         fc.requestExpression(name);
         if (verbTimelineMode && name.startsWith("Verb")) {
-            setVerbTimelineName(name as VerbTimelineName);
+            setVerbTimelineName(name);
         }
     }
 
@@ -526,28 +530,42 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
                         armDeg={armDeg}
                         fps={fps}
                     />
-                </div>
 
-                <div className="col-span-6">
-                    {!verbTimelineMode ? (
+                    {verbTimelineMode ? (
                         <>
-                            <BlendPanel
+                            <VerbSchemaPanel
                                 fc={fc}
-                                blendOn={blendOn}
-                                setBlendOn={setBlendOn}
-                                staticOn={staticOn}
-                                setStaticOn={setStaticOn}
-                                autoSend={autoSend}
-                                setAutoSend={setAutoSend}
-                                markBlendDirty={markBlendDirty}
-                                onBlendVaCommit={syncStaticSlidersFromBlendedParams}
-                                onEmotionPointSelect={onEmotionPointSelect}
+                                selectedVerb={verbTimelineName}
+                                onSelectVerb={name => {
+                                    verbDropdownAwaitingEngineRef.current = true;
+                                    setVerbTimelineName(name);
+                                }}
+                                onSchemaChange={() => {
+                                    setSchemaRev(n => n + 1);
+                                    if (!fc.verbTimelineNames().includes(verbTimelineName)) {
+                                        setVerbTimelineName(
+                                            fc.verbTimelineNames()[0] ?? "VerbThinking"
+                                        );
+                                    }
+                                }}
                             />
-                            {blendOn && !staticOn ? <VerbButtons fc={fc} /> : null}
                         </>
                     ) : (
                         <>
+                            <EmotionSchemaPanel
+                                fc={fc}
+                                onSchemaChange={() => setSchemaRev(n => n + 1)}
+                            />
+                        </>
+                    )}
+                </div>
+
+                <div className="col-span-6">
+                    {verbTimelineMode ? (
+                        <>
                             <VerbTimelinePanel
+                                key={schemaRev}
+                                verbNames={fc.verbTimelineNames()}
                                 selectedVerb={verbTimelineName}
                                 onVerbChange={v => {
                                     verbDropdownAwaitingEngineRef.current = true;
@@ -568,6 +586,22 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
                                 onLoopDurationMsCommit={commitVerbLoopDurationMs}
                             />
                             <EmotionButtons fc={fc} />
+                        </>
+                    ) : (
+                        <>
+                            <BlendPanel
+                                fc={fc}
+                                blendOn={blendOn}
+                                setBlendOn={setBlendOn}
+                                staticOn={staticOn}
+                                setStaticOn={setStaticOn}
+                                autoSend={autoSend}
+                                setAutoSend={setAutoSend}
+                                markBlendDirty={markBlendDirty}
+                                onBlendVaCommit={syncStaticSlidersFromBlendedParams}
+                                onEmotionPointSelect={onEmotionPointSelect}
+                            />
+                            {blendOn && !staticOn ? <VerbButtons fc={fc} /> : null}
                         </>
                     )}
                 </div>

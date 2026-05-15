@@ -1,12 +1,17 @@
 import type { ArmPreset } from "./faceConfigTypes";
-import { type ExpressionName, expressionIndexFromName } from "./faceConfigTypes";
 import {
+    EXPRESSIONS,
     kArmPresets,
     kExpressionIsEmotion,
     kNamedEmotionToExpressionIndex,
 } from "./FACE_CONFIG_DATA";
 
-export { expressionIndexFromName };
+export type ExpressionName = (typeof EXPRESSIONS)[number];
+
+export function expressionIndexFromName(name: string): number {
+    const i = (EXPRESSIONS as readonly string[]).indexOf(name);
+    return i >= 0 ? i : 0;
+}
 
 export function isEmotionExpressionIndex(idx: number): boolean {
     return idx >= 0 && idx < kExpressionIsEmotion.length && !!kExpressionIsEmotion[idx];
@@ -25,5 +30,3 @@ export function expressionForNamedEmotionIndex(namedIdx: number): number {
 export function isEmotionExpressionName(name: string): boolean {
     return isEmotionExpressionIndex(expressionIndexFromName(name));
 }
-
-export type { ExpressionName };

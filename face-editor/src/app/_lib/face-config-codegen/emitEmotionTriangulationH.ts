@@ -1,14 +1,16 @@
 import type { FaceConfigState } from "../face-engine/faceConfigState";
 import { buildEmotionTriangulationFromPoints } from "../face-engine/emotionTriangulationLive";
-import { fmtCppFloat } from "./format";
+import { namedEmotionSlugFromAnchor } from "../face-engine/emotionTriangulationLive";
+import { fmtCppFloat, namedEmotionEnumName } from "./format";
 
 export function emitEmotionTriangulationH(config: FaceConfigState): string {
     const tri = buildEmotionTriangulationFromPoints(config.emotionNames, config.emotionPoints);
     const anchorLines = tri.anchors
-        .map(
-            a =>
-                `    { ${fmtCppFloat(a.v)}, ${fmtCppFloat(a.a)}, EmotionSystem::NamedEmotion::${a.emotion} },`
-        )
+        .map(a => {
+            const slug = namedEmotionSlugFromAnchor(a.emotion);
+            const en = namedEmotionEnumName(slug);
+            return `    { ${fmtCppFloat(a.v)}, ${fmtCppFloat(a.a)}, EmotionSystem::NamedEmotion::${en} },`;
+        })
         .join("\n");
     const triangleLines = tri.triangles.map(t => `    { ${t[0]}, ${t[1]}, ${t[2]} },`).join("\n");
 

@@ -1,11 +1,17 @@
-import { Expression, FieldIndex, GazeStyle, MotionMode, P } from "../face-engine/faceConfigTypes";
+import { FieldIndex, GazeStyle, MotionMode, P } from "../face-engine/faceConfigTypes";
 import type { FaceConfigState } from "../face-engine/faceConfigState";
 import { bobAmpTsLiteral, fieldIndexEnumName, fmtTsFloat } from "./format";
+
+function emitExpressionEnumTs(expressions: readonly string[]): string {
+    const lines = expressions.map(name => `  ${name},`);
+    lines.push("  Count,");
+    return `export enum Expression {\n${lines.join("\n")}\n}`;
+}
 
 function emitVerbTimelinesTs(config: FaceConfigState): string {
     const blocks: string[] = [];
     for (const tab of config.verbTimelines) {
-        const verbName = Expression[tab.verb];
+        const verbName = config.expressions[tab.verb] ?? "Neutral";
         const kfBlocks = tab.keyframes.map(kf => {
             const overrides = kf.overrides
                 .map(
@@ -96,7 +102,6 @@ export * from "./faceConfigHelpers";
 
 import {
   BOB_AMP_FOLLOW_EMOTION_ARM,
-  Expression,
   FieldIndex,
   GazeStyle,
   MotionMode,
@@ -107,6 +112,16 @@ import {
   type IdleAnimRow,
   type VerbTimeline,
 } from "./faceConfigTypes";
+
+${emitExpressionEnumTs(config.expressions)}
+
+export const EXPRESSIONS = [
+  ${config.expressions.map(n => `"${n}"`).join(",\n  ")},
+] as const;
+
+export type ExpressionName = (typeof EXPRESSIONS)[number];
+
+export const EXPRESSION_COUNT = ${config.expressions.length} as const;
 
 export const kExpressionIsEmotion: readonly boolean[] = [
   ${config.expressionIsEmotion.map(b => String(b)).join(",\n  ")},

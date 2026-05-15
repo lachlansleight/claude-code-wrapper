@@ -9,6 +9,7 @@ export interface FaceConfigArtifactPaths {
     faceConfigH: string;
     faceConfigSnapshot: string;
     emotionTriangulationH: string;
+    verbEnumH: string;
 }
 
 export function faceConfigArtifactPaths(repoRoot: string): FaceConfigArtifactPaths {
@@ -23,5 +24,6 @@ export function faceConfigArtifactPaths(repoRoot: string): FaceConfigArtifactPat
             "face-editor/src/app/_lib/face-engine/FACE_CONFIG_DATA.snapshot.json"
         ),
         emotionTriangulationH: path.join(repoRoot, "robot_v3/src/behaviour/EmotionTriangulation.h"),
+        verbEnumH: path.join(repoRoot, "robot_v3/src/face/VerbEnum.generated.h"),
     };
 }

@@ -36,20 +36,9 @@
  * transient overlay it returns the overlay verb until the blend-out
  * window, then the post verb.
  */
-namespace VerbSystem {
+#include "../face/VerbEnum.generated.h"
 
-enum class Verb : uint8_t {
-  None = 0,
-  Thinking,
-  Reading,
-  Writing,
-  Executing,
-  Straining,
-  Sleeping,
-  Waking,
-  AttractingAttention,
-  Count
-};
+namespace VerbSystem {
 
 struct DebugState {
   Verb current;

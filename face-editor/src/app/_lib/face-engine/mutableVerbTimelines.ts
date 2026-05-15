@@ -15,7 +15,8 @@ export type MutableVerbKeyframe = {
 };
 
 export type MutableVerbTimeline = {
-    verb: VerbTimeline["verb"];
+    /** `Face::Expression` discriminant (expression table index). */
+    verb: number;
     loop_duration_ms: number;
     keyframe_count: number;
     keyframes: MutableVerbKeyframe[];

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { expressionIndexFromName, type Expression } from "../../_lib/face-engine/FACE_CONFIG_DATA";
 import type { FrameController } from "../../_lib/face-engine/frameController";
-import { VERB_TIMELINE_NAMES } from "../../_lib/face-engine/verbCatalog";
 import { postRaw } from "../../_lib/face-editor/bridge";
 import { robotVerbStartSlug } from "../../_lib/face-editor/robotVerbBridge";
 import Panel from "./atoms/Panel";
@@ -64,7 +63,7 @@ export function VerbButtons({ fc }: { fc: FrameController }) {
                 >
                     None
                 </button>
-                {VERB_TIMELINE_NAMES.map(name => {
+                {fc.verbTimelineNames().map((name: string) => {
                     const expr = expressionIndexFromName(name) as Expression;
                     const slug = robotVerbStartSlug(expr);
                     const on = !overlayMode && activeVerb === expr;

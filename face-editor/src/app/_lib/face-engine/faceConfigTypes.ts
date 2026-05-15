@@ -3,62 +3,6 @@
  * Data tables live in `FACE_CONFIG_DATA.ts` (eventually generated).
  */
 
-export const EXPRESSION_COUNT = 22 as const;
-
-/** PascalCase names in `Face::Expression` enum order (index = enum value). */
-export const EXPRESSIONS = [
-    "Neutral",
-    "Happy",
-    "Excited",
-    "Joyful",
-    "Sad",
-    "VerbThinking",
-    "VerbReading",
-    "VerbWriting",
-    "VerbExecuting",
-    "VerbStraining",
-    "VerbSleeping",
-    "VerbWaking",
-    "VerbAttractingAttention",
-    "Sleepy",
-    "Distressed",
-    "Blissed",
-    "Depressed",
-    "Shocked",
-    "Disappointed",
-    "Cheeky",
-    "Gleeful",
-    "Frustrated",
-] as const;
-
-export type ExpressionName = (typeof EXPRESSIONS)[number];
-
-export enum Expression {
-    Neutral = 0,
-    Happy,
-    Excited,
-    Joyful,
-    Sad,
-    VerbThinking,
-    VerbReading,
-    VerbWriting,
-    VerbExecuting,
-    VerbStraining,
-    VerbSleeping,
-    VerbWaking,
-    VerbAttractingAttention,
-    Sleepy,
-    Distressed,
-    Blissed,
-    Depressed,
-    Shocked,
-    Disappointed,
-    Cheeky,
-    Gleeful,
-    Frustrated,
-    Count = 22,
-}
-
 export enum FieldIndex {
     EyeDy = 0,
     EyeRx,
@@ -115,7 +59,8 @@ export interface VerbKeyframe {
 }
 
 export interface VerbTimeline {
-    verb: Expression;
+    /** `Face::Expression` table index. */
+    verb: number;
     loop_duration_ms: number;
     keyframe_count: number;
     keyframes: readonly VerbKeyframe[];
@@ -216,9 +161,4 @@ export interface MotionRuntimeConfig {
 export interface EmotionPoint {
     v: number;
     a: number;
-}
-
-export function expressionIndexFromName(name: string): number {
-    const i = EXPRESSIONS.indexOf(name as ExpressionName);
-    return i >= 0 ? i : 0;
 }

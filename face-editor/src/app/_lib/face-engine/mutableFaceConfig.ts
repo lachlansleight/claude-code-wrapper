@@ -24,6 +24,7 @@ import {
 } from "./FACE_CONFIG_DATA";
 import type { ParamI16 } from "./faceConfigTypes";
 import { kVerbKeyframeOverridesMax, kVerbKeyframesMax } from "./faceConfigTypes";
+import { ensureSystemVerbTimelines } from "./faceConfigMutations";
 import { cloneMutableVerbTimelines, type MutableVerbTimeline } from "./mutableVerbTimelines";
 
 function cloneBaseTargets(src: readonly (readonly ParamI16[])[]): ParamI16[][] {
@@ -45,6 +46,7 @@ function cloneIdleAnim(src: typeof kIdleAnim): FaceConfigState["idleAnim"] {
 /** Deep clone of shipped tables into a mutable `FaceConfigState`. */
 export function cloneFaceConfigState(src: FaceConfigState): FaceConfigState {
     return {
+        schemaVersion: src.schemaVersion,
         expressions: [...src.expressions],
         expressionIsEmotion: [...src.expressionIsEmotion],
         emotionNames: [...src.emotionNames],
@@ -82,7 +84,8 @@ export function buildFaceConfigStateFromSource(): FaceConfigState {
     const emotionNames = [...kEmotionNames];
     const emotionPoints = kEmotionPoints.map(p => ({ v: p.v, a: p.a }));
     const emotionTriangulation = buildEmotionTriangulationFromPoints(emotionNames, emotionPoints);
-    return {
+    const base: FaceConfigState = {
+        schemaVersion: 2,
         expressions: [...EXPRESSIONS],
         expressionIsEmotion: [...kExpressionIsEmotion],
         emotionNames,
@@ -104,4 +107,5 @@ export function buildFaceConfigStateFromSource(): FaceConfigState {
         verbTransitionDurMs: kVerbTransitionDurMs,
         emotionTriangulation,
     };
+    return ensureSystemVerbTimelines(base);
 }

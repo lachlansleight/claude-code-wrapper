@@ -14,6 +14,8 @@ import type { MutableVerbTimeline } from "./mutableVerbTimelines";
 
 /** Full editor session copy of shipped face config + live triangulation. */
 export interface FaceConfigState {
+    /** Snapshot / codegen schema version (2 = dynamic emotions & verbs). */
+    schemaVersion?: number;
     expressions: string[];
     expressionIsEmotion: boolean[];
     emotionNames: string[];

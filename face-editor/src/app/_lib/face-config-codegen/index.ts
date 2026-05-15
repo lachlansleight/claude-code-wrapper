@@ -4,6 +4,7 @@ import type { FaceConfigState } from "../face-engine/faceConfigState";
 import { emitEmotionTriangulationH } from "./emitEmotionTriangulationH";
 import { emitFaceConfigH } from "./emitFaceConfigH";
 import { emitFaceConfigTs } from "./emitFaceConfigTs";
+import { emitVerbEnumH } from "./emitVerbEnumH";
 import { faceConfigArtifactPaths } from "./paths";
 import { prepareFaceConfigForSave } from "./prepareForSave";
 import { faceConfigToSnapshot } from "./snapshot";
@@ -36,6 +37,7 @@ export function emitAllFaceConfigArtifacts(
             file: paths.faceConfigSnapshot,
             content: JSON.stringify(faceConfigToSnapshot(config), null, 2) + "\n",
         },
+        { file: paths.verbEnumH, content: emitVerbEnumH(config) },
     ];
 
     const filesWritten: string[] = [];

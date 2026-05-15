@@ -8,19 +8,10 @@
 namespace Face {
 
 bool expressionUsesVerbTimeline(Expression e) {
-  switch (e) {
-    case Expression::VerbThinking:
-    case Expression::VerbReading:
-    case Expression::VerbWriting:
-    case Expression::VerbExecuting:
-    case Expression::VerbStraining:
-    case Expression::VerbSleeping:
-    case Expression::VerbWaking:
-    case Expression::VerbAttractingAttention:
-      return true;
-    default:
-      return false;
+  for (size_t i = 0; i < FaceConfig::kVerbTimelineCount; ++i) {
+    if (FaceConfig::kVerbTimelines[i].verb == e) return true;
   }
+  return false;
 }
 
 void sampleVerbTimeline(Expression verb, uint32_t time_in_verb_ms, bool* hasField,

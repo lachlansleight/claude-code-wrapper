@@ -22,11 +22,8 @@ const TICK_MINOR_PX = 4;
 const TICK_HALF_PX = 8;
 const TICK_MAJOR_PX = 12;
 
-import { VERB_TIMELINE_NAMES, type VerbTimelineName } from "../../_lib/face-engine/verbCatalog";
-
-export { VERB_TIMELINE_NAMES, type VerbTimelineName };
-
 export function VerbTimelinePanel({
+    verbNames,
     selectedVerb,
     onVerbChange,
     tab,
@@ -40,8 +37,9 @@ export function VerbTimelinePanel({
     onJumpToStart,
     onLoopDurationMsCommit,
 }: {
-    selectedVerb: VerbTimelineName;
-    onVerbChange: (v: VerbTimelineName) => void;
+    verbNames: string[];
+    selectedVerb: string;
+    onVerbChange: (v: string) => void;
     tab: MutableVerbTimeline | undefined;
     timelineRev: number;
     playheadMs: number;
@@ -164,9 +162,9 @@ export function VerbTimelinePanel({
                     <select
                         className="rounded border border-face-border bg-face-panel px-2 py-1 font-mono text-face-text"
                         value={selectedVerb}
-                        onChange={e => onVerbChange(e.target.value as VerbTimelineName)}
+                        onChange={e => onVerbChange(e.target.value)}
                     >
-                        {VERB_TIMELINE_NAMES.map(n => (
+                        {verbNames.map(n => (
                             <option key={n} value={n}>
                                 {n}
                             </option>

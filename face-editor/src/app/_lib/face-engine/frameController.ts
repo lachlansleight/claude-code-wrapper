@@ -6,18 +6,24 @@
 import { createEmotionBlend, type EmotionBlendApi } from "./emotionBlend";
 import {
     Expression,
+    EXPRESSIONS,
     FieldIndex,
     GazeStyle,
-    EXPRESSIONS,
     MotionMode,
     type IdleAnimRow,
     type ParamI16,
-    expressionIndexFromName,
-} from "./faceConfigTypes";
-import { isEmotionExpressionIndex } from "./faceConfigHelpers";
+} from "./FACE_CONFIG_DATA";
+import { expressionIndexFromName, isEmotionExpressionIndex } from "./faceConfigHelpers";
 import type { ExprMotionRow } from "./faceConfigTypes";
 import type { FaceConfigState } from "./faceConfigState";
+import {
+    addEmotion as addEmotionToConfig,
+    addVerb as addVerbToConfig,
+    removeEmotion as removeEmotionFromConfig,
+    removeVerb as removeVerbFromConfig,
+} from "./faceConfigMutations";
 import { cloneFaceConfigState } from "./mutableFaceConfig";
+import { verbTimelineExpressionNames } from "./verbCatalog";
 import type { MutableVerbTimeline } from "./mutableVerbTimelines";
 import {
     PARAM_FIELDS,
@@ -30,7 +36,7 @@ import {
     type ParamField,
 } from "./faceParams";
 import { createFaceRenderer } from "./faceRenderer";
-import { expressionsList, isEmotionExpression, paramFieldsList } from "./presets";
+import { isEmotionExpression, paramFieldsList } from "./presets";
 import { createRobotSettings } from "./robotSettings";
 import {
     cloneFaceParamsIndexed,
@@ -212,6 +218,12 @@ export interface FrameController {
     faceConfig(): FaceConfigState;
     /** Replace session config (e.g. after save + reload). */
     replaceFaceConfigState(next: FaceConfigState): void;
+    emotionNames(): string[];
+    verbTimelineNames(): string[];
+    addEmotion(slug: string, v?: number, a?: number): string | null;
+    removeEmotion(emotionIndex: number): string | null;
+    addVerb(slug: string): string | null;
+    removeVerb(expressionName: string): string | null;
     /** When set, `tick()` uses `timeMs` as verb phase for that verb instead of wall-clock verb time. */
     setVerbTimelinePreview(p: { verb: Expression; timeMs: number } | null): void;
     /**
@@ -1033,7 +1045,22 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
         pushSpriteToCanvas();
     }
 
-    const knownExpressions = new Set(expressionsList());
+    function syncConfig(next: FaceConfigState): void {
+        faceConfig = cloneFaceConfigState(next);
+        emotionBlend = createEmotionBlend({
+            triangulation: faceConfig.emotionTriangulation as EmotionTriangulationTable,
+            baseTargets: faceConfig.baseTargets,
+            armPresets: faceConfig.armPresets,
+            idleAnim: faceConfig.idleAnim,
+        });
+        sSmoothed = cloneFaceParamsIndexed(faceConfig.baseTargets[0]!);
+        sLastRendered = cloneFaceParamsIndexed(faceConfig.baseTargets[0]!);
+        sCurrentParams = faceParamsFromIndexed(sSmoothed);
+        if (!faceConfig.expressions.includes(sCurrentExpr)) {
+            sCurrentExpr = faceConfig.expressions[0] ?? "Neutral";
+            notifyExpression();
+        }
+    }
 
     return {
         start(canvas: HTMLCanvasElement): void {
@@ -1064,7 +1091,7 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
         },
 
         requestExpression(name: string): void {
-            if (!knownExpressions.has(name)) return;
+            if (!faceConfig.expressions.includes(name)) return;
             if (name === sCurrentExpr) return;
             sCurrentExpr = name;
             notifyExpression();
@@ -1075,7 +1102,45 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
         },
 
         expressions(): string[] {
-            return [...expressionsList()];
+            return [...faceConfig.expressions];
+        },
+
+        emotionNames(): string[] {
+            return [...faceConfig.emotionNames];
+        },
+
+        verbTimelineNames(): string[] {
+            return verbTimelineExpressionNames(faceConfig);
+        },
+
+        addEmotion(slug: string, v = 0, a = 0.5): string | null {
+            const r = addEmotionToConfig(faceConfig, slug, v, a);
+            if ("error" in r) return r.error;
+            syncConfig(r.config);
+            return null;
+        },
+
+        removeEmotion(emotionIndex: number): string | null {
+            const r = removeEmotionFromConfig(faceConfig, emotionIndex);
+            if ("error" in r) return r.error;
+            syncConfig(r.config);
+            return null;
+        },
+
+        addVerb(slug: string): string | null {
+            const r = addVerbToConfig(faceConfig, slug);
+            if ("error" in r) return r.error;
+            syncConfig(r.config);
+            return null;
+        },
+
+        removeVerb(expressionName: string): string | null {
+            const idx = faceConfig.expressions.indexOf(expressionName);
+            if (idx < 0) return "verb not found";
+            const r = removeVerbFromConfig(faceConfig, idx);
+            if ("error" in r) return r.error;
+            syncConfig(r.config);
+            return null;
         },
 
         onExpressionChange(fn: (name: string) => void): void {
@@ -1288,16 +1353,7 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
         },
 
         replaceFaceConfigState(next: FaceConfigState): void {
-            faceConfig = cloneFaceConfigState(next);
-            emotionBlend = createEmotionBlend({
-                triangulation: faceConfig.emotionTriangulation as EmotionTriangulationTable,
-                baseTargets: faceConfig.baseTargets,
-                armPresets: faceConfig.armPresets,
-                idleAnim: faceConfig.idleAnim,
-            });
-            sSmoothed = cloneFaceParamsIndexed(faceConfig.baseTargets[0]!);
-            sLastRendered = cloneFaceParamsIndexed(faceConfig.baseTargets[0]!);
-            sCurrentParams = faceParamsFromIndexed(sSmoothed);
+            syncConfig(next);
         },
     };
 }

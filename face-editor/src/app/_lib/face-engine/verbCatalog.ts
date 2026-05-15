@@ -1,16 +1,20 @@
-/**
- * All expressions that have a `kVerbTimelines` row (aligned with firmware
- * `Face::expressionUsesVerbTimeline`).
- */
-export const VERB_TIMELINE_NAMES = [
-    "VerbThinking",
-    "VerbReading",
-    "VerbWriting",
-    "VerbExecuting",
-    "VerbStraining",
-    "VerbSleeping",
-    "VerbWaking",
-    "VerbAttractingAttention",
-] as const;
+import type { FaceConfigState } from "./faceConfigState";
+import { isSystemVerbExpression } from "./faceSchema";
 
-export type VerbTimelineName = (typeof VERB_TIMELINE_NAMES)[number];
+/** PascalCase expression names that have a verb timeline row. */
+export function verbTimelineExpressionNames(config: FaceConfigState): string[] {
+    const names: string[] = [];
+    for (const tab of config.verbTimelines) {
+        const n = config.expressions[tab.verb];
+        if (n) names.push(n);
+    }
+    return names;
+}
+
+export function isVerbTimelineName(config: FaceConfigState, name: string): boolean {
+    return verbTimelineExpressionNames(config).includes(name);
+}
+
+export function canRemoveVerbExpression(config: FaceConfigState, expressionName: string): boolean {
+    return !isSystemVerbExpression(expressionName);
+}

@@ -14,7 +14,7 @@ import {
     kBaseTargets,
     kIdleAnim,
 } from "./FACE_CONFIG_DATA";
-import { expressionIndexFromName } from "./faceConfigTypes";
+import { expressionIndexFromName } from "./faceConfigHelpers";
 import type { FaceParams } from "./faceParams";
 import { PARAM_FIELDS, faceParamsFromIndexed } from "./faceParams";
 import type { BlendTriangle, EmotionArmMotion, EmotionTriangulationTable } from "./types";

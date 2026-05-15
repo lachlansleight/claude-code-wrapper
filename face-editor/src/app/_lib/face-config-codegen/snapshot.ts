@@ -1,5 +1,7 @@
 import type { FaceConfigState } from "../face-engine/faceConfigState";
+import { ensureSystemVerbTimelines } from "../face-engine/faceConfigMutations";
 import { buildEmotionTriangulationFromPoints } from "../face-engine/emotionTriangulationLive";
+import { EXPRESSIONS, kExpressionIsEmotion } from "../face-engine/FACE_CONFIG_DATA";
 
 /** JSON-safe snapshot (triangulation mesh rebuilt on load from emotionPoints). */
 export type FaceConfigSnapshot = Omit<FaceConfigState, "emotionTriangulation">;
@@ -10,12 +12,20 @@ export function faceConfigToSnapshot(config: FaceConfigState): FaceConfigSnapsho
 }
 
 export function faceConfigFromSnapshot(snapshot: FaceConfigSnapshot): FaceConfigState {
+    const expressions = snapshot.expressions?.length ? [...snapshot.expressions] : [...EXPRESSIONS];
+    const expressionIsEmotion =
+        snapshot.expressionIsEmotion?.length === expressions.length
+            ? [...snapshot.expressionIsEmotion]
+            : [...kExpressionIsEmotion];
     const emotionTriangulation = buildEmotionTriangulationFromPoints(
         snapshot.emotionNames,
         snapshot.emotionPoints.map(p => ({ v: p.v, a: p.a }))
     );
-    return {
+    const merged: FaceConfigState = {
         ...snapshot,
+        schemaVersion: snapshot.schemaVersion ?? 2,
+        expressions,
+        expressionIsEmotion,
         emotionPoints: snapshot.emotionPoints.map(p => ({ v: p.v, a: p.a })),
         baseTargets: snapshot.baseTargets.map(row =>
             row.map(c => ({ value: c.value, strength: c.strength }))
@@ -36,4 +46,5 @@ export function faceConfigFromSnapshot(snapshot: FaceConfigSnapshot): FaceConfig
         motionRuntime: { ...snapshot.motionRuntime },
         emotionTriangulation,
     };
+    return ensureSystemVerbTimelines(merged);
 }

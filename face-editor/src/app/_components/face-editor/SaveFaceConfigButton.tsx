@@ -41,7 +41,7 @@ export function SaveFaceConfigButton({ fc }: { fc: FrameController }): JSX.Eleme
             const n = body.filesWritten.length;
             setStatus("ok");
             setMessage(
-                `Wrote ${n} file(s) (FACE_CONFIG_DATA.ts/.h, EmotionTriangulation.h, snapshot). Ready for Arduino upload.`
+                `Wrote ${n} file(s) (FACE_CONFIG_DATA.ts/.h, EmotionTriangulation.h, VerbEnum.generated.h, snapshot). Reflash firmware.`
             );
         } catch (e) {
             setStatus("error");

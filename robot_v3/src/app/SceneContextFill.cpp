@@ -27,27 +27,9 @@ Face::Expression expressionForEmotion(EmotionSystem::NamedEmotion e) {
 }
 
 Face::Expression expressionForVerb(VerbSystem::Verb v) {
-  switch (v) {
-    case VerbSystem::Verb::Thinking:
-      return Face::Expression::VerbThinking;
-    case VerbSystem::Verb::Reading:
-      return Face::Expression::VerbReading;
-    case VerbSystem::Verb::Writing:
-      return Face::Expression::VerbWriting;
-    case VerbSystem::Verb::Executing:
-      return Face::Expression::VerbExecuting;
-    case VerbSystem::Verb::Straining:
-      return Face::Expression::VerbStraining;
-    case VerbSystem::Verb::Sleeping:
-      return Face::Expression::VerbSleeping;
-    case VerbSystem::Verb::Waking:
-      return Face::Expression::VerbWaking;
-    case VerbSystem::Verb::AttractingAttention:
-      return Face::Expression::VerbAttractingAttention;
-    case VerbSystem::Verb::None:
-    default:
-      return Face::Expression::Neutral;
-  }
+  const uint8_t i = (uint8_t)v;
+  if (i >= (uint8_t)VerbSystem::Verb::Count) return Face::Expression::Neutral;
+  return FaceConfig::kVerbToExpression[i];
 }
 
 Settings::NamedColor accentNamedColor(Face::Expression e) {
