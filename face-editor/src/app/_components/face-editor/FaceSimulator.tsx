@@ -25,7 +25,6 @@ import { postRaw } from "../../_lib/face-editor/bridge";
 import { OVERLAY_MAP } from "../../_lib/face-editor/simulatorLayout";
 import { BlendPanel } from "./BlendPanel";
 import { EmotionPointInspector } from "./EmotionPointInspector";
-import { ExpressionPickers, handleExpressionBridge } from "./ExpressionPickers";
 import { FaceStage } from "./FaceStage";
 import { KeyframeInspector } from "./KeyframeInspector";
 import { StaticModePanel } from "./StaticModePanel";
@@ -218,15 +217,6 @@ export function FaceSimulator() {
       setVerbSelectedKeyframe(null);
     }
   }, [verbTimelineMode, currentExpr, verbTimelineName]);
-
-  useEffect(() => {
-    if (!verbTimelineMode) return;
-    resetVerbTransition();
-    fc.requestExpression(verbTimelineName);
-    void handleExpressionBridge(verbTimelineName, {
-      emotionTriangulation: fc.emotionTriangulation(),
-    });
-  }, [verbTimelineMode, verbTimelineName, fc]);
 
   useEffect(() => {
     if (!verbTimelineMode) {
@@ -473,7 +463,7 @@ export function FaceSimulator() {
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-0 text-face-text">
       <div className="grid grid-cols-1 items-start gap-0 min-[881px]:grid-cols-12">
-        <div className="col-span-2">
+        <div className="col-span-3">
           <PanelModeSwitcher
             mode={simulatorMode}
             setMode={(m) => {
@@ -485,26 +475,16 @@ export function FaceSimulator() {
               }
             }}
           />
-          {/* <ExpressionPickers
-            expressions={expressions}
-            currentExpr={currentExpr}
-            overlayMs={overlayMs}
-            onOverlayMsChange={setOverlayMs}
-            onExpressionClick={onExpressionClick}
-            onOverlayClick={onOverlayClick}
-            onClearVerb={onClearVerb}
-          /> */}
-
-          {/* <LiveParamsReadout text={paramsText} /> */}
-        </div>
-
-        <div className="col-span-6">
+          
           <FaceStage
             canvasRef={faceCanvasRef}
             currentExpr={currentExpr}
             armDeg={armDeg}
             fps={fps}
           />
+        </div>
+
+        <div className="col-span-6">
           {!verbTimelineMode ? (
             <BlendPanel
               fc={fc}
@@ -541,7 +521,7 @@ export function FaceSimulator() {
             />
           )}
         </div>
-        <div className="col-span-4">
+        <div className="col-span-3">
           {verbTimelineMode ? (
             <KeyframeInspector
               verbName={verbTimelineName}
