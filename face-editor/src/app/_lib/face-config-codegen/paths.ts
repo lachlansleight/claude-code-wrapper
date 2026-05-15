@@ -22,9 +22,6 @@ export function faceConfigArtifactPaths(repoRoot: string): FaceConfigArtifactPat
             repoRoot,
             "face-editor/src/app/_lib/face-engine/FACE_CONFIG_DATA.snapshot.json"
         ),
-        emotionTriangulationH: path.join(
-            repoRoot,
-            "robot_v3/src/behaviour/EmotionTriangulation.h"
-        ),
+        emotionTriangulationH: path.join(repoRoot, "robot_v3/src/behaviour/EmotionTriangulation.h"),
     };
 }

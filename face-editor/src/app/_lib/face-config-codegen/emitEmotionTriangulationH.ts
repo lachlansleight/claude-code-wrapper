@@ -10,9 +10,7 @@ export function emitEmotionTriangulationH(config: FaceConfigState): string {
                 `    { ${fmtCppFloat(a.v)}, ${fmtCppFloat(a.a)}, EmotionSystem::NamedEmotion::${a.emotion} },`
         )
         .join("\n");
-    const triangleLines = tri.triangles
-        .map(t => `    { ${t[0]}, ${t[1]}, ${t[2]} },`)
-        .join("\n");
+    const triangleLines = tri.triangles.map(t => `    { ${t[0]}, ${t[1]}, ${t[2]} },`).join("\n");
 
     return `// !!! GENERATED FILE - DO NOT EDIT !!!
 //

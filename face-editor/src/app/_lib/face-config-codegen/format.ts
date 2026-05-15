@@ -47,7 +47,9 @@ export function emitFacePRowCpp(exprName: string, row: readonly ParamI16[]): str
     const l1 =
         headPart +
         "{ " +
-        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => `FACE_P(${fmtParamValue(vals[i]!, i)})`).join(", ") +
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            .map(i => `FACE_P(${fmtParamValue(vals[i]!, i)})`)
+            .join(", ") +
         ",\n";
     const l2 =
         ind +
@@ -63,9 +65,7 @@ export function emitFacePRowCpp(exprName: string, row: readonly ParamI16[]): str
 }
 
 export function emitParamIRowTs(row: readonly ParamI16[], indent: string): string {
-    const lines = row.map(
-        c => `${indent}P(${c.value}, ${c.strength}),`
-    );
+    const lines = row.map(c => `${indent}P(${c.value}, ${c.strength}),`);
     return `[\n${lines.join("\n")}\n${indent.slice(0, -2)}]`;
 }
 

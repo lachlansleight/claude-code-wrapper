@@ -1,10 +1,4 @@
-import {
-    Expression,
-    FieldIndex,
-    GazeStyle,
-    MotionMode,
-    P,
-} from "../face-engine/faceConfigTypes";
+import { Expression, FieldIndex, GazeStyle, MotionMode, P } from "../face-engine/faceConfigTypes";
 import type { FaceConfigState } from "../face-engine/faceConfigState";
 import { bobAmpTsLiteral, fieldIndexEnumName, fmtTsFloat } from "./format";
 
