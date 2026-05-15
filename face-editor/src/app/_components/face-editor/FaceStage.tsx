@@ -14,17 +14,15 @@ export function FaceStage({
   fps: string;
 }) {
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col items-center gap-2 pt-[16px]">
       <canvas
         ref={canvasRef}
-        className="aspect-square w-full max-w-[480px] rounded-full border-4 border-face-border bg-face-hole [image-rendering:pixelated]"
-        width={480}
-        height={480}
+        className="aspect-square w-full max-w-[360px] rounded-full border-4 border-face-border bg-face-hole [image-rendering:pixelated]"
+        width={360}
+        height={360}
       />
       <div className="font-mono text-sm text-face-muted">
-        expression: <span className="text-face-accent">{currentExpr}</span>
-        &nbsp;·&nbsp; arm <span className="text-face-text">{armDeg}</span>
-        &nbsp;·&nbsp; <span className="text-face-good">{fps}</span>
+        <span className="text-face-good">{fps}</span>
       </div>
     </div>
   );

@@ -77,49 +77,10 @@ export function StaticModePanel({
 
         <Panel disabled={!staticOn}>
         <div className="my-2 flex flex-wrap items-center gap-2">
-          <label className="text-sm text-face-muted">
-            Load preset
-            <select
-              value={staticPreset}
-              disabled={!staticOn}
-              className="ml-1.5 rounded border border-face-border bg-face-panel px-2.5 py-1.5 text-sm font-inherit text-face-text"
-              onChange={(e) => {
-                const name = e.target.value;
-                setStaticPreset(name);
-                const p = fc.baseTargetForExpression(name);
-                setSliderSnap((s) => ({ ...s, params: { ...p } }));
-                fc.setStaticOverride({ params: p, expression: name });
-                refreshCopyOutput();
-              }}
-            >
-              {expressions.map((e) => (
-                <option
-                  key={e}
-                  value={e}
-                  className="bg-face-panel text-face-text"
-                >
-                  {e}
-                </option>
-              ))}
-            </select>
-          </label>
           <button
             type="button"
             disabled={!staticOn}
-            className="rounded border border-face-border bg-face-panel px-2.5 py-1.5 text-sm font-inherit text-face-text hover:bg-face-panel-2 disabled:cursor-not-allowed disabled:opacity-45"
-            onClick={() => {
-              const live = fc.params();
-              setSliderSnap((s) => ({ ...s, params: { ...live } }));
-              fc.setStaticOverride({ params: live });
-              refreshCopyOutput();
-            }}
-          >
-            Capture live frame
-          </button>
-          <button
-            type="button"
-            disabled={!staticOn}
-            className="rounded border border-face-border bg-face-panel px-2.5 py-1.5 text-sm font-inherit text-face-text hover:bg-face-panel-2 disabled:cursor-not-allowed disabled:opacity-45"
+            className="rounded border border-face-border bg-face-panel px-[8px] py-[4px] text-[12px] font-inherit text-face-text hover:bg-face-panel-2 disabled:cursor-not-allowed disabled:opacity-45"
             onClick={async () => {
               const o = fc.staticOverride();
               const text = formatParamIntsSignedCsv(o.params, fc.paramFields());
@@ -135,7 +96,7 @@ export function StaticModePanel({
           <button
             type="button"
             disabled={!staticOn}
-            className="rounded border border-face-border bg-face-panel px-2.5 py-1.5 text-sm font-inherit text-face-text hover:bg-face-panel-2 disabled:cursor-not-allowed disabled:opacity-45"
+            className="rounded border border-face-border bg-face-panel px-[8px] py-[4px] text-[12px] font-inherit text-face-text hover:bg-face-panel-2 disabled:cursor-not-allowed disabled:opacity-45"
             onClick={async () => {
               let text: string;
               try {
@@ -345,13 +306,6 @@ export function StaticModePanel({
             </div>
           ))}
         </div>
-
-        <h3 className="mt-2.5 mb-1.5 text-[0.85em] font-semibold uppercase tracking-wide text-face-muted">
-          C++ kBaseTargets row
-        </h3>
-        <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-all rounded border border-face-border bg-face-canvas p-2 pl-2.5 font-mono text-[0.72em] text-face-text">
-          {copyOut}
-        </pre>
       </Panel>
     </>
   );

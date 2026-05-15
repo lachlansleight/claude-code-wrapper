@@ -130,7 +130,7 @@ export function BlendPanel({
         <div className="flex justify-center rounded border border-face-border bg-face-canvas p-1.5">
           <canvas
             ref={canvasRef}
-            className="block aspect-square w-full max-w-[720px] touch-none [image-rendering:pixelated]"
+            className="block aspect-square w-full max-w-[480px] touch-none [image-rendering:pixelated]"
             width={W}
             height={H}
             onPointerDown={(e) => {

@@ -33,6 +33,7 @@ import {
   VerbTimelinePanel,
   type VerbTimelineName,
 } from "./VerbTimelinePanel";
+import PanelModeSwitcher from "./PanelModeSwitcher";
 
 export function FaceSimulator() {
   const fc = useMemo(() => createFrameController(), []);
@@ -466,11 +467,20 @@ export function FaceSimulator() {
 
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-0 text-face-text">
-      <h1 className="my-2 text-[24px] font-mono font-semibold">Face Editor</h1>
-
       <div className="grid grid-cols-1 items-start gap-0 min-[881px]:grid-cols-12">
         <div className="col-span-2">
-          <ExpressionPickers
+        <PanelModeSwitcher
+              mode={simulatorMode}
+              setMode={m => {
+                if(m === "blend") {
+                  setModeBlend();
+                }
+                if(m === "verbTimeline") {
+                  setModeVerbTimeline();
+                }
+              }}
+            />
+          {/* <ExpressionPickers
             expressions={expressions}
             currentExpr={currentExpr}
             overlayMs={overlayMs}
@@ -478,7 +488,8 @@ export function FaceSimulator() {
             onExpressionClick={onExpressionClick}
             onOverlayClick={onOverlayClick}
             onClearVerb={onClearVerb}
-          />
+          /> */}
+
 
           {/* <LiveParamsReadout text={paramsText} /> */}
         </div>
@@ -490,30 +501,6 @@ export function FaceSimulator() {
             armDeg={armDeg}
             fps={fps}
           />
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button
-              type="button"
-              className={
-                !verbTimelineMode
-                  ? "rounded border border-face-accent bg-face-panel-2 px-3 py-1.5 text-sm font-inherit text-face-accent"
-                  : "rounded border border-face-border bg-face-panel px-3 py-1.5 text-sm font-inherit text-face-text hover:bg-face-panel-2"
-              }
-              onClick={setModeBlend}
-            >
-              Blend (V/A)
-            </button>
-            <button
-              type="button"
-              className={
-                verbTimelineMode
-                  ? "rounded border border-face-accent bg-face-panel-2 px-3 py-1.5 text-sm font-inherit text-face-accent"
-                  : "rounded border border-face-border bg-face-panel px-3 py-1.5 text-sm font-inherit text-face-text hover:bg-face-panel-2"
-              }
-              onClick={setModeVerbTimeline}
-            >
-              Verb timelines
-            </button>
-          </div>
           {!verbTimelineMode ? (
             <BlendPanel
               fc={fc}
