@@ -9,9 +9,9 @@
  */
 
 export {
-  createFrameController,
-  type FrameController,
-  type StaticOverrideState,
+    createFrameController,
+    type FrameController,
+    type StaticOverrideState,
 } from "./frameController";
 export { createFaceRenderer, type FaceRendererApi } from "./faceRenderer";
 export { createEmotionBlend, type EmotionBlendApi } from "./emotionBlend";
@@ -20,15 +20,15 @@ export { EMOTION_TRIANGULATION } from "./emotionTriangulation";
 export { tft, TFTSprite } from "./tftSprite";
 export type { FaceParams, ParamField } from "./faceParams";
 export {
-  PARAM_FIELD_LABEL,
-  PARAM_FIELDS_UI_ORDER,
-  PARAM_UI_SECTIONS,
-  paramFieldLabel,
+    PARAM_FIELD_LABEL,
+    PARAM_FIELDS_UI_ORDER,
+    PARAM_UI_SECTIONS,
+    paramFieldLabel,
 } from "./faceParams";
 export {
-  PARAM_FIELDS,
-  expressionsList,
-  paramFieldsList,
-  baseTargetForExpression,
-  isEmotionExpression,
+    PARAM_FIELDS,
+    expressionsList,
+    paramFieldsList,
+    baseTargetForExpression,
+    isEmotionExpression,
 } from "./presets";
