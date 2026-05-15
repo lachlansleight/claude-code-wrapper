@@ -16,17 +16,17 @@ what the UI can change today, and what is save-only / hand-edited.
 
 ## 1. High-level map of `FaceConfigState`
 
-| Section | Role |
-|--------|------|
-| **Expression schema** | Fixed list of 22 `Face::Expression` values, which are “emotions” vs verbs/overlays |
-| **Named emotions (14)** | V/A anchors, pick order, mapping to expression indices |
-| **Triangulation** | Delaunay mesh over emotion anchors (computed at load/save, not stored as source of truth) |
-| **`kBaseTargets`** | 22 × 24 `ParamI16` face geometry rows (value + strength per field) |
-| **`kVerbTimelines`** | Per-verb keyframed override tracks (time → partial field overrides) |
-| **`kArmPresets`** | Per-expression arm waggle ranges (for blended emotion arm motion) |
-| **`kMotion`** | Per-expression body/arm motion mode (oscillate, waggle, thinking, etc.) |
-| **`kIdleAnim`** | Per-expression blink, gaze, and face-bob policy |
-| **Sim tunables** | `kEmotionSim`, `kFrameAnim`, `kVerbSim`, `kMotionRuntime`, `kVerbTransitionDurMs` |
+| Section                 | Role                                                                                      |
+| ----------------------- | ----------------------------------------------------------------------------------------- |
+| **Expression schema**   | Fixed list of 22 `Face::Expression` values, which are “emotions” vs verbs/overlays        |
+| **Named emotions (14)** | V/A anchors, pick order, mapping to expression indices                                    |
+| **Triangulation**       | Delaunay mesh over emotion anchors (computed at load/save, not stored as source of truth) |
+| **`kBaseTargets`**      | 22 × 24 `ParamI16` face geometry rows (value + strength per field)                        |
+| **`kVerbTimelines`**    | Per-verb keyframed override tracks (time → partial field overrides)                       |
+| **`kArmPresets`**       | Per-expression arm waggle ranges (for blended emotion arm motion)                         |
+| **`kMotion`**           | Per-expression body/arm motion mode (oscillate, waggle, thinking, etc.)                   |
+| **`kIdleAnim`**         | Per-expression blink, gaze, and face-bob policy                                           |
+| **Sim tunables**        | `kEmotionSim`, `kFrameAnim`, `kVerbSim`, `kMotionRuntime`, `kVerbTransitionDurMs`         |
 
 Types and helpers live in [`faceConfigTypes.ts`](src/app/_lib/face-engine/faceConfigTypes.ts)
 (enums, `P()`, `expressionIndexFromName`, etc.). Generated files are **data only**.
@@ -37,10 +37,10 @@ Types and helpers live in [`faceConfigTypes.ts`](src/app/_lib/face-engine/faceCo
 
 ### Emotion V/A map — `kEmotionPoints` + triangulation
 
-| What | UI location |
-|------|-------------|
+| What                                        | UI location                                                                                                                         |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | Anchor positions `(v, a)` per named emotion | **Emotions** mode → blend diagram canvas ([`BlendPanel.tsx`](src/app/_components/face-editor/BlendPanel.tsx)): drag emotion anchors |
-| Triangle mesh | Recomputed automatically (`delaunator`) on drag and before save |
+| Triangle mesh                               | Recomputed automatically (`delaunator`) on drag and before save                                                                     |
 
 `emotionPoints` and `emotionTriangulation.anchors` stay in sync when anchors move
 ([`syncEmotionPointFromAnchor`](src/app/_lib/face-engine/emotionTriangulationLive.ts)).
@@ -52,10 +52,10 @@ Types and helpers live in [`faceConfigTypes.ts`](src/app/_lib/face-engine/faceCo
 
 ### Emotion face geometry — `kBaseTargets` (14 emotion rows only)
 
-| What | UI location |
-|------|-------------|
+| What                                                     | UI location                                                                                                                                                      |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Per-field **value** and **strength** for a named emotion | **Emotions** mode → click anchor on blend diagram → [`EmotionPointInspector.tsx`](src/app/_components/face-editor/EmotionPointInspector.tsx) (`ParamSliderGrid`) |
-| Valence / arousal readout | Top of `EmotionPointInspector` (from live anchor) |
+| Valence / arousal readout                                | Top of `EmotionPointInspector` (from live anchor)                                                                                                                |
 
 Rows addressed by **PascalCase** emotion name (`Neutral`, `Happy`, …) matching
 triangulation anchors — not by expression index dropdown.
@@ -66,11 +66,11 @@ triangulation anchors — not by expression index dropdown.
 
 ### Verb face animation — `kVerbTimelines`
 
-| What | UI location |
-|------|-------------|
+| What                                             | UI location                                                                                                                                                                          |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Keyframe times, override fields/values/strengths | **Verbs** mode → [`VerbTimelinePanel.tsx`](src/app/_components/face-editor/VerbTimelinePanel.tsx) + [`KeyframeInspector.tsx`](src/app/_components/face-editor/KeyframeInspector.tsx) |
-| Loop duration | Verb timeline panel |
-| Preview playhead / speed | Verb timeline panel + [`FaceStage`](src/app/_components/face-editor/FaceStage.tsx) canvas |
+| Loop duration                                    | Verb timeline panel                                                                                                                                                                  |
+| Preview playhead / speed                         | Verb timeline panel + [`FaceStage`](src/app/_components/face-editor/FaceStage.tsx) canvas                                                                                            |
 
 Applies to expressions that use verb timelines: `VerbThinking`, `VerbReading`,
 `VerbWriting`, `VerbExecuting`, `VerbStraining`, `VerbSleeping`.
@@ -79,12 +79,12 @@ Applies to expressions that use verb timelines: `VerbThinking`, `VerbReading`,
 
 ### Preview-only (does **not** write config)
 
-| What | UI location | Notes |
-|------|-------------|--------|
-| Blend sample point V/A | **Emotions** mode → valence/arousal sliders in `BlendPanel` | Moves preview only; does not update `kEmotionPoints` unless you drag an **anchor** |
-| Static face override | **Static mode** panel ([`StaticModePanel.tsx`](src/app/_components/face-editor/StaticModePanel.tsx)) | `staticOverride` for preview + C++ copy snippet; does **not** patch `kBaseTargets` |
-| Emotion quick buttons | [`EmotionButtons.tsx`](src/app/_components/face-editor/EmotionButtons.tsx) | Sends V/A to robot bridge; does not open inspector or edit stored tables |
-| Robot bridge overlays | Overlay buttons, auto-send, etc. | Runtime only |
+| What                   | UI location                                                                                          | Notes                                                                              |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Blend sample point V/A | **Emotions** mode → valence/arousal sliders in `BlendPanel`                                          | Moves preview only; does not update `kEmotionPoints` unless you drag an **anchor** |
+| Static face override   | **Static mode** panel ([`StaticModePanel.tsx`](src/app/_components/face-editor/StaticModePanel.tsx)) | `staticOverride` for preview + C++ copy snippet; does **not** patch `kBaseTargets` |
+| Emotion quick buttons  | [`EmotionButtons.tsx`](src/app/_components/face-editor/EmotionButtons.tsx)                           | Sends V/A to robot bridge; does not open inspector or edit stored tables           |
+| Robot bridge overlays  | Overlay buttons, auto-send, etc.                                                                     | Runtime only                                                                       |
 
 ---
 
@@ -95,16 +95,16 @@ unless you edit the generated files by hand.
 
 ### Schema (fixed until emotion-schema work lands)
 
-- `expressions` / `EXPRESSIONS` (22 names)
-- `expressionIsEmotion` (emotion vs verb/overlay flags)
-- `emotionNames` (14 slugs — positions editable, names not)
-- `verbKeyframeOverridesMax`, `verbKeyframesMax`
-- `bobAmpFollowEmotionArm` (sentinel `0x8000` for “follow arm” bob)
+-   `expressions` / `EXPRESSIONS` (22 names)
+-   `expressionIsEmotion` (emotion vs verb/overlay flags)
+-   `emotionNames` (14 slugs — positions editable, names not)
+-   `verbKeyframeOverridesMax`, `verbKeyframesMax`
+-   `bobAmpFollowEmotionArm` (sentinel `0x8000` for “follow arm” bob)
 
 ### Emotion metadata
 
-- `pickOrderIndices` — tie-break when two anchors are equidistant
-- `namedEmotionToExpressionIndex` — maps each named emotion → `Face::Expression` index
+-   `pickOrderIndices` — tie-break when two anchors are equidistant
+-   `namedEmotionToExpressionIndex` — maps each named emotion → `Face::Expression` index
 
 ### `kBaseTargets` for verbs and overlays
 
@@ -154,20 +154,20 @@ scan/amplitude fields, `bob_amplitude_px` (or `BOB_AMP_FOLLOW_EMOTION_ARM`).
 
 ### Simulation tunables
 
-| Table | Purpose |
-|-------|---------|
-| `kEmotionSim` | Emotion activation / valence smoothing, snap hysteresis |
-| `kFrameAnim` | Tick rate, geometry smooth tau, breath, thinking flip timing, mood ring tau, defaults |
-| `kVerbSim` | Strain delay, default overlay duration |
-| `kMotionRuntime` | Default slew times for motion modes |
-| `kVerbTransitionDurMs` | Cross-fade when switching verb timelines |
+| Table                  | Purpose                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------- |
+| `kEmotionSim`          | Emotion activation / valence smoothing, snap hysteresis                               |
+| `kFrameAnim`           | Tick rate, geometry smooth tau, breath, thinking flip timing, mood ring tau, defaults |
+| `kVerbSim`             | Strain delay, default overlay duration                                                |
+| `kMotionRuntime`       | Default slew times for motion modes                                                   |
+| `kVerbTransitionDurMs` | Cross-fade when switching verb timelines                                              |
 
 **Planned:** single large “simulation / tuning” panel in the editor.
 
 ### Derived data (not hand-edited)
 
-- `emotionTriangulation.triangles` — always Delaunay from `kEmotionPoints` / anchors
-- `emotionTriangulation.domain` — fixed `[-1,1] × [0,1]`
+-   `emotionTriangulation.triangles` — always Delaunay from `kEmotionPoints` / anchors
+-   `emotionTriangulation.domain` — fixed `[-1,1] × [0,1]`
 
 ---
 
@@ -204,12 +204,12 @@ scan/amplitude fields, `bob_amplitude_px` (or `BOB_AMP_FOLLOW_EMOTION_ARM`).
 
 ## 6. Files touched by Save
 
-| Output | Path |
-|--------|------|
-| TypeScript data | `face-editor/src/app/_lib/face-engine/FACE_CONFIG_DATA.ts` |
-| Firmware data | `robot_v3/src/face/FACE_CONFIG_DATA.h` |
-| Firmware triangulation | `robot_v3/src/behaviour/EmotionTriangulation.h` |
-| Reload snapshot | `face-editor/src/app/_lib/face-engine/FACE_CONFIG_DATA.snapshot.json` |
+| Output                 | Path                                                                  |
+| ---------------------- | --------------------------------------------------------------------- |
+| TypeScript data        | `face-editor/src/app/_lib/face-engine/FACE_CONFIG_DATA.ts`            |
+| Firmware data          | `robot_v3/src/face/FACE_CONFIG_DATA.h`                                |
+| Firmware triangulation | `robot_v3/src/behaviour/EmotionTriangulation.h`                       |
+| Reload snapshot        | `face-editor/src/app/_lib/face-engine/FACE_CONFIG_DATA.snapshot.json` |
 
 Codegen: [`src/app/_lib/face-config-codegen/`](src/app/_lib/face-config-codegen/) (Node,
 `delaunator`, no Python).

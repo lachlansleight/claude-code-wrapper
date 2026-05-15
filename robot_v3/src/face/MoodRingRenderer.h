@@ -20,7 +20,7 @@ namespace Face {
 /**
  * True if the mood ring should be drawn for @p expr. All emotion
  * expressions return true; verbs/overlays defer to the legacy verb table
- * (e.g. thinking/reading, not VerbSleeping or OverlayWaking).
+ * (e.g. thinking/reading, not VerbSleeping or VerbWaking).
  */
 bool moodRingShouldDraw(Expression expr);
 

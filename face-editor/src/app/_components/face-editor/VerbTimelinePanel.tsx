@@ -22,16 +22,9 @@ const TICK_MINOR_PX = 4;
 const TICK_HALF_PX = 8;
 const TICK_MAJOR_PX = 12;
 
-export const VERB_TIMELINE_NAMES = [
-    "VerbThinking",
-    "VerbReading",
-    "VerbWriting",
-    "VerbExecuting",
-    "VerbStraining",
-    "VerbSleeping",
-] as const;
+import { VERB_TIMELINE_NAMES, type VerbTimelineName } from "../../_lib/face-engine/verbCatalog";
 
-export type VerbTimelineName = (typeof VERB_TIMELINE_NAMES)[number];
+export { VERB_TIMELINE_NAMES, type VerbTimelineName };
 
 export function VerbTimelinePanel({
     selectedVerb,

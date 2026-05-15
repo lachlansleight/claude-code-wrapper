@@ -62,9 +62,7 @@ export function SaveFaceConfigButton({ fc }: { fc: FrameController }): JSX.Eleme
             {message ? (
                 <p
                     className={
-                        status === "error"
-                            ? "text-xs text-red-400"
-                            : "text-xs text-face-muted"
+                        status === "error" ? "text-xs text-red-400" : "text-xs text-face-muted"
                     }
                 >
                     {message}

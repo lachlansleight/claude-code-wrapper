@@ -204,24 +204,9 @@ void drawEffects(TFT_eSprite& s, uint32_t now, float readAlpha, float writeAlpha
 }
 
 void drawOverlayEffects(TFT_eSprite& s, Expression expr, uint32_t nowMs) {
-  float pulse = 0.35f + 0.22f * sinf((float)(nowMs % 1300) / 1300.0f * 2.0f * (float)M_PI);
-  if (expr == Expression::OverlayWaking) {
-    const uint8_t pr = alphaScale8(170, pulse);
-    const uint8_t pg = alphaScale8(210, pulse);
-    const uint8_t pb = alphaScale8(240, pulse);
-    const uint16_t c = rgb888To565(pr, pg, pb);
-    for (int16_t rad = 112; rad <= 118; ++rad) {
-      s.drawCircle(kCx, kCy, rad, c);
-    }
-  } else if (expr == Expression::OverlayAttention) {
-    const uint8_t pr = alphaScale8(255, pulse);
-    const uint8_t pg = alphaScale8(48, pulse);
-    const uint8_t pb = alphaScale8(72, pulse);
-    const uint16_t c = rgb888To565(pr, pg, pb);
-    for (int16_t rad = 111; rad <= 118; ++rad) {
-      s.drawCircle(kCx, kCy, rad, c);
-    }
-  }
+  (void)s;
+  (void)expr;
+  (void)nowMs;
 }
 
 }  // namespace Face

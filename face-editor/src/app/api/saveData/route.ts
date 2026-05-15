@@ -18,10 +18,7 @@ export async function POST(req: Request): Promise<NextResponse<SaveDataResponse>
             );
         }
 
-        const { filesWritten, config } = emitAllFaceConfigArtifacts(
-            repoRootFromCwd(),
-            body.config
-        );
+        const { filesWritten, config } = emitAllFaceConfigArtifacts(repoRootFromCwd(), body.config);
 
         return NextResponse.json({ ok: true, filesWritten, config });
     } catch (e) {

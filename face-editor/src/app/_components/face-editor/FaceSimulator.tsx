@@ -4,7 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { expressionIndexFromName, Expression } from "../../_lib/face-engine/faceConfigTypes";
 import type { FaceConfigState } from "../../_lib/face-engine/faceConfigState";
 import { cloneFaceConfigState } from "../../_lib/face-engine/mutableFaceConfig";
-import { createFrameController, type FrameController } from "../../_lib/face-engine/frameController";
+import {
+    createFrameController,
+    type FrameController,
+} from "../../_lib/face-engine/frameController";
 import {
     PARAM_FIELDS,
     PARAM_FIELDS_UI_ORDER,
@@ -21,7 +24,6 @@ import {
 } from "../../_lib/face-engine/verbTimelineEdit";
 import { formatKBaseTargetsCpp } from "../../_lib/face-editor/cppRowFormat";
 import { postRaw } from "../../_lib/face-editor/bridge";
-import { OVERLAY_MAP } from "../../_lib/face-editor/simulatorLayout";
 import { BlendPanel } from "./BlendPanel";
 import { EmotionButtons } from "./EmotionButtons";
 import { EmotionPointInspector } from "./EmotionPointInspector";
@@ -89,7 +91,6 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
     const [blendOn, setBlendOn] = useState(true);
     const [staticOn, setStaticOn] = useState(false);
     const [autoSend, setAutoSend] = useState(false);
-    const [overlayMs, setOverlayMs] = useState(1200);
     const [paramsText, setParamsText] = useState("");
     const [fps, setFps] = useState("—");
     const [armDeg, setArmDeg] = useState("—");
@@ -491,13 +492,6 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
         if (verbTimelineMode && name.startsWith("Verb")) {
             setVerbTimelineName(name as VerbTimelineName);
         }
-    }
-
-    async function onOverlayClick(name: string): Promise<void> {
-        fc.requestExpression(name);
-        const verb = OVERLAY_MAP[name];
-        const ms = overlayMs || 1200;
-        await postRaw("/api/raw/verb/overlay", { verb, duration_ms: ms });
     }
 
     /** Match robot `clearVerb` + emotion-driven face: end verb on bridge and snap preview off verb timelines. */

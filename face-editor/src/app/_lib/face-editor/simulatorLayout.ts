@@ -85,6 +85,7 @@ export const EMOTION_COLOR: Record<string, string> = {
     Frustrated: "#d26a37",
 };
 
+/** @deprecated Use `robotVerbStartSlug()` — all Verb* expressions map to bridge slugs. */
 export const VERB_MAP: Record<string, string> = {
     VerbThinking: "thinking",
     VerbReading: "reading",
@@ -92,11 +93,8 @@ export const VERB_MAP: Record<string, string> = {
     VerbExecuting: "executing",
     VerbStraining: "straining",
     VerbSleeping: "sleeping",
-};
-
-export const OVERLAY_MAP: Record<string, string> = {
-    OverlayWaking: "waking",
-    OverlayAttention: "attracting_attention",
+    VerbWaking: "waking",
+    VerbAttractingAttention: "attracting_attention",
 };
 
 export function buildParamRanges(): Record<
@@ -130,5 +128,5 @@ export function buildModRanges(): Record<
 }
 
 export function isEmotionExprName(name: string): boolean {
-    return !name.startsWith("Verb") && !name.startsWith("Overlay");
+    return !name.startsWith("Verb");
 }

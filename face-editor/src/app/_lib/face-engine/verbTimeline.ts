@@ -52,6 +52,8 @@ export function expressionUsesVerbTimeline(e: Expression): boolean {
         case Expression.VerbExecuting:
         case Expression.VerbStraining:
         case Expression.VerbSleeping:
+        case Expression.VerbWaking:
+        case Expression.VerbAttractingAttention:
             return true;
         default:
             return false;

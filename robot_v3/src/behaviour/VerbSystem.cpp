@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "../face/FACE_CONFIG.h"
+#include "../face/VerbTimeline.h"
 
 namespace VerbSystem {
 
@@ -13,16 +14,12 @@ Verb sCurrent = Verb::None;
 uint32_t sEnteredAtMs = 0;
 uint32_t sLingerUntilMs = 0;
 
-bool sOverlayActive = false;
-Verb sOverlayVerb = Verb::None;
-uint32_t sOverlayUntilMs = 0;
-Verb sPreOverlayVerb = Verb::None;
-
-bool sOverlayQueued = false;
-Verb sQueuedOverlayVerb = Verb::None;
-uint32_t sQueuedOverlayDurationMs = 0;
-bool sQueuedExplicitPostVerb = false;
-Verb sQueuedPostOverlayVerb = Verb::None;
+bool sTransientActive = false;
+Verb sTransientVerb = Verb::None;
+Verb sTransientPostVerb = Verb::None;
+uint32_t sTransientUntilMs = 0;
+uint32_t sTransientBlendOutAtMs = 0;
+uint32_t sTransientStartedMs = 0;
 
 bool ieq(const char* a, const char* b) {
   if (!a || !b) return false;
@@ -34,8 +31,40 @@ bool ieq(const char* a, const char* b) {
   return *a == '\0' && *b == '\0';
 }
 
-bool isOverlayVerb(Verb v) {
-  return v == Verb::Waking || v == Verb::AttractingAttention;
+bool canPlayTransient(Verb v) { return v != Verb::None; }
+
+void applyPostVerb(Verb post) {
+  if (post == Verb::None) {
+    sCurrent = Verb::None;
+  } else {
+    sCurrent = post;
+  }
+  sEnteredAtMs = millis();
+  sLingerUntilMs = 0;
+}
+
+void startTransient(Verb overlayVerb, uint32_t durationMs, bool explicitPost, Verb postOverlayVerb) {
+  if (!canPlayTransient(overlayVerb)) return;
+  if (durationMs == 0) durationMs = 1;
+
+  const uint32_t now = millis();
+  const uint32_t blendMs = Face::kVerbTransitionDurMs;
+  if (durationMs <= blendMs) durationMs = blendMs + 1;
+
+  sTransientPostVerb = explicitPost ? postOverlayVerb : sCurrent;
+
+  sTransientActive = true;
+  sTransientVerb = overlayVerb;
+  sTransientStartedMs = now;
+  sTransientUntilMs = now + durationMs;
+  sTransientBlendOutAtMs = now + durationMs - blendMs;
+}
+
+void endTransient() {
+  const Verb post = sTransientPostVerb;
+  sTransientActive = false;
+  sTransientVerb = Verb::None;
+  applyPostVerb(post);
 }
 
 }  // namespace
@@ -44,37 +73,20 @@ void begin() {
   sCurrent = Verb::Sleeping;
   sEnteredAtMs = millis();
   sLingerUntilMs = 0;
-  sOverlayActive = false;
-  sOverlayVerb = Verb::None;
-  sOverlayUntilMs = 0;
-  sPreOverlayVerb = Verb::None;
-  sOverlayQueued = false;
-  sQueuedExplicitPostVerb = false;
-  sQueuedPostOverlayVerb = Verb::None;
+  sTransientActive = false;
+  sTransientVerb = Verb::None;
+  sTransientPostVerb = Verb::None;
+  sTransientUntilMs = 0;
+  sTransientBlendOutAtMs = 0;
+  sTransientStartedMs = 0;
 }
 
 void tick() {
   const uint32_t now = millis();
 
-  if (sOverlayActive && now >= sOverlayUntilMs) {
-    sOverlayActive = false;
-    sOverlayVerb = Verb::None;
-    sCurrent = sPreOverlayVerb;
-    sEnteredAtMs = now;
-    if (sOverlayQueued) {
-      const Verb queued = sQueuedOverlayVerb;
-      const uint32_t duration = sQueuedOverlayDurationMs;
-      const bool explicitPost = sQueuedExplicitPostVerb;
-      const Verb post = sQueuedPostOverlayVerb;
-      sOverlayQueued = false;
-      sQueuedExplicitPostVerb = false;
-      if (explicitPost) {
-        fireOverlay(queued, duration, post);
-      } else {
-        fireOverlay(queued, duration);
-      }
-      return;
-    }
+  if (sTransientActive && now >= sTransientUntilMs) {
+    endTransient();
+    return;
   }
 
   if (sLingerUntilMs != 0 && now >= sLingerUntilMs) {
@@ -97,16 +109,14 @@ void setVerb(Verb v) {
     clearVerb();
     return;
   }
-  if (isOverlayVerb(v)) {
-    fireOverlay(v, FaceConfig::kVerbSim.default_overlay_duration_ms);
-    return;
-  }
+  sTransientActive = false;
   sCurrent = v;
   sEnteredAtMs = millis();
   sLingerUntilMs = 0;
 }
 
 void clearVerb() {
+  sTransientActive = false;
   sCurrent = Verb::None;
   sEnteredAtMs = millis();
   sLingerUntilMs = 0;
@@ -120,51 +130,53 @@ void armLinger(uint32_t ms) {
   sLingerUntilMs = millis() + ms;
 }
 
-static void fireOverlayImpl(Verb overlayVerb, uint32_t durationMs, bool explicitPostOverlay,
-                            Verb postOverlayVerb) {
-  if (!isOverlayVerb(overlayVerb)) return;
-  if (durationMs == 0) durationMs = 1;
-  if (sOverlayActive) {
-    sOverlayQueued = true;
-    sQueuedOverlayVerb = overlayVerb;
-    sQueuedOverlayDurationMs = durationMs;
-    sQueuedExplicitPostVerb = explicitPostOverlay;
-    if (explicitPostOverlay) sQueuedPostOverlayVerb = postOverlayVerb;
-    return;
-  }
-  sPreOverlayVerb = explicitPostOverlay ? postOverlayVerb : sCurrent;
-  sOverlayActive = true;
-  sOverlayVerb = overlayVerb;
-  sOverlayUntilMs = millis() + durationMs;
-}
-
 void fireOverlay(Verb overlayVerb, uint32_t durationMs) {
-  fireOverlayImpl(overlayVerb, durationMs, false, Verb::None);
+  startTransient(overlayVerb, durationMs, false, Verb::None);
 }
 
 void fireOverlay(Verb overlayVerb, uint32_t durationMs, Verb postOverlayVerb) {
-  fireOverlayImpl(overlayVerb, durationMs, true, postOverlayVerb);
+  startTransient(overlayVerb, durationMs, true, postOverlayVerb);
 }
 
 Verb current() { return sCurrent; }
-Verb effective() { return sOverlayActive ? sOverlayVerb : sCurrent; }
-bool overlayActive() { return sOverlayActive; }
+
+Verb effective() {
+  if (!sTransientActive) return sCurrent;
+  const uint32_t now = millis();
+  if (now >= sTransientBlendOutAtMs) return sTransientPostVerb;
+  return sTransientVerb;
+}
+
+bool overlayActive() { return sTransientActive; }
+
 uint32_t enteredAtMs() { return sEnteredAtMs; }
+
 uint32_t timeInCurrentMs() { return millis() - sEnteredAtMs; }
 
+uint32_t timeInEffectiveMs() {
+  if (sTransientActive) return millis() - sTransientStartedMs;
+  return timeInCurrentMs();
+}
+
+uint32_t effectiveEnteredAtMs() {
+  if (sTransientActive) return sTransientStartedMs;
+  return sEnteredAtMs;
+}
+
 DebugState debugState() {
+  const Verb eff = effective();
   return DebugState{
       sCurrent,
-      sOverlayActive ? sOverlayVerb : sCurrent,
-      sOverlayVerb,
-      sPreOverlayVerb,
-      sQueuedOverlayVerb,
-      sOverlayActive,
-      sOverlayQueued,
+      eff,
+      sTransientActive ? sTransientVerb : Verb::None,
+      sTransientPostVerb,
+      Verb::None,
+      sTransientActive,
+      false,
       sEnteredAtMs,
       sLingerUntilMs,
-      sOverlayUntilMs,
-      sQueuedOverlayDurationMs,
+      sTransientUntilMs,
+      0,
   };
 }
 

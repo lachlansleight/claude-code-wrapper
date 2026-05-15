@@ -378,7 +378,7 @@
     }
 
     function isEmotionExpr(name) {
-      return !name.startsWith("Verb") && !name.startsWith("Overlay");
+      return !name.startsWith("Verb");
     }
 
     function emotionVA(name) {
@@ -398,8 +398,8 @@
     };
 
     const OVERLAY_MAP = {
-      OverlayWaking: "waking",
-      OverlayAttention: "attracting_attention",
+      VerbWaking: "waking",
+      VerbAttractingAttention: "attracting_attention",
     };
 
     let blendSendDirty = false;
@@ -439,7 +439,7 @@
     }
 
     FC.expressions().forEach((e) => {
-      if (e.startsWith("Overlay")) return;
+      if (e === "VerbWaking" || e === "VerbAttractingAttention") return;
       if (e.startsWith("Verb")) {
         addExprButton(verbGrid, e, async () => {
           FC.requestExpression(e);

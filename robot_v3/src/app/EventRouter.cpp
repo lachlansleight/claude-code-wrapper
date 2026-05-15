@@ -16,7 +16,7 @@ namespace EventRouter {
 namespace {
 
 static constexpr uint32_t kVerbLingerMs = 1000;
-static constexpr uint32_t kOverlayMs = 1000;
+static constexpr uint32_t kOverlayMs = 1500;
 static constexpr uint32_t kStrainStressDelayMs = 30000;
 static constexpr float kBlockedV = -0.6f;
 static constexpr float kStrainV = -0.4f;

@@ -81,10 +81,7 @@ export function cloneFaceConfigState(src: FaceConfigState): FaceConfigState {
 export function buildFaceConfigStateFromSource(): FaceConfigState {
     const emotionNames = [...kEmotionNames];
     const emotionPoints = kEmotionPoints.map(p => ({ v: p.v, a: p.a }));
-    const emotionTriangulation = buildEmotionTriangulationFromPoints(
-        emotionNames,
-        emotionPoints
-    );
+    const emotionTriangulation = buildEmotionTriangulationFromPoints(emotionNames, emotionPoints);
     return {
         expressions: [...EXPRESSIONS],
         expressionIsEmotion: [...kExpressionIsEmotion],

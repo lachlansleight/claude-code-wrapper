@@ -30,11 +30,7 @@ import {
     type ParamField,
 } from "./faceParams";
 import { createFaceRenderer } from "./faceRenderer";
-import {
-    expressionsList,
-    isEmotionExpression,
-    paramFieldsList,
-} from "./presets";
+import { expressionsList, isEmotionExpression, paramFieldsList } from "./presets";
 import { createRobotSettings } from "./robotSettings";
 import {
     cloneFaceParamsIndexed,
@@ -43,6 +39,7 @@ import {
 } from "./sceneFaceCombine";
 import { TFTSprite, tft } from "./tftSprite";
 import type { BlendTriangle, EmotionArmMotion, EmotionTriangulationTable } from "./types";
+import { kVerbTransitionDurMs } from "./FACE_CONFIG_DATA";
 import {
     expressionUsesVerbTimeline,
     isVerbExpression,
@@ -229,6 +226,15 @@ export interface FrameController {
      */
     setBlendVerbPreview(verb: Expression | null): void;
     blendVerbPreview(): Expression | null;
+    /**
+     * Timed verb play in blend mode (matches firmware `fireOverlay`): blend in, hold,
+     * blend out to @p postVerb (`null` = clear verb layer after).
+     */
+    fireBlendVerbTransient(
+        verb: Expression,
+        durationMs: number,
+        postVerb?: Expression | null
+    ): void;
     setStaticOverride(partial: {
         params?: Partial<FaceParams>;
         blinkAmt?: number;
@@ -335,6 +341,52 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
     /** Optional verb layered in blend-mode tick — see `setBlendVerbPreview`. */
     let sBlendVerbPreview: Expression | null = null;
     let sBlendVerbEnteredMs = 0;
+
+    type BlendVerbTransient = {
+        verb: Expression;
+        postVerb: Expression | null;
+        untilMs: number;
+        blendOutAtMs: number;
+        startedMs: number;
+    };
+    let sBlendVerbTransient: BlendVerbTransient | null = null;
+
+    function finishBlendVerbTransient(t: number): void {
+        if (!sBlendVerbTransient) return;
+        const post = sBlendVerbTransient.postVerb;
+        sBlendVerbTransient = null;
+        if (post === null) {
+            sBlendVerbPreview = null;
+            sBlendVerbEnteredMs = t;
+            return;
+        }
+        sBlendVerbPreview = post;
+        sBlendVerbEnteredMs = t;
+    }
+
+    function blendVerbSampleTarget(t: number): { expr: Expression; timeMs: number } {
+        const transient = sBlendVerbTransient;
+        if (transient) {
+            if (t >= transient.untilMs) {
+                finishBlendVerbTransient(t);
+            } else if (t >= transient.blendOutAtMs) {
+                const post = transient.postVerb;
+                if (post === null) {
+                    return { expr: Expression.Count, timeMs: 0 };
+                }
+                return { expr: post, timeMs: Math.max(0, t - transient.blendOutAtMs) };
+            } else {
+                return {
+                    expr: transient.verb,
+                    timeMs: Math.max(0, t - transient.startedMs),
+                };
+            }
+        }
+        if (sBlendVerbPreview === null) {
+            return { expr: Expression.Count, timeMs: 0 };
+        }
+        return { expr: sBlendVerbPreview, timeMs: Math.max(0, t - sBlendVerbEnteredMs) };
+    }
 
     const resolveLiveVerbTable: VerbTimelineTableResolver = (verb: Expression) =>
         faceConfig.verbTimelines.find(t => t.verb === verb);
@@ -574,7 +626,7 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
         switch (exprIdx) {
             case Expression.VerbReading:
                 return -8;
-            case Expression.OverlayWaking:
+            case Expression.VerbWaking:
                 return 18;
             case Expression.VerbThinking: {
                 const T = m.period_ms || 2000;
@@ -597,7 +649,7 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
                 const T = m.period_ms || 8000;
                 return m.center + m.amplitude * Math.sin(((t % T) / T) * 2 * PI);
             }
-            case Expression.OverlayAttention: {
+            case Expression.VerbAttractingAttention: {
                 const T = m.period_ms || 900;
                 return m.amplitude * Math.sin(((t % T) / T) * 2 * PI);
             }
@@ -748,15 +800,13 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
         const emoAlpha = 1.0 - Math.exp(-emoDt / animCfg().emotion_geometry_smooth_tau_ms);
 
         let targetRow: ParamI16[] = [...faceConfig.baseTargets[exprIdx]!];
-        if (
-            sVerbTimelinePreview !== null &&
-            expressionUsesVerbTimeline(exprEnum) &&
-            emotionBlend.ready()
-        ) {
-            const blended = emotionBlend.blendedFaceParamsIndexed(
-                sVerbPreviewBaseVa.v,
-                sVerbPreviewBaseVa.a
-            );
+        if (expressionUsesVerbTimeline(exprEnum) && emotionBlend.ready()) {
+            const v = sVerbTimelinePreview !== null ? sVerbPreviewBaseVa.v : sBlendV;
+            const a = sVerbTimelinePreview !== null ? sVerbPreviewBaseVa.a : sBlendA;
+            const blended = emotionBlend.blendedFaceParamsIndexed(v, a);
+            if (blended) targetRow = [...blended];
+        } else if (sBlendMode && emotionBlend.ready()) {
+            const blended = emotionBlend.blendedFaceParamsIndexed(sBlendV, sBlendA);
             if (blended) targetRow = [...blended];
         }
         smoothFaceValuesToward(sSmoothed, targetRow, emoAlpha);
@@ -927,12 +977,9 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
             value: 0,
             strength: 0,
         }));
-        let blendVerbPhaseExpr: Expression = Expression.Count;
-        let blendVerbTimeMs = 0;
-        if (sBlendVerbPreview !== null && expressionUsesVerbTimeline(sBlendVerbPreview)) {
-            blendVerbPhaseExpr = sBlendVerbPreview;
-            blendVerbTimeMs = Math.max(0, t - sBlendVerbEnteredMs);
-        }
+        const blendTarget = blendVerbSampleTarget(t);
+        const blendVerbPhaseExpr = blendTarget.expr;
+        const blendVerbTimeMs = blendTarget.timeMs;
         sampleEffectiveVerb(
             blendVerbPhaseExpr,
             t,
@@ -1151,16 +1198,46 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
 
         setBlendVerbPreview(verb: Expression | null): void {
             if (verb !== null && !expressionUsesVerbTimeline(verb)) return;
+            sBlendVerbTransient = null;
             if (verb === sBlendVerbPreview) return;
             sBlendVerbPreview = verb;
             sBlendVerbEnteredMs = now();
-            // Do not resetVerbTransition() — tickBlend passes the new target to
-            // sampleEffectiveVerb each frame; it snapshots in-flight output and
-            // cross-fades over kVerbTransitionDurMs (matches firmware VerbTimeline).
         },
 
         blendVerbPreview(): Expression | null {
+            const transient = sBlendVerbTransient;
+            if (transient) {
+                const t = now();
+                if (t >= transient.untilMs) {
+                    finishBlendVerbTransient(t);
+                    return sBlendVerbPreview;
+                }
+                if (t < transient.blendOutAtMs) {
+                    return transient.verb;
+                }
+                return transient.postVerb;
+            }
             return sBlendVerbPreview;
+        },
+
+        fireBlendVerbTransient(
+            verb: Expression,
+            durationMs: number,
+            postVerb: Expression | null = null
+        ): void {
+            if (!expressionUsesVerbTimeline(verb)) return;
+            const t = now();
+            const blendMs = kVerbTransitionDurMs;
+            let dur = durationMs > 0 ? durationMs : 1;
+            if (dur <= blendMs) dur = blendMs + 1;
+            const resolvedPost = postVerb !== undefined ? postVerb : sBlendVerbPreview;
+            sBlendVerbTransient = {
+                verb,
+                postVerb: resolvedPost ?? null,
+                untilMs: t + dur,
+                blendOutAtMs: t + dur - blendMs,
+                startedMs: t,
+            };
         },
 
         setStaticOverride(partial: {

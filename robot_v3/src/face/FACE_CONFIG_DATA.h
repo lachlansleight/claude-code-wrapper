@@ -25,8 +25,8 @@ enum class Expression : uint8_t {
   VerbExecuting,
   VerbStraining,
   VerbSleeping,
-  OverlayWaking,
-  OverlayAttention,
+  VerbWaking,
+  VerbAttractingAttention,
   Sleepy,
   Distressed,
   Blissed,
@@ -67,8 +67,8 @@ namespace FaceConfig {
 
 static constexpr const char* kExpressionNames[(size_t)Face::Expression::Count] = {
     "neutral",          "happy",          "excited",      "joyful",      "sad",          "verb_thinking",
-    "verb_reading",     "verb_writing",   "verb_executing","verb_straining","verb_sleeping","overlay_waking",
-    "overlay_attention","sleepy",         "distressed",   "blissed",     "depressed",    "shocked",
+    "verb_reading",     "verb_writing",   "verb_executing","verb_straining","verb_sleeping","verb_waking",
+    "verb_attracting_attention","sleepy",         "distressed",   "blissed",     "depressed",    "shocked",
     "disappointed",     "cheeky",         "gleeful",      "frustrated",
 };
 
@@ -135,11 +135,21 @@ static constexpr Face::Expression
 };
 
 // ─── Per-expression geometry (ParamI16) ───────────────────────────────────
-// Emotion rows: full strength presets for Delaunay blend. Verb / overlay rows
-// duplicate the same tuned geometry as kVerbTimelines keyframe 0 (hand-tuned
-// open_amt / arc_amt model; see FaceRenderer::arcDerived).
+// Emotion rows: full strength presets for Delaunay blend. Verb rows are empty —
+// verb face geometry lives only in `kVerbTimelines` keyframes.
 #ifndef FACE_P
 #define FACE_P(V) ::Face::ParamI16{ (int16_t)(V), 100 }
+#endif
+#ifndef FACE_PZ
+#define FACE_PZ ::Face::ParamI16{ 0, 0 }
+#endif
+#ifndef FACE_ROW_EMPTY
+#define FACE_ROW_EMPTY                                                                         \
+  {                                                                                            \
+    FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, \
+        FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ,     \
+        FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ                                            \
+  }
 #endif
 static const Face::FaceParams kBaseTargets[(uint8_t)Face::Expression::Count] = {
     /* Neutral */
@@ -162,38 +172,14 @@ static const Face::FaceParams kBaseTargets[(uint8_t)Face::Expression::Count] = {
     {FACE_P(7), FACE_P(28), FACE_P(15), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0),
      FACE_P(0), FACE_P(3), FACE_P(11), FACE_P(-6), FACE_P(20), FACE_P(1), FACE_P(-14), FACE_P(3),
      FACE_P(0), FACE_P(1), FACE_P(3), FACE_P(0), FACE_P(6), FACE_P(4), FACE_P(1), FACE_P(3)},
-    /* VerbThinking */
-    {FACE_P(2), FACE_P(28), FACE_P(26), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0),
-     FACE_P(9), FACE_P(-8), FACE_P(15), FACE_P(1), FACE_P(12), FACE_P(1), FACE_P(15), FACE_P(3),
-     FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(-12), FACE_P(2), FACE_P(36), FACE_P(56), FACE_P(120)},
-    /* VerbReading */
-    {FACE_P(1), FACE_P(27), FACE_P(24), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0),
-     FACE_P(0), FACE_P(13), FACE_P(15), FACE_P(0), FACE_P(13), FACE_P(1), FACE_P(19), FACE_P(3),
-     FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(18), FACE_P(78), FACE_P(146), FACE_P(210)},
-    /* VerbWriting */
-    {FACE_P(0), FACE_P(28), FACE_P(25), FACE_P(24), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0),
-     FACE_P(0), FACE_P(-9), FACE_P(15), FACE_P(0), FACE_P(19), FACE_P(7), FACE_P(31), FACE_P(3),
-     FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(-13), FACE_P(104), FACE_P(118), FACE_P(228)},
-    /* VerbExecuting */
-    {FACE_P(0), FACE_P(30), FACE_P(13), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0),
-     FACE_P(0), FACE_P(-3), FACE_P(11), FACE_P(0), FACE_P(11), FACE_P(1), FACE_P(13), FACE_P(3),
-     FACE_P(0), FACE_P(55), FACE_P(0), FACE_P(0), FACE_P(1), FACE_P(156), FACE_P(64), FACE_P(216)},
-    /* VerbStraining */
-    {FACE_P(1), FACE_P(30), FACE_P(22), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(3), FACE_P(25),
-     FACE_P(0), FACE_P(-3), FACE_P(10), FACE_P(1), FACE_P(18), FACE_P(1), FACE_P(0), FACE_P(3),
-     FACE_P(4), FACE_P(96), FACE_P(364), FACE_P(0), FACE_P(0), FACE_P(210), FACE_P(75), FACE_P(220)},
-    /* VerbSleeping */
-    {FACE_P(2), FACE_P(30), FACE_P(0), FACE_P(15), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(1),
-     FACE_P(0), FACE_P(3), FACE_P(15), FACE_P(1), FACE_P(15), FACE_P(0), FACE_P(0), FACE_P(3),
-     FACE_P(0), FACE_P(0), FACE_P(1), FACE_P(0), FACE_P(17), FACE_P(0), FACE_P(0), FACE_P(0)},
-    /* OverlayWaking */
-    {FACE_P(2), FACE_P(31), FACE_P(34), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(1),
-     FACE_P(0), FACE_P(3), FACE_P(13), FACE_P(1), FACE_P(9), FACE_P(12), FACE_P(0), FACE_P(3),
-     FACE_P(0), FACE_P(0), FACE_P(1), FACE_P(0), FACE_P(-2), FACE_P(0), FACE_P(0), FACE_P(0)},
-    /* OverlayAttention */
-    {FACE_P(3), FACE_P(30), FACE_P(31), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(83), FACE_P(707),
-     FACE_P(0), FACE_P(3), FACE_P(12), FACE_P(0), FACE_P(17), FACE_P(13), FACE_P(26), FACE_P(1),
-     FACE_P(0), FACE_P(48), FACE_P(707), FACE_P(0), FACE_P(0), FACE_P(255), FACE_P(20), FACE_P(40)},
+    /* VerbThinking */ FACE_ROW_EMPTY,
+    /* VerbReading */ FACE_ROW_EMPTY,
+    /* VerbWriting */ FACE_ROW_EMPTY,
+    /* VerbExecuting */ FACE_ROW_EMPTY,
+    /* VerbStraining */ FACE_ROW_EMPTY,
+    /* VerbSleeping */ FACE_ROW_EMPTY,
+    /* VerbWaking */ FACE_ROW_EMPTY,
+    /* VerbAttractingAttention */ FACE_ROW_EMPTY,
     /* Sleepy */
     {FACE_P(15), FACE_P(28), FACE_P(17), FACE_P(24), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0),
      FACE_P(0), FACE_P(-13), FACE_P(15), FACE_P(2), FACE_P(13), FACE_P(2), FACE_P(8), FACE_P(3),
@@ -515,11 +501,77 @@ static constexpr VerbTimeline kVerbTimelines[] = {
              KO(Face::FieldIndex::RingB, 0),
          },
      }}},
+    {Face::Expression::VerbWaking,
+     1000u,
+     1u,
+     {{
+         0u,
+         24u,
+         {
+             KO(Face::FieldIndex::EyeDy, 2),
+             KO(Face::FieldIndex::EyeRx, 31),
+             KO(Face::FieldIndex::EyeOpenAmt, 34),
+             KO(Face::FieldIndex::EyeArcAmt, 0),
+             KO(Face::FieldIndex::EyeThick, 3),
+             KO(Face::FieldIndex::EyeWaveAmp, 0),
+             KO(Face::FieldIndex::EyeWaveFreq, 0),
+             KO(Face::FieldIndex::EyeWaveSpeed, 1),
+             KO(Face::FieldIndex::PupilDx, 0),
+             KO(Face::FieldIndex::PupilDy, 3),
+             KO(Face::FieldIndex::PupilR, 13),
+             KO(Face::FieldIndex::MouthDy, 1),
+             KO(Face::FieldIndex::MouthRx, 9),
+             KO(Face::FieldIndex::MouthOpenAmt, 12),
+             KO(Face::FieldIndex::MouthArcAmt, 0),
+             KO(Face::FieldIndex::MouthThick, 3),
+             KO(Face::FieldIndex::MouthWaveAmp, 0),
+             KO(Face::FieldIndex::MouthWaveFreq, 0),
+             KO(Face::FieldIndex::MouthWaveSpeed, 0),
+             KO(Face::FieldIndex::FaceRot, -2),
+             KO(Face::FieldIndex::FaceY, 0),
+             KO(Face::FieldIndex::RingR, 170),
+             KO(Face::FieldIndex::RingG, 210),
+             KO(Face::FieldIndex::RingB, 240),
+         },
+     }}},
+    {Face::Expression::VerbAttractingAttention,
+     1000u,
+     1u,
+     {{
+         0u,
+         24u,
+         {
+             KO(Face::FieldIndex::EyeDy, 3),
+             KO(Face::FieldIndex::EyeRx, 30),
+             KO(Face::FieldIndex::EyeOpenAmt, 31),
+             KO(Face::FieldIndex::EyeArcAmt, 0),
+             KO(Face::FieldIndex::EyeThick, 3),
+             KO(Face::FieldIndex::EyeWaveAmp, 83),
+             KO(Face::FieldIndex::EyeWaveFreq, 707),
+             KO(Face::FieldIndex::EyeWaveSpeed, 0),
+             KO(Face::FieldIndex::PupilDx, 0),
+             KO(Face::FieldIndex::PupilDy, 3),
+             KO(Face::FieldIndex::PupilR, 12),
+             KO(Face::FieldIndex::MouthDy, 0),
+             KO(Face::FieldIndex::MouthRx, 17),
+             KO(Face::FieldIndex::MouthOpenAmt, 13),
+             KO(Face::FieldIndex::MouthArcAmt, 26),
+             KO(Face::FieldIndex::MouthThick, 1),
+             KO(Face::FieldIndex::MouthWaveAmp, 0),
+             KO(Face::FieldIndex::MouthWaveFreq, 48),
+             KO(Face::FieldIndex::MouthWaveSpeed, 707),
+             KO(Face::FieldIndex::FaceRot, 0),
+             KO(Face::FieldIndex::FaceY, 0),
+             KO(Face::FieldIndex::RingR, 255),
+             KO(Face::FieldIndex::RingG, 20),
+             KO(Face::FieldIndex::RingB, 40),
+         },
+     }}},
 };
 #undef KO
 
 static constexpr size_t kVerbTimelineCount = sizeof(kVerbTimelines) / sizeof(kVerbTimelines[0]);
-static_assert(kVerbTimelineCount == 6, "Expected 6 verb timeline rows");
+static_assert(kVerbTimelineCount == 8, "Expected 8 verb timeline rows");
 
 // ─── Arm presets per Face::Expression (emotion blend source) ─────────────
 
@@ -542,8 +594,8 @@ static constexpr ArmPreset kArmPresets[(uint8_t)Face::Expression::Count] = {
     {-25, -15, 2.0f, 1.0f},   // VerbExecuting
     {-25, -15, 2.0f, 1.0f},   // VerbStraining
     {-25, -15, 2.0f, 1.0f},   // VerbSleeping
-    {-25, -15, 2.0f, 1.0f},   // OverlayWaking
-    {-25, -15, 2.0f, 1.0f},   // OverlayAttention
+    {-25, -15, 2.0f, 1.0f},   // VerbWaking
+    {-25, -15, 2.0f, 1.0f},   // VerbAttractingAttention
     {-25, -20, 3.0f, 6.0f},   // Sleepy
     {-15, -5, 1.0f, 0.0f},    // Distressed
     {-25, -20, 3.0f, 6.0f},   // Blissed
@@ -587,8 +639,8 @@ static constexpr ExprMotionRow kMotion[(uint8_t)Face::Expression::Count] = {
     /* VerbExecuting */ {MotionMode::Oscillate, -5, 5, 1000, 0, 0},
     /* VerbStraining */ {MotionMode::Oscillate, 0, 5, 750, 0, 0},
     /* VerbSleeping */ {MotionMode::Oscillate, -20, 5, 8000, 0, 0},
-    /* OverlayWaking */ {MotionMode::Static, 18, 0, 0, 0, 0},
-    /* OverlayAttention */ {MotionMode::Waggle, 0, 15, 900, 0, 0},
+    /* VerbWaking */ {MotionMode::Static, 18, 0, 0, 0, 0},
+    /* VerbAttractingAttention */ {MotionMode::Waggle, 0, 15, 900, 0, 0},
     /* Sleepy */ {MotionMode::Oscillate, -18, 4, 5000, 0, 0},
     /* Distressed */ {MotionMode::Oscillate, 0, 6, 900, 0, 0},
     /* Blissed */ {MotionMode::RandomDrift, -10, 6, 3000, 1500, 500},
@@ -652,9 +704,9 @@ static constexpr IdleAnimRow kIdleAnim[(uint8_t)Face::Expression::Count] = {
     {4500, 6999, 80, 130, 5, GazeStyle::ScanX, 0, 0, 0, 0, 0, 2500, 1, 0},
     /* VerbSleeping */
     {0, 0, 80, 130, 10, GazeStyle::Off, 0, 0, 0, 0, 0, 0, 0, 0},
-    /* OverlayWaking */
+    /* VerbWaking */
     {0, 0, 80, 130, 0, GazeStyle::Off, 0, 0, 0, 0, 0, 0, 0, 0},
-    /* OverlayAttention */
+    /* VerbAttractingAttention */
     {0, 0, 80, 130, 0, GazeStyle::Off, 0, 0, 0, 0, 0, 0, 0, 0},
     /* Sleepy */
     {5000, 7999, 80, 130, kBobAmpFollowEmotionArm, GazeStyle::Off, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -750,7 +802,7 @@ static constexpr FrameAnimConfig kFrameAnim = {
 
 static constexpr VerbSimConfig kVerbSim = {
     5000, // strain_delay_ms
-    1000, // default_overlay_duration_ms
+    1500, // default_overlay_duration_ms
 };
 
 static constexpr MotionRuntimeConfig kMotionRuntime = {

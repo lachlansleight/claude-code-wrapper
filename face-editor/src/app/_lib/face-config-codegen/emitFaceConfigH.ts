@@ -1,9 +1,4 @@
-import {
-    Expression,
-    FieldIndex,
-    GazeStyle,
-    MotionMode,
-} from "../face-engine/faceConfigTypes";
+import { Expression, FieldIndex, GazeStyle, MotionMode } from "../face-engine/faceConfigTypes";
 import type { FaceConfigState } from "../face-engine/faceConfigState";
 import type { IdleAnimRow } from "../face-engine/faceConfigTypes";
 import {
@@ -40,8 +35,8 @@ enum class Expression : uint8_t {
   VerbExecuting,
   VerbStraining,
   VerbSleeping,
-  OverlayWaking,
-  OverlayAttention,
+  VerbWaking,
+  VerbAttractingAttention,
   Sleepy,
   Distressed,
   Blissed,
@@ -85,15 +80,21 @@ function emitExpressionNames(expressions: string[]): string {
     const slugs = expressions.map(expressionToFirmwareSlug);
     const lines: string[] = [];
     for (let i = 0; i < slugs.length; i += 6) {
-        lines.push("    " + slugs.slice(i, i + 6).map(s => `"${s}"`).join(", ") + ",");
+        lines.push(
+            "    " +
+                slugs
+                    .slice(i, i + 6)
+                    .map(s => `"${s}"`)
+                    .join(", ") +
+                ","
+        );
     }
     return `static constexpr const char* kExpressionNames[(size_t)Face::Expression::Count] = {\n${lines.join("\n")}\n};`;
 }
 
 function emitPickOrder(config: FaceConfigState): string {
     const lines = config.pickOrderIndices.map(
-        i =>
-            `    EmotionSystem::NamedEmotion::${namedEmotionEnumName(config.emotionNames[i]!)}`
+        i => `    EmotionSystem::NamedEmotion::${namedEmotionEnumName(config.emotionNames[i]!)}`
     );
     return `static constexpr EmotionSystem::NamedEmotion kPickOrder[] = {\n${lines.join(",\n")},\n};`;
 }
@@ -214,24 +215,23 @@ export function emitFaceConfigH(config: FaceConfigState): string {
         return `    {${fmtCppFloat(p.v)}, ${fmtCppFloat(p.a)}},    // ${name}`;
     });
 
-    const baseTargetLines = config.baseTargets.map((row, i) =>
-        emitFacePRowCpp(config.expressions[i]!, row)
-    );
+    const baseTargetLines = config.baseTargets.map((row, i) => {
+        const name = config.expressions[i]!;
+        if (!config.expressionIsEmotion[i]) {
+            return `    /* ${name} */ FACE_ROW_EMPTY,`;
+        }
+        return emitFacePRowCpp(name, row);
+    });
 
     const armLines = config.armPresets.map((p, i) => {
         const name = config.expressions[i]!;
         return `    {${p.min_deg}, ${p.max_deg}, ${p.period_s}f, ${p.interval_s}f},   // ${name}`;
     });
 
-    const emotionNameLine =
-        "    " +
-        config.emotionNames.map(n => `"${n}"`).join(", ") +
-        ",";
+    const emotionNameLine = "    " + config.emotionNames.map(n => `"${n}"`).join(", ") + ",";
 
     const isEmotionLine =
-        "    " +
-        config.expressionIsEmotion.map(b => (b ? "true" : "false")).join(", ") +
-        ",";
+        "    " + config.expressionIsEmotion.map(b => (b ? "true" : "false")).join(", ") + ",";
 
     return `${FACE_ENUM_PREAMBLE}
 
@@ -262,8 +262,19 @@ ${emitNamedEmotionToExpression(config)}
 #ifndef FACE_P
 #define FACE_P(V) ::Face::ParamI16{ (int16_t)(V), 100 }
 #endif
+#ifndef FACE_PZ
+#define FACE_PZ ::Face::ParamI16{ 0, 0 }
+#endif
+#ifndef FACE_ROW_EMPTY
+#define FACE_ROW_EMPTY                                                                         \\
+  {                                                                                            \\
+    FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, \\
+        FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ,     \\
+        FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ                                            \\
+  }
+#endif
 static const Face::FaceParams kBaseTargets[(uint8_t)Face::Expression::Count] = {
-${baseTargetLines.join("")}
+${baseTargetLines.join("\n")}
 };
 #undef FACE_P
 

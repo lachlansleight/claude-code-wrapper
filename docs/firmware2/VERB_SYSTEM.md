@@ -28,36 +28,35 @@ enum class Verb : uint8_t {
     Writing,
     Executing,
     Straining,
-    Waking,                 // overlay-only
-    AttractingAttention,    // overlay-only
+    Waking,
+    AttractingAttention,
 };
 ```
 
 `None` means "no verb in flight" (the face will fall back to the
 emotion-derived expression). `Sleeping` is the boot/long-idle state.
 `Thinking` is the default "alive but idle" state once a session has
-started. `Waking` and `AttractingAttention` are **overlay-only** verbs:
-calling `setVerb(Waking)` does not change the base verb — it fires a
-short transient overlay (typically 1 s) on top of whatever the base
-verb is, and afterwards execution returns to the base.
+started. `Waking` and `AttractingAttention` are **transient** verbs:
+`setVerb(Waking)` routes to `fireOverlay()` (default 1.5 s). Face
+geometry for every verb — including these — lives in `kVerbTimelines`
+keyframes, not `kBaseTargets`.
 
-Each verb maps 1:1 to an `Expression` of the same name (`VerbThinking`,
-`VerbReading`, …) which is what the face system actually consumes. The
-`Verb` enum is the behavioural layer; `Expression` is the rendering
-layer.
+Each verb maps 1:1 to a `Verb*` expression (`VerbThinking`, `VerbWaking`,
+…). The `Verb` enum is the behavioural layer; `Expression` is the
+rendering layer.
 
-## Three-layer state
+## Layered state
 
 ```
 base       ── current long-running verb (Sleeping / Thinking / …)
 linger     ── optional hold-window after armLinger() before decay
-overlay    ── short transient verb (Waking, AttractingAttention)
+transient  ── Waking / AttractingAttention via fireOverlay()
 ```
 
-`current()` returns the base verb (ignoring overlays). `effective()`
-returns the overlay if one is active, else the base. The `EventRouter`
-sets verbs; everyone downstream reads `effective()` via
-`SceneContextFill`.
+`current()` returns the base verb (unchanged during a transient).
+`effective()` returns the transient verb until the blend-out window,
+then the post verb. The `EventRouter` sets verbs; renderers read
+`effective()` via `SceneContextFill`.
 
 ### Linger
 
@@ -67,15 +66,20 @@ then auto-decays to `Thinking`. This prevents the verb from strobing
 between `Reading`, `Writing`, and `Thinking` during a burst of
 back-to-back tools. Any new `setVerb(...)` call clears the linger.
 
-### Overlay queue
+### Transient overlays (`fireOverlay`)
 
-`fireOverlay(verb, durationMs)` plays an overlay. If another overlay is
-already active, the new one is queued and fires when the active one
-expires. Only one queued overlay is held; a third in-flight one is
-dropped. There is also a `fireOverlay(verb, durationMs, postOverlayVerb)`
-form that lets the caller specify what the base verb should become
-when the overlay finishes — used by `session.started` to fire `Waking`
-and then snap to `None` so the emotion system takes over again.
+`fireOverlay(verb, durationMs)` plays a transient verb for `durationMs`
+total (default **1500 ms**). The verb timeline cross-fade is **500 ms**,
+so the hold at full strength is `durationMs − 1000 ms` (500 ms in/out).
+During the last 500 ms, `effective()` switches to the post verb so the
+face can blend out.
+
+- One-arg form: post verb = `current()` at fire time (restore).
+- Two-arg form: explicit post verb when the transient ends (e.g.
+  `session.started` → Waking 1.5 s → `None`).
+
+If a second `fireOverlay()` fires mid-flight, the new transient **replaces**
+the old one immediately; the previous post target is discarded.
 
 ### Executing → Straining auto-promotion
 
@@ -112,7 +116,7 @@ namespace VerbSystem {
 
 | Bridge event                   | Action                                                                |
 |--------------------------------|-----------------------------------------------------------------------|
-| `session.started`              | Fire `Waking` overlay (1 s, post→`None`); impulse `+0.6 V, +0.6 A`    |
+| `session.started`              | Fire `Waking` overlay (1.5 s, post→`None`); impulse `+0.6 V, +0.6 A`  |
 | `session.ended`                | `setVerb(Sleeping)`                                                   |
 | `turn.started`                 | If `Sleeping`, fire `Waking` first then `Thinking`. Else `Thinking`.  |
 | `turn.ended`                   | `clearVerb()`; impulse `+0.7 V, +0.9 A`                               |
@@ -120,7 +124,7 @@ namespace VerbSystem {
 | `activity.started` (file.write / file.delete / notebook.edit)        | `setVerb(Writing)` |
 | `activity.started` (shell.exec / shell.background)                   | `setVerb(Executing)` |
 | `activity.finished` / `failed` | `armLinger(1000)`                                                     |
-| `notification` ("Claude needs ...") | Fire `AttractingAttention` overlay (1 s)                         |
+| `notification` ("Claude needs ...") | Fire `AttractingAttention` overlay (1.5 s)                       |
 | `permission.requested`         | Hold emotion driver `PendingPermission` at `v = -0.6`                 |
 | `permission.resolved`          | Release `PendingPermission` driver                                    |
 
@@ -245,10 +249,11 @@ struct VerbTimeline {
 };
 ```
 
-All six verb expressions have a row in `kVerbTimelines[]`. Shipped
-data uses **one keyframe at `time_ms == 0`** (strength 100 on every
-authored field) and a **1000 ms** loop placeholder; multi-keyframe
-curves are supported by the sampler.
+All eight verb expressions have a row in `kVerbTimelines[]` (including
+`VerbWaking` and `VerbAttractingAttention`). Shipped data uses **one
+keyframe at `time_ms == 0`** for transient verbs; multi-keyframe curves
+are supported by the sampler. Verb `kBaseTargets` rows are empty —
+geometry comes only from timelines.
 
 The sampling function is:
 
@@ -294,8 +299,8 @@ from 0). Fields absent from both cumulative endpoints stay off
 | Writing           | VerbWriting        | Writing           |
 | Executing         | VerbExecuting      | Executing         |
 | Straining         | VerbStraining      | Straining         |
-| Waking            | OverlayWaking      | (unused)          |
-| AttractingAttention | OverlayAttention | Attention         |
+| Waking            | VerbWaking           | Excited           |
+| AttractingAttention | VerbAttractingAttention | Attention    |
 | None              | (emotion-derived)  | (emotion-derived) |
 
 The accent colour is the source of the activity-dot tint and the

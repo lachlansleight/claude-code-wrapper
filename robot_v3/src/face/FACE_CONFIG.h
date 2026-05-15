@@ -55,11 +55,11 @@ inline bool moodRingEnabledVerbOrOverlay(Face::Expression expr) {
     case Face::Expression::Depressed:
     case Face::Expression::Shocked:
     case Face::Expression::Disappointed:
-    case Face::Expression::OverlayAttention:
+    case Face::Expression::VerbAttractingAttention:
       return true;
     case Face::Expression::Neutral:
     case Face::Expression::Happy:
-    case Face::Expression::OverlayWaking:
+    case Face::Expression::VerbWaking:
     case Face::Expression::VerbSleeping:
     default:
       return false;

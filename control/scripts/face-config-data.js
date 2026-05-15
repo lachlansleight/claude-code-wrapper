@@ -45,7 +45,7 @@
   const EXPRESSIONS = [
     "Neutral", "Happy", "Excited", "Joyful", "Sad",
     "VerbThinking", "VerbReading", "VerbWriting", "VerbExecuting", "VerbStraining", "VerbSleeping",
-    "OverlayWaking", "OverlayAttention",
+    "VerbWaking", "VerbAttractingAttention",
     "Sleepy", "Distressed", "Blissed", "Depressed", "Shocked",
     "Disappointed", "Cheeky", "Gleeful", "Frustrated",
   ];
@@ -58,7 +58,7 @@
     "VerbThinking", "VerbReading", "VerbWriting",
     "VerbExecuting", "VerbStraining", "VerbSleeping",
   ];
-  const OVERLAYS = ["OverlayWaking", "OverlayAttention"];
+  const OVERLAYS = ["VerbWaking", "VerbAttractingAttention"];
 
   const expressionIsEmotion = {};
   EXPRESSIONS.forEach((e) => (expressionIsEmotion[e] = EMOTIONS.includes(e)));
@@ -110,8 +110,8 @@
   // Simulator-only: rough scalar presets used in place of the firmware's
   // EffectsRenderer rim animations.
   const overlayPresets = {
-    OverlayWaking:    [  2, 31,  34, 0, 3,  0, 0, 1,  0, 3, 13,  1, 9, 12, 0, 3,  0, 0, 1,  0, -2, 0, 0, 0 ],
-    OverlayAttention: [  3, 30,  31, 0, 3,  0, 83, 707,  0, 3, 12,  0, 17, 13, 26, 1,  0, 48, 707,  0, 0, 255, 20, 40 ],
+    VerbWaking:    [  2, 31,  34, 0, 3,  0, 0, 1,  0, 3, 13,  1, 9, 12, 0, 3,  0, 0, 1,  0, -2, 0, 0, 0 ],
+    VerbAttractingAttention: [  3, 30,  31, 0, 3,  0, 83, 707,  0, 3, 12,  0, 17, 13, 26, 1,  0, 48, 707,  0, 0, 255, 20, 40 ],
   };
 
   // ---- Verb sparse override timelines (kVerbTimelines) -------------------
@@ -232,8 +232,8 @@
     VerbExecuting:    { mode: "Oscillate",   center:  -5, amplitude: 5,  period_ms: 1000, period_jitter_ms: 0,    slew_ms: 0   },
     VerbStraining:    { mode: "Oscillate",   center:   0, amplitude: 5,  period_ms:  750, period_jitter_ms: 0,    slew_ms: 0   },
     VerbSleeping:     { mode: "Oscillate",   center: -20, amplitude: 5,  period_ms: 8000, period_jitter_ms: 0,    slew_ms: 0   },
-    OverlayWaking:    { mode: "Static",      center:  18, amplitude: 0,  period_ms:    0, period_jitter_ms: 0,    slew_ms: 0   },
-    OverlayAttention: { mode: "Waggle",      center:   0, amplitude: 15, period_ms:  900, period_jitter_ms: 0,    slew_ms: 0   },
+    VerbWaking:    { mode: "Static",      center:  18, amplitude: 0,  period_ms:    0, period_jitter_ms: 0,    slew_ms: 0   },
+    VerbAttractingAttention: { mode: "Waggle",      center:   0, amplitude: 15, period_ms:  900, period_jitter_ms: 0,    slew_ms: 0   },
     Sleepy:           { mode: "Oscillate",   center: -18, amplitude: 4,  period_ms: 5000, period_jitter_ms: 0,    slew_ms: 0   },
     Distressed:       { mode: "Oscillate",   center:   0, amplitude: 6,  period_ms:  900, period_jitter_ms: 0,    slew_ms: 0   },
     Blissed:          { mode: "RandomDrift", center: -10, amplitude: 6,  period_ms: 3000, period_jitter_ms: 1500, slew_ms: 500 },
@@ -264,8 +264,8 @@
     VerbExecuting:    { blink_period_min_ms: 4500, blink_period_max_ms: 6999, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px:  5,     gaze_style: "ScanX",      gaze_move_ms:   0, gaze_rand_span_x:  0, gaze_rand_span_y:  0, gaze_reroll_min_ms:    0, gaze_reroll_max_ms:     0, gaze_scan_period_ms: 2500, gaze_amp_x: 1, gaze_amp_y: 0 },
     VerbStraining:    { blink_period_min_ms: 4500, blink_period_max_ms: 6999, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px:  5,     gaze_style: "ScanX",      gaze_move_ms:   0, gaze_rand_span_x:  0, gaze_rand_span_y:  0, gaze_reroll_min_ms:    0, gaze_reroll_max_ms:     0, gaze_scan_period_ms: 2500, gaze_amp_x: 1, gaze_amp_y: 0 },
     VerbSleeping:     { blink_period_min_ms:    0, blink_period_max_ms:    0, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: 10,     gaze_style: "Off",        gaze_move_ms:   0, gaze_rand_span_x:  0, gaze_rand_span_y:  0, gaze_reroll_min_ms:    0, gaze_reroll_max_ms:     0, gaze_scan_period_ms:    0, gaze_amp_x: 0, gaze_amp_y: 0 },
-    OverlayWaking:    { blink_period_min_ms:    0, blink_period_max_ms:    0, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px:  0,     gaze_style: "Off",        gaze_move_ms:   0, gaze_rand_span_x:  0, gaze_rand_span_y:  0, gaze_reroll_min_ms:    0, gaze_reroll_max_ms:     0, gaze_scan_period_ms:    0, gaze_amp_x: 0, gaze_amp_y: 0 },
-    OverlayAttention: { blink_period_min_ms:    0, blink_period_max_ms:    0, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px:  0,     gaze_style: "Off",        gaze_move_ms:   0, gaze_rand_span_x:  0, gaze_rand_span_y:  0, gaze_reroll_min_ms:    0, gaze_reroll_max_ms:     0, gaze_scan_period_ms:    0, gaze_amp_x: 0, gaze_amp_y: 0 },
+    VerbWaking:    { blink_period_min_ms:    0, blink_period_max_ms:    0, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px:  0,     gaze_style: "Off",        gaze_move_ms:   0, gaze_rand_span_x:  0, gaze_rand_span_y:  0, gaze_reroll_min_ms:    0, gaze_reroll_max_ms:     0, gaze_scan_period_ms:    0, gaze_amp_x: 0, gaze_amp_y: 0 },
+    VerbAttractingAttention: { blink_period_min_ms:    0, blink_period_max_ms:    0, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px:  0,     gaze_style: "Off",        gaze_move_ms:   0, gaze_rand_span_x:  0, gaze_rand_span_y:  0, gaze_reroll_min_ms:    0, gaze_reroll_max_ms:     0, gaze_scan_period_ms:    0, gaze_amp_x: 0, gaze_amp_y: 0 },
     Sleepy:           { blink_period_min_ms: 5000, blink_period_max_ms: 7999, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: FOLLOW, gaze_style: "Off",        gaze_move_ms:   0, gaze_rand_span_x:  0, gaze_rand_span_y:  0, gaze_reroll_min_ms:    0, gaze_reroll_max_ms:     0, gaze_scan_period_ms:    0, gaze_amp_x: 0, gaze_amp_y: 0 },
     Distressed:       { blink_period_min_ms: 2000, blink_period_max_ms: 3999, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: FOLLOW, gaze_style: "Off",        gaze_move_ms:   0, gaze_rand_span_x:  0, gaze_rand_span_y:  0, gaze_reroll_min_ms:    0, gaze_reroll_max_ms:     0, gaze_scan_period_ms:    0, gaze_amp_x: 0, gaze_amp_y: 0 },
     Blissed:          { blink_period_min_ms: 3500, blink_period_max_ms: 5499, blink_close_ms: 80, blink_open_ms: 130, bob_amplitude_px: FOLLOW, gaze_style: "Off",        gaze_move_ms:   0, gaze_rand_span_x:  0, gaze_rand_span_y:  0, gaze_reroll_min_ms:    0, gaze_reroll_max_ms:     0, gaze_scan_period_ms:    0, gaze_amp_x: 0, gaze_amp_y: 0 },

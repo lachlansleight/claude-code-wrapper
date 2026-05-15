@@ -41,9 +41,9 @@ Face::Expression expressionForVerb(VerbSystem::Verb v) {
     case VerbSystem::Verb::Sleeping:
       return Face::Expression::VerbSleeping;
     case VerbSystem::Verb::Waking:
-      return Face::Expression::OverlayWaking;
+      return Face::Expression::VerbWaking;
     case VerbSystem::Verb::AttractingAttention:
-      return Face::Expression::OverlayAttention;
+      return Face::Expression::VerbAttractingAttention;
     case VerbSystem::Verb::None:
     default:
       return Face::Expression::Neutral;
@@ -74,9 +74,9 @@ Settings::NamedColor accentNamedColor(Face::Expression e) {
       return Settings::NamedColor::Straining;
     case Face::Expression::VerbSleeping:
       return Settings::NamedColor::Sleeping;
-    case Face::Expression::OverlayWaking:
+    case Face::Expression::VerbWaking:
       return Settings::NamedColor::Excited;
-    case Face::Expression::OverlayAttention:
+    case Face::Expression::VerbAttractingAttention:
       return Settings::NamedColor::Attention;
     case Face::Expression::Sleepy:
       return Settings::NamedColor::EmotionSleepy;
@@ -159,7 +159,7 @@ void fill(Face::SceneContext& out) {
   copyField(out.verb_effective, sizeof(out.verb_effective), VerbSystem::verbName(verbDebug.effective));
   out.verb_overlay_active = verbDebug.overlayActive;
   out.verb_overlay_queued = verbDebug.overlayQueued;
-  out.verb_time_in_current_ms = VerbSystem::timeInCurrentMs();
+  out.verb_time_in_current_ms = VerbSystem::timeInEffectiveMs();
   const uint32_t now = millis();
   out.verb_linger_remaining_ms =
       (verbDebug.lingerUntilMs > now) ? (verbDebug.lingerUntilMs - now) : 0;
@@ -167,12 +167,9 @@ void fill(Face::SceneContext& out) {
       (verbDebug.overlayUntilMs > now) ? (verbDebug.overlayUntilMs - now) : 0;
 
   const VerbSystem::Verb eff = VerbSystem::effective();
-  if (VerbSystem::overlayActive()) {
+  if (eff != VerbSystem::Verb::None) {
     out.effective_expression = expressionForVerb(eff);
-    out.expression_entered_at_ms = VerbSystem::enteredAtMs();
-  } else if (eff != VerbSystem::Verb::None) {
-    out.effective_expression = expressionForVerb(eff);
-    out.expression_entered_at_ms = VerbSystem::enteredAtMs();
+    out.expression_entered_at_ms = VerbSystem::effectiveEnteredAtMs();
   } else {
     out.effective_expression = expressionForEmotion(EmotionSystem::snapped().named);
     out.expression_entered_at_ms = 0;
