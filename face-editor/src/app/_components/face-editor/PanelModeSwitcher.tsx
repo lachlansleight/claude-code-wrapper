@@ -18,7 +18,7 @@ const PanelModeSwitcher = ({
         }
         onClick={() => setMode("blend")}
       >
-        Blend (V/A)
+        Emotions
       </button>
       <button
         type="button"
@@ -29,7 +29,7 @@ const PanelModeSwitcher = ({
         }
         onClick={() => setMode("verbTimeline")}
       >
-        Verb timelines
+        Verbs
       </button>
     </Panel>
   );

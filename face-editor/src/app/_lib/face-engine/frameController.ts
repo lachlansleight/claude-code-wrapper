@@ -29,7 +29,10 @@ import {
 import {
   PARAM_FIELDS,
   faceParamsFromIndexed,
+  faceStrengthsFromIndexed,
   indexedFromFaceParams,
+  mergeStrengthsIntoIndexedRow,
+  mergeValuesIntoIndexedRow,
   type FaceParams,
   type ParamField,
 } from "./faceParams";
@@ -203,7 +206,10 @@ export interface FrameController {
   baseTargetForExpression(name: string): FaceParams;
   /** Current editor-local base row as `FaceParams` (mutable copy). */
   liveBaseFaceParams(name: string): FaceParams;
+  /** Per-field strengths 0–100 for that emotion's base row in the live table. */
+  liveBaseFaceStrengths(name: string): FaceParams;
   patchLiveBaseFaceParams(name: string, partial: Partial<FaceParams>): void;
+  patchLiveBaseFaceStrengths(name: string, partial: Partial<FaceParams>): void;
   setStaticMode(on: boolean): void;
   isStatic(): boolean;
   setBlendMode(on: boolean): void;
@@ -1049,12 +1055,25 @@ export function createFrameController(
       return { ...faceParamsFromIndexed(row) };
     },
 
+    liveBaseFaceStrengths(name: string): FaceParams {
+      const i = expressionIndexFromName(name);
+      const row = liveBaseTargets[i];
+      if (!row) return { ...faceStrengthsFromIndexed(liveBaseTargets[0]!) };
+      return { ...faceStrengthsFromIndexed(row) };
+    },
+
     patchLiveBaseFaceParams(name: string, partial: Partial<FaceParams>): void {
       const i = expressionIndexFromName(name);
       const row = liveBaseTargets[i];
       if (!row) return;
-      const cur = faceParamsFromIndexed(row);
-      liveBaseTargets[i] = indexedFromFaceParams({ ...cur, ...partial });
+      mergeValuesIntoIndexedRow(row, partial);
+    },
+
+    patchLiveBaseFaceStrengths(name: string, partial: Partial<FaceParams>): void {
+      const i = expressionIndexFromName(name);
+      const row = liveBaseTargets[i];
+      if (!row) return;
+      mergeStrengthsIntoIndexedRow(row, partial);
     },
 
     setStaticMode(on: boolean): void {

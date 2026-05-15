@@ -151,6 +151,51 @@ export function faceParamsFromIndexed(row: readonly ParamI16[]): FaceParams {
   return o;
 }
 
+/** Per-field strength 0–100 from an indexed geometry row (emotion base or blended cell). */
+export function faceStrengthsFromIndexed(row: readonly ParamI16[]): FaceParams {
+  const o = {} as FaceParams;
+  for (let i = 0; i < PARAM_FIELDS.length; ++i) {
+    let s = Math.round(row[i]!.strength);
+    if (s < 0) s = 0;
+    if (s > 100) s = 100;
+    o[PARAM_FIELDS[i]!] = s;
+  }
+  return o;
+}
+
+/** Update only `value` on existing cells; preserves each field's `strength`. */
+export function mergeValuesIntoIndexedRow(
+  row: ParamI16[],
+  partial: Partial<FaceParams>,
+): void {
+  for (const k of Object.keys(partial) as ParamField[]) {
+    const v = partial[k];
+    if (typeof v !== "number" || Number.isNaN(v)) continue;
+    const i = PARAM_FIELDS.indexOf(k);
+    if (i < 0) continue;
+    const cell = row[i]!;
+    row[i] = { value: Math.round(v), strength: cell.strength };
+  }
+}
+
+/** Update only `strength` (clamped 0–100); preserves each field's `value`. */
+export function mergeStrengthsIntoIndexedRow(
+  row: ParamI16[],
+  partial: Partial<FaceParams>,
+): void {
+  for (const k of Object.keys(partial) as ParamField[]) {
+    const s = partial[k];
+    if (typeof s !== "number" || Number.isNaN(s)) continue;
+    const i = PARAM_FIELDS.indexOf(k);
+    if (i < 0) continue;
+    const cell = row[i]!;
+    let clamped = Math.round(s);
+    if (clamped < 0) clamped = 0;
+    if (clamped > 100) clamped = 100;
+    row[i] = { value: cell.value, strength: clamped };
+  }
+}
+
 export function indexedFromFaceParams(p: FaceParams): ParamI16[] {
   return PARAM_FIELDS.map((k) => ({ value: p[k] ?? 0, strength: 100 }));
 }

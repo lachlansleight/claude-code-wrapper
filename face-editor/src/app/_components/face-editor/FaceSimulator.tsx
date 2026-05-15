@@ -66,6 +66,8 @@ export function FaceSimulator() {
   const [inspectorParams, setInspectorParams] = useState<FaceParams | null>(
     null,
   );
+  const [inspectorStrengths, setInspectorStrengths] =
+    useState<FaceParams | null>(null);
   const [inspectorSendLive, setInspectorSendLive] = useState(false);
 
   const [simulatorMode, setSimulatorMode] = useState<"blend" | "verbTimeline">(
@@ -150,6 +152,7 @@ export function FaceSimulator() {
     fc.setStaticMode(false);
     setInspectorEmotion(null);
     setInspectorParams(null);
+    setInspectorStrengths(null);
     setInspectorSendLive(false);
     setSimulatorMode("verbTimeline");
     setVerbPlaySpeed(0);
@@ -362,6 +365,7 @@ export function FaceSimulator() {
     if (!blendOn || staticOn) {
       setInspectorEmotion(null);
       setInspectorParams(null);
+      setInspectorStrengths(null);
       setInspectorSendLive(false);
     }
   }, [blendOn, staticOn]);
@@ -385,6 +389,7 @@ export function FaceSimulator() {
     (emotion: string) => {
       setInspectorEmotion(emotion);
       setInspectorParams({ ...fc.liveBaseFaceParams(emotion) });
+      setInspectorStrengths({ ...fc.liveBaseFaceStrengths(emotion) });
     },
     [fc],
   );
@@ -541,18 +546,21 @@ export function FaceSimulator() {
             <KeyframeInspector
               verbName={verbTimelineName}
               tab={verbTab}
+              timelineRev={timelineRev}
               params={verbLiveParams}
               playheadMs={verbPlayheadMs}
               selectedKeyframeIndex={verbSelectedKeyframe}
               highlightFields={keyframeHighlightFields}
               onTimelineMutated={bumpTimeline}
             />
-          ) : inspectorEmotion && inspectorParams ? (
+          ) : inspectorEmotion && inspectorParams && inspectorStrengths ? (
             <EmotionPointInspector
               fc={fc}
               emotion={inspectorEmotion}
               params={inspectorParams}
+              strengthParams={inspectorStrengths}
               onParamsChange={(next) => setInspectorParams(next)}
+              onStrengthParamsChange={(next) => setInspectorStrengths(next)}
               onDirty={() => {
                 inspectorSendDirty.current = true;
               }}

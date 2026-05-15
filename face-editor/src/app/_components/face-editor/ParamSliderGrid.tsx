@@ -8,14 +8,20 @@ import type {
 import { PARAM_LAYOUT } from "../../_lib/face-editor/simulatorLayout";
 import { FaTimes } from "react-icons/fa";
 
+export type ParamSliderGridMode = "value" | "strength";
+
 export function ParamSliderGrid({
   params,
   onFieldChange,
+  sliderMode,
+  onSliderModeChange,
   highlightFields,
   removeColumn,
 }: {
   params: FaceParams;
   onFieldChange: (field: ParamField, value: number) => void;
+  sliderMode: ParamSliderGridMode;
+  onSliderModeChange: (m: ParamSliderGridMode) => void;
   highlightFields?: ReadonlySet<ParamField>;
   /** Fourth column: × clears override; blank cell keeps rows aligned. */
   removeColumn?: {
@@ -26,8 +32,39 @@ export function ParamSliderGrid({
   const gridCols = removeColumn
     ? "grid-cols-[9rem_1fr_4rem_1.5rem]"
     : "grid-cols-[9rem_1fr_4rem]";
+  const strengthMode = sliderMode === "strength";
+
   return (
     <>
+      <div className="mb-2.5 flex flex-wrap items-center gap-2 text-[0.78em]">
+        <span className="font-semibold uppercase tracking-wide text-face-muted">
+          Sliders
+        </span>
+        <div className="inline-flex rounded border border-face-border bg-face-bg p-0.5">
+          <button
+            type="button"
+            className={
+              !strengthMode
+                ? "rounded bg-face-panel-2 px-2 py-0.5 font-semibold text-face-text"
+                : "rounded px-2 py-0.5 text-face-muted hover:text-face-text"
+            }
+            onClick={() => onSliderModeChange("value")}
+          >
+            Values
+          </button>
+          <button
+            type="button"
+            className={
+              strengthMode
+                ? "rounded bg-face-panel-2 px-2 py-0.5 font-semibold text-face-text"
+                : "rounded px-2 py-0.5 text-face-muted hover:text-face-text"
+            }
+            onClick={() => onSliderModeChange("strength")}
+          >
+            Strength (0–100)
+          </button>
+        </div>
+      </div>
       {PARAM_LAYOUT.map((sec: SliderSectionDef, secIndex: number) => (
         <div
           key={sec.section}
@@ -50,9 +87,13 @@ export function ParamSliderGrid({
               }
             >
               {group.map((row: SliderRowDef) => {
-                const [field, label, min, max, step, reversed] = row;
+                const [field, label, rowMin, rowMax, rowStep, reversed] = row;
                 const fk = field as keyof FaceParams;
                 const hi = highlightFields?.has(field as ParamField);
+                const min = strengthMode ? 0 : rowMin;
+                const max = strengthMode ? 100 : rowMax;
+                const step = strengthMode ? 1 : rowStep;
+                const displayLabel = strengthMode ? `${label} · strength` : label;
                 return (
                   <div
                     key={field}
@@ -65,11 +106,11 @@ export function ParamSliderGrid({
                           : "font-mono text-face-muted"
                       }
                     >
-                      {label}
+                      {displayLabel}
                     </label>
                     <input
                       type="range"
-                      className={`w-full border-0 bg-transparent p-0 ${reversed ? "[direction:rtl]" : ""}`}
+                      className={`w-full border-0 bg-transparent p-0 ${reversed && !strengthMode ? "[direction:rtl]" : ""}`}
                       min={min}
                       max={max}
                       step={step}

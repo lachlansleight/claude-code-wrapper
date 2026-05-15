@@ -4,6 +4,11 @@ import {
   kVerbKeyframeOverridesMax,
   kVerbKeyframesMax,
 } from "./FACE_CONFIG_DATA";
+import {
+  PARAM_FIELDS,
+  paramFieldFromFieldIndex,
+  type FaceParams,
+} from "./faceParams";
 import type {
   MutableVerbKeyframe,
   MutableVerbTimeline,
@@ -73,6 +78,49 @@ export function findKeyframeIndexAtTime(
   return null;
 }
 
+/** Same keyframe index priority as `applySliderToVerbTimeline` (playhead, then selection). */
+export function resolveVerbSliderKeyframeIndex(
+  tab: MutableVerbTimeline,
+  playheadMs: number,
+  selectedKeyframeIndex: number | null,
+): number | null {
+  const atPlayhead = findKeyframeIndexAtTime(tab, playheadMs);
+  if (atPlayhead !== null) return atPlayhead;
+  if (selectedKeyframeIndex !== null) {
+    const s = selectedKeyframeIndex;
+    if (s >= 0 && s < tab.keyframe_count) return s;
+  }
+  return null;
+}
+
+function zeroFaceParams(): FaceParams {
+  const z = {} as FaceParams;
+  for (const f of PARAM_FIELDS) z[f] = 0;
+  return z;
+}
+
+/** Per-field override strengths on the given keyframe (0 when no override row). */
+export function keyframeStrengthFaceParams(
+  tab: MutableVerbTimeline,
+  keyframeIndex: number | null,
+): FaceParams {
+  const out = zeroFaceParams();
+  if (keyframeIndex === null) return out;
+  const kf = tab.keyframes[keyframeIndex];
+  if (!kf) return out;
+  const n = Math.min(kf.override_count, kf.overrides.length);
+  for (let i = 0; i < n; i++) {
+    const o = kf.overrides[i]!;
+    const pf = paramFieldFromFieldIndex(o.field);
+    if (!pf) continue;
+    let s = Math.round(o.strength);
+    if (s < 0) s = 0;
+    if (s > 100) s = 100;
+    out[pf] = s;
+  }
+  return out;
+}
+
 function sortKeyframes(tab: MutableVerbTimeline): void {
   tab.keyframes.sort((a, b) => a.time_ms - b.time_ms);
   tab.keyframe_count = tab.keyframes.length;
@@ -113,12 +161,11 @@ export function applySliderToVerbTimeline(
   },
 ): void {
   const strength = opts.strength ?? 100;
-  const atPlayhead = findKeyframeIndexAtTime(tab, opts.playheadMs);
-  let idx: number | null = atPlayhead;
-  if (idx === null && opts.selectedKeyframeIndex !== null) {
-    const s = opts.selectedKeyframeIndex;
-    if (s >= 0 && s < tab.keyframe_count) idx = s;
-  }
+  const idx = resolveVerbSliderKeyframeIndex(
+    tab,
+    opts.playheadMs,
+    opts.selectedKeyframeIndex,
+  );
 
   if (idx !== null) {
     const kf = tab.keyframes[idx]!;
@@ -133,6 +180,59 @@ export function applySliderToVerbTimeline(
     time_ms,
     override_count: 1,
     overrides: [{ field: opts.field, targetValue: opts.targetValue, strength }],
+  });
+  sortKeyframes(tab);
+}
+
+/**
+ * Edit override strength (0–100) on the resolved keyframe; keeps existing
+ * `targetValue` when an override exists, otherwise uses `fallbackTargetValue`
+ * (typically the sampled face at the playhead).
+ */
+export function applyStrengthSliderToVerbTimeline(
+  tab: MutableVerbTimeline,
+  opts: {
+    playheadMs: number;
+    selectedKeyframeIndex: number | null;
+    field: FieldIndex;
+    strength: number;
+    fallbackTargetValue: number;
+  },
+): void {
+  let s = Math.round(opts.strength);
+  if (s < 0) s = 0;
+  if (s > 100) s = 100;
+
+  const idx = resolveVerbSliderKeyframeIndex(
+    tab,
+    opts.playheadMs,
+    opts.selectedKeyframeIndex,
+  );
+
+  if (idx !== null) {
+    const kf = tab.keyframes[idx]!;
+    const existing = kf.overrides.find((x) => x.field === opts.field);
+    const targetValue = existing
+      ? existing.targetValue
+      : Math.round(opts.fallbackTargetValue);
+    upsertOverrideInKeyframe(kf, opts.field, targetValue, s);
+    return;
+  }
+
+  if (s === 0) return;
+  if (tab.keyframe_count >= kVerbKeyframesMax) return;
+
+  const time_ms = snapVerbPlayheadMs(opts.playheadMs, tab.loop_duration_ms);
+  tab.keyframes.push({
+    time_ms,
+    override_count: 1,
+    overrides: [
+      {
+        field: opts.field,
+        targetValue: Math.round(opts.fallbackTargetValue),
+        strength: s,
+      },
+    ],
   });
   sortKeyframes(tab);
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { FrameController } from "../../_lib/face-engine/frameController";
 import type { FaceParams, ParamField } from "../../_lib/face-engine/faceParams";
 import { EMOTION_COLOR } from "../../_lib/face-editor/simulatorLayout";
@@ -10,7 +11,9 @@ export function EmotionPointInspector({
   fc,
   emotion,
   params,
+  strengthParams,
   onParamsChange,
+  onStrengthParamsChange,
   onDirty,
   sendLive,
   setSendLive,
@@ -18,11 +21,15 @@ export function EmotionPointInspector({
   fc: FrameController;
   emotion: string;
   params: FaceParams;
+  strengthParams: FaceParams;
   onParamsChange: (next: FaceParams) => void;
+  onStrengthParamsChange: (next: FaceParams) => void;
   onDirty: () => void;
   sendLive: boolean;
   setSendLive: (v: boolean) => void;
 }) {
+  const [sliderMode, setSliderMode] = useState<"value" | "strength">("value");
+
   return (
     <>
       <h3
@@ -45,15 +52,27 @@ export function EmotionPointInspector({
         </label>
 
         <ParamSliderGrid
-          params={params}
+          sliderMode={sliderMode}
+          onSliderModeChange={setSliderMode}
+          params={sliderMode === "value" ? params : strengthParams}
           onFieldChange={(field, v) => {
-            fc.patchLiveBaseFaceParams(emotion, {
-              [field]: v,
-            } as Partial<FaceParams>);
-            onParamsChange({
-              ...params,
-              [field]: v,
-            } as FaceParams);
+            if (sliderMode === "value") {
+              fc.patchLiveBaseFaceParams(emotion, {
+                [field]: v,
+              } as Partial<FaceParams>);
+              onParamsChange({
+                ...params,
+                [field]: v,
+              } as FaceParams);
+            } else {
+              fc.patchLiveBaseFaceStrengths(emotion, {
+                [field]: v,
+              } as Partial<FaceParams>);
+              onStrengthParamsChange({
+                ...strengthParams,
+                [field]: v,
+              } as FaceParams);
+            }
             onDirty();
           }}
         />
