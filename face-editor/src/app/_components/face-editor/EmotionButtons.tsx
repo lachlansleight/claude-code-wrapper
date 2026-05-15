@@ -14,27 +14,27 @@ export function EmotionButtons({ fc }: { fc: FrameController }) {
       ["Distressed", "Shocked", "Gleeful", "Joyful"],
       ["Frustrated", "Cheeky", "Excited"],
       ["Disappointed", "Sad", "Neutral", "Happy"],
-      ["Depressed", "Sleepy", "Blissed"]
+      ["Depressed", "Sleepy", "Blissed"],
     ];
     return ids.map((row) => {
-      return row.map(emotionName => {
-        const an = tri.anchors.find(an => an.emotion === emotionName);
-        if(!an) return null;
+      return row.map((emotionName) => {
+        const an = tri.anchors.find((an) => an.emotion === emotionName);
+        if (!an) return null;
         const bg = EMOTION_COLOR[an.emotion] || "#4a5568";
         return (
           <button
-              key={an.emotion}
-              type="button"
-              className="rounded border border-face-border px-2 py-1 text-[0.72em] font-semibold uppercase tracking-wide text-face-bg shadow-sm hover:opacity-95"
-              style={{ backgroundColor: bg }}
-              onClick={() => {
-                fc.setVerbPreviewBaseVa(an.v, an.a);
-                void postRaw("/api/raw/emotion/set-both", { v: an.v, a: an.a });
-              }}
-            >
-              {an.emotion}
-            </button>
-        )
+            key={an.emotion}
+            type="button"
+            className="rounded border border-face-border px-2 py-1 text-[0.72em] font-semibold uppercase tracking-wide text-face-bg shadow-sm hover:opacity-95"
+            style={{ backgroundColor: bg }}
+            onClick={() => {
+              fc.setVerbPreviewBaseVa(an.v, an.a);
+              void postRaw("/api/raw/emotion/set-both", { v: an.v, a: an.a });
+            }}
+          >
+            {an.emotion}
+          </button>
+        );
       });
     });
   }, [tri.anchors]);
@@ -53,9 +53,9 @@ export function EmotionButtons({ fc }: { fc: FrameController }) {
         {buttons.map((row, index) => {
           return (
             <div key={index} className="flex gap-1.5">
-              {row.map(button => button)}
+              {row.map((button) => button)}
             </div>
-          )
+          );
         })}
       </div>
     </Panel>

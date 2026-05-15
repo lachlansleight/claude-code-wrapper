@@ -490,7 +490,7 @@ export function FaceSimulator() {
               }
             }}
           />
-          
+
           <FaceStage
             canvasRef={faceCanvasRef}
             currentExpr={currentExpr}

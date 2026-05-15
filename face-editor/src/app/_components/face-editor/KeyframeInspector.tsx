@@ -2,7 +2,10 @@
 
 import { useMemo, useState } from "react";
 import type { FaceParams, ParamField } from "../../_lib/face-engine/faceParams";
-import { fieldIndexFromParamField, PARAM_FIELDS } from "../../_lib/face-engine/faceParams";
+import {
+  fieldIndexFromParamField,
+  PARAM_FIELDS,
+} from "../../_lib/face-engine/faceParams";
 import type { MutableVerbTimeline } from "../../_lib/face-engine/mutableVerbTimelines";
 import {
   applySliderToVerbTimeline,

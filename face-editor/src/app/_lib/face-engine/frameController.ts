@@ -1105,7 +1105,10 @@ export function createFrameController(
       mergeValuesIntoIndexedRow(row, partial);
     },
 
-    patchLiveBaseFaceStrengths(name: string, partial: Partial<FaceParams>): void {
+    patchLiveBaseFaceStrengths(
+      name: string,
+      partial: Partial<FaceParams>,
+    ): void {
       const i = expressionIndexFromName(name);
       const row = liveBaseTargets[i];
       if (!row) return;

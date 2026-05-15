@@ -93,7 +93,9 @@ export function ParamSliderGrid({
                 const min = strengthMode ? 0 : rowMin;
                 const max = strengthMode ? 100 : rowMax;
                 const step = strengthMode ? 1 : rowStep;
-                const displayLabel = strengthMode ? `${label} · strength` : label;
+                const displayLabel = strengthMode
+                  ? `${label} · strength`
+                  : label;
                 return (
                   <div
                     key={field}

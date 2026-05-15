@@ -1,4 +1,8 @@
-import { EXPRESSIONS, Expression, EXPRESSION_COUNT } from "../face-engine/FACE_CONFIG_DATA";
+import {
+  EXPRESSIONS,
+  Expression,
+  EXPRESSION_COUNT,
+} from "../face-engine/FACE_CONFIG_DATA";
 
 /** Slug for `POST /api/raw/verb/start` body `{ verb: "<slug>" }` (e.g. `thinking`). */
 export function robotVerbStartSlug(verb: Expression): string | null {
