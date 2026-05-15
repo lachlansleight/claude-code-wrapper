@@ -1,63 +1,24 @@
 /**
- * Mirror of `robot_v3/src/face/FACE_CONFIG_DATA.h` (+ `VerbTimeline.h` transition ms).
- * **Generated** — run `python scripts/sync_face_config_data_ts.py` after editing the header.
+ * Mirror of robot_v3 FACE_CONFIG_DATA.h (+ VerbTimeline.h transition ms).
+ * Data tables only — types/helpers in faceConfigTypes.ts / faceConfigHelpers.ts.
  */
 
-export const EXPRESSION_COUNT = 22 as const;
+export * from "./faceConfigTypes";
+export * from "./faceConfigHelpers";
 
-/** PascalCase names in `Face::Expression` enum order (index = enum value). */
-export const EXPRESSIONS = [
-  "Neutral",
-  "Happy",
-  "Excited",
-  "Joyful",
-  "Sad",
-  "VerbThinking",
-  "VerbReading",
-  "VerbWriting",
-  "VerbExecuting",
-  "VerbStraining",
-  "VerbSleeping",
-  "OverlayWaking",
-  "OverlayAttention",
-  "Sleepy",
-  "Distressed",
-  "Blissed",
-  "Depressed",
-  "Shocked",
-  "Disappointed",
-  "Cheeky",
-  "Gleeful",
-  "Frustrated",
-] as const;
-
-export type ExpressionName = (typeof EXPRESSIONS)[number];
-
-export enum Expression {
-  Neutral = 0,
-  Happy,
-  Excited,
-  Joyful,
-  Sad,
-  VerbThinking,
-  VerbReading,
-  VerbWriting,
-  VerbExecuting,
-  VerbStraining,
-  VerbSleeping,
-  OverlayWaking,
-  OverlayAttention,
-  Sleepy,
-  Distressed,
-  Blissed,
-  Depressed,
-  Shocked,
-  Disappointed,
-  Cheeky,
-  Gleeful,
-  Frustrated,
-  Count = 22,
-}
+import {
+  BOB_AMP_FOLLOW_EMOTION_ARM,
+  Expression,
+  FieldIndex,
+  GazeStyle,
+  MotionMode,
+  P,
+  type ArmPreset,
+  type ExprMotionRow,
+  type FaceParamsIndexed,
+  type IdleAnimRow,
+  type VerbTimeline,
+} from './faceConfigTypes';
 
 export const kExpressionIsEmotion: readonly boolean[] = [
   true,
@@ -130,46 +91,6 @@ export const kPickOrderIndices = [
 export const kNamedEmotionToExpressionIndex: readonly number[] = [
   0, 1, 2, 3, 4, 13, 14, 15, 16, 17, 18, 19, 20, 21,
 ] as const;
-
-export enum FieldIndex {
-  EyeDy = 0,
-  EyeRx,
-  EyeOpenAmt,
-  EyeArcAmt,
-  EyeThick,
-  EyeWaveAmp,
-  EyeWaveFreq,
-  EyeWaveSpeed,
-  PupilDx,
-  PupilDy,
-  PupilR,
-  MouthDy,
-  MouthRx,
-  MouthOpenAmt,
-  MouthArcAmt,
-  MouthThick,
-  MouthWaveAmp,
-  MouthWaveFreq,
-  MouthWaveSpeed,
-  FaceRot,
-  FaceY,
-  RingR,
-  RingG,
-  RingB,
-  Count = 24,
-}
-
-export interface ParamI16 {
-  value: number;
-  strength: number;
-}
-
-export const P = (value: number, strength = 100): ParamI16 => ({
-  value,
-  strength,
-});
-
-export type FaceParamsIndexed = readonly ParamI16[];
 
 export const kBaseTargets: readonly FaceParamsIndexed[] = [
   // Neutral
@@ -768,28 +689,6 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
   ],
 ] as const;
 
-export const kVerbKeyframeOverridesMax = 32 as const;
-export const kVerbKeyframesMax = 16 as const;
-
-export interface KeyframeOverride {
-  field: FieldIndex;
-  targetValue: number;
-  strength: number;
-}
-
-export interface VerbKeyframe {
-  time_ms: number;
-  override_count: number;
-  overrides: readonly KeyframeOverride[];
-}
-
-export interface VerbTimeline {
-  verb: Expression;
-  loop_duration_ms: number;
-  keyframe_count: number;
-  keyframes: readonly VerbKeyframe[];
-}
-
 export const kVerbTimelines: readonly VerbTimeline[] = [
   {
     verb: Expression.VerbThinking,
@@ -1068,15 +967,6 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
   },
 ] as const;
 
-export const kVerbTimelineCount = kVerbTimelines.length;
-
-export interface ArmPreset {
-  min_deg: number;
-  max_deg: number;
-  period_s: number;
-  interval_s: number;
-}
-
 export const kArmPresets: readonly ArmPreset[] = [
   { min_deg: -25, max_deg: -15, period_s: 2.0, interval_s: 1.0 },
   { min_deg: -23, max_deg: -7, period_s: 1.5, interval_s: 0.5 },
@@ -1101,24 +991,6 @@ export const kArmPresets: readonly ArmPreset[] = [
   { min_deg: 10, max_deg: 25, period_s: 0.9, interval_s: 0.2 },
   { min_deg: -18, max_deg: -8, period_s: 1.1, interval_s: 0.15 },
 ] as const;
-
-export enum MotionMode {
-  None = 0,
-  Static,
-  RandomDrift,
-  Oscillate,
-  Waggle,
-  Thinking,
-}
-
-export interface ExprMotionRow {
-  mode: MotionMode;
-  center: number;
-  amplitude: number;
-  period_ms: number;
-  period_jitter_ms: number;
-  slew_ms: number;
-}
 
 export const kMotion: readonly ExprMotionRow[] = [
   {
@@ -1298,33 +1170,6 @@ export const kMotion: readonly ExprMotionRow[] = [
     slew_ms: 0,
   },
 ] as const;
-
-/** Same sentinel as firmware `FaceConfig::kBobAmpFollowEmotionArm` (int16 0x8000). */
-export const BOB_AMP_FOLLOW_EMOTION_ARM = -32768;
-
-export enum GazeStyle {
-  Off = 0,
-  IdleRandom,
-  Orbit,
-  ScanX,
-}
-
-export interface IdleAnimRow {
-  blink_period_min_ms: number;
-  blink_period_max_ms: number;
-  blink_close_ms: number;
-  blink_open_ms: number;
-  bob_amplitude_px: number;
-  gaze_style: GazeStyle;
-  gaze_move_ms: number;
-  gaze_rand_span_x: number;
-  gaze_rand_span_y: number;
-  gaze_reroll_min_ms: number;
-  gaze_reroll_max_ms: number;
-  gaze_scan_period_ms: number;
-  gaze_amp_x: number;
-  gaze_amp_y: number;
-}
 
 export const kIdleAnim: readonly IdleAnimRow[] = [
   // Neutral
@@ -1746,24 +1591,3 @@ export const kMotionRuntime = {
 /** `Face::kVerbTransitionDurMs` / `VerbTimeline.h` */
 export const kVerbTransitionDurMs = 500 as const;
 
-export function expressionIndexFromName(name: string): number {
-  const i = EXPRESSIONS.indexOf(name as ExpressionName);
-  return i >= 0 ? i : 0;
-}
-
-export function isEmotionExpressionIndex(idx: number): boolean {
-  return (
-    idx >= 0 && idx < kExpressionIsEmotion.length && !!kExpressionIsEmotion[idx]
-  );
-}
-
-export function armPresetForExpressionIndex(idx: number): ArmPreset {
-  if (idx < 0 || idx >= kArmPresets.length) return kArmPresets[0]!;
-  return kArmPresets[idx]!;
-}
-
-export function expressionForNamedEmotionIndex(namedIdx: number): number {
-  if (namedIdx < 0 || namedIdx >= kNamedEmotionToExpressionIndex.length)
-    return 0;
-  return kNamedEmotionToExpressionIndex[namedIdx]!;
-}

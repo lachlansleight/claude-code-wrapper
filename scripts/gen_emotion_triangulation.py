@@ -8,9 +8,8 @@ for blend triangulation). Optionally supports legacy four-float rows as an
 axis-aligned box; those are converted to box centre `(mid_v, mid_a)`.
 
 Computes a Delaunay triangulation via Bowyer-Watson (no scipy dep). Emits a
-C++ header with `kAnchors[]` and `kTriangles[]`, plus JavaScript
-`control/scripts/emotion-triangulation.js` (HTML simulator) and TypeScript
-`face-editor/src/app/_lib/face-engine/emotionTriangulation.ts` (Next.js face editor).
+C++ header with `kAnchors[]` and `kTriangles[]` for firmware. The face editor
+builds triangulation at runtime from `kEmotionPoints` (delaunator).
 
 Duplicate (v, a) coordinates collapse to one anchor (first emotion in file
 order wins); matches firmware tie-breaking via `kPickOrder`.
@@ -37,8 +36,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 FACE_CONFIG_DATA_H = REPO_ROOT / "robot_v3" / "src" / "face" / "FACE_CONFIG_DATA.h"
 OUTPUT_PATH = REPO_ROOT / "robot_v3" / "src" / "behaviour" / "EmotionTriangulation.h"
 JS_OUTPUT_PATH = REPO_ROOT / "control" / "scripts" / "emotion-triangulation.js"
-TS_OUTPUT_PATH = REPO_ROOT / "face-editor" / "src" / "app" / "_lib" / "face-engine" / "emotionTriangulation.ts"
-
 _KPOINTS_MARKER = "kEmotionPoints[(size_t)EmotionSystem::NamedEmotion::Count]"
 _ROW_RE = re.compile(
     r"^\s*\{\s*([^}]+?)\}\s*,?\s*(?://\s*([^\s/]+)\s*)?$"
@@ -401,18 +398,6 @@ def main() -> int:
     JS_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     JS_OUTPUT_PATH.write_text(js_out, encoding="ascii")
     print(f"[gen_emotion_triangulation] wrote {JS_OUTPUT_PATH}")
-
-    ts_anchor_lines = "\n".join(format_ts_anchor(a) for a in anchors)
-    ts_triangle_lines = "\n".join(format_ts_triangle(t) for t in triangles)
-    ts_out = TS_TEMPLATE.format(
-        n_anchors=len(anchors),
-        n_triangles=len(triangles),
-        anchor_lines=ts_anchor_lines,
-        triangle_lines=ts_triangle_lines,
-    )
-    TS_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    TS_OUTPUT_PATH.write_text(ts_out, encoding="ascii")
-    print(f"[gen_emotion_triangulation] wrote {TS_OUTPUT_PATH}")
 
     return 0
 

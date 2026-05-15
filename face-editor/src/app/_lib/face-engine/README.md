@@ -4,7 +4,7 @@ TypeScript ports of the v3 face stack from the former `control/scripts/` simulat
 
 -   **`faceParams.ts`** — `PARAM_FIELDS` order and `FaceParams` type (matches firmware row layout).
 -   **`presets.ts`** — per-expression `NEW_TARGETS` and helpers.
--   **`emotionTriangulation.ts`** — V/A mesh anchors and triangles (keep in sync with `scripts/gen_emotion_triangulation.py` / firmware `kEmotionPoints`).
+-   **`emotionTriangulationLive.ts`** — Delaunay mesh from `kEmotionPoints` at load; firmware uses baked `EmotionTriangulation.h`.
 -   **`emotionBlend.ts`** — barycentric blend in (V, A); depends on triangulation + `baseTargetForExpression` from presets (no circular import with the frame controller).
 -   **`frameController.ts`** — RAF driver: tweens, blink, gaze, body bob, static/blend modes, arm overlay.
 -   **`faceRenderer.ts`** — draws into a 240×240 sprite (port of `FaceRenderer.cpp`).

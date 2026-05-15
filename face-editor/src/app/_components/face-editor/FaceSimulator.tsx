@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { expressionIndexFromName, Expression } from "../../_lib/face-engine/FACE_CONFIG_DATA";
-import { createFrameController } from "../../_lib/face-engine/frameController";
+import { expressionIndexFromName, Expression } from "../../_lib/face-engine/faceConfigTypes";
+import type { FaceConfigState } from "../../_lib/face-engine/faceConfigState";
+import { cloneFaceConfigState } from "../../_lib/face-engine/mutableFaceConfig";
+import { createFrameController, type FrameController } from "../../_lib/face-engine/frameController";
 import {
     PARAM_FIELDS,
     PARAM_FIELDS_UI_ORDER,
@@ -31,7 +33,55 @@ import { VerbButtons } from "./VerbButtons";
 import PanelModeSwitcher from "./PanelModeSwitcher";
 
 export function FaceSimulator() {
-    const fc = useMemo(() => createFrameController(), []);
+    const [faceConfig, setFaceConfig] = useState<FaceConfigState | null>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await fetch("/api/loadFaceConfig");
+                const body = (await res.json()) as
+                    | { ok: true; config: FaceConfigState }
+                    | { ok: false; error: string };
+                if (!body.ok) throw new Error(body.error ?? "Failed to load face config");
+                if (!cancelled) setFaceConfig(body.config);
+            } catch (e) {
+                if (!cancelled) {
+                    setLoadError(e instanceof Error ? e.message : String(e));
+                }
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    const fc = useMemo(() => {
+        if (!faceConfig) return null;
+        return createFrameController({ faceConfig: cloneFaceConfigState(faceConfig) });
+    }, [faceConfig]);
+
+    if (loadError) {
+        return (
+            <div className="mx-auto max-w-[1600px] px-4 py-8 text-face-text">
+                <p className="text-red-400">Failed to load face config: {loadError}</p>
+            </div>
+        );
+    }
+
+    if (!fc) {
+        return (
+            <div className="mx-auto max-w-[1600px] px-4 py-8 text-face-muted">
+                Loading face config…
+            </div>
+        );
+    }
+
+    return <FaceSimulatorInner fc={fc} />;
+}
+
+function FaceSimulatorInner({ fc }: { fc: FrameController }) {
     const faceCanvasRef = useRef<HTMLCanvasElement>(null);
 
     const [currentExpr, setCurrentExpr] = useState(fc.currentExpression());

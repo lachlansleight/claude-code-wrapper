@@ -5,7 +5,6 @@
 
 import { createEmotionBlend, type EmotionBlendApi } from "./emotionBlend";
 import {
-    BOB_AMP_FOLLOW_EMOTION_ARM,
     Expression,
     FieldIndex,
     GazeStyle,
@@ -13,16 +12,13 @@ import {
     MotionMode,
     type IdleAnimRow,
     type ParamI16,
-    kFrameAnim,
-    kIdleAnim,
-    kMotion,
     expressionIndexFromName,
-    isEmotionExpressionIndex,
-} from "./FACE_CONFIG_DATA";
-import { EMOTION_TRIANGULATION } from "./emotionTriangulation";
-import { cloneMutableEmotionTriangulation } from "./emotionTriangulationLive";
-import { cloneMutableBaseTargets } from "./mutableBaseTargets";
-import { cloneMutableVerbTimelines, type MutableVerbTimeline } from "./mutableVerbTimelines";
+} from "./faceConfigTypes";
+import { isEmotionExpressionIndex } from "./faceConfigHelpers";
+import type { ExprMotionRow } from "./faceConfigTypes";
+import type { FaceConfigState } from "./faceConfigState";
+import { cloneFaceConfigState } from "./mutableFaceConfig";
+import type { MutableVerbTimeline } from "./mutableVerbTimelines";
 import {
     PARAM_FIELDS,
     faceParamsFromIndexed,
@@ -35,7 +31,6 @@ import {
 } from "./faceParams";
 import { createFaceRenderer } from "./faceRenderer";
 import {
-    baseTargetForExpression as presetTargetForExpression,
     expressionsList,
     isEmotionExpression,
     paramFieldsList,
@@ -72,8 +67,8 @@ function randInt(lo: number, hi: number): number {
     return Math.floor(Math.random() * (hi - lo + 1)) + lo;
 }
 
-function periodMsForExpressionIndex(idx: number): number {
-    const m = kMotion[idx];
+function periodMsForExpressionIndex(idx: number, motion: readonly ExprMotionRow[]): number {
+    const m = motion[idx];
     if (!m) return 0;
     switch (m.mode) {
         case MotionMode.Oscillate:
@@ -91,7 +86,8 @@ function periodMsForContext(
     blendMode: boolean,
     blendV: number,
     blendA: number,
-    emotionBlend: ReturnType<typeof createEmotionBlend>
+    emotionBlend: ReturnType<typeof createEmotionBlend>,
+    motion: readonly ExprMotionRow[]
 ): number {
     if (isEmotionExpressionIndex(exprIdx) && emotionBlend.ready()) {
         if (blendMode) {
@@ -115,7 +111,7 @@ function periodMsForContext(
             }
         }
     }
-    return periodMsForExpressionIndex(exprIdx);
+    return periodMsForExpressionIndex(exprIdx, motion);
 }
 
 function anchorVaForExprIdx(
@@ -132,7 +128,8 @@ function idleFor(
     blendMode: boolean,
     blendV: number,
     blendA: number,
-    emotionBlend: ReturnType<typeof createEmotionBlend>
+    emotionBlend: ReturnType<typeof createEmotionBlend>,
+    idleAnim: readonly IdleAnimRow[]
 ): IdleAnimRow {
     if (isEmotionExpressionIndex(exprIdx)) {
         if (blendMode && emotionBlend.ready()) {
@@ -147,7 +144,7 @@ function idleFor(
             }
         }
     }
-    return { ...kIdleAnim[exprIdx]! };
+    return { ...idleAnim[exprIdx]! };
 }
 
 function bodyBobAmpFor(
@@ -157,16 +154,18 @@ function bodyBobAmpFor(
     blendMode: boolean,
     blendV: number,
     blendA: number,
-    emotionBlend: ReturnType<typeof createEmotionBlend>
+    emotionBlend: ReturnType<typeof createEmotionBlend>,
+    bobAmpFollowSentinel: number,
+    emotionBobAmpFollowArmPx: number
 ): number {
-    if (idle.bob_amplitude_px === BOB_AMP_FOLLOW_EMOTION_ARM) {
+    if (idle.bob_amplitude_px === bobAmpFollowSentinel) {
         if (isEmotionExpressionIndex(exprIdx) && emotionBlend.ready()) {
             const { v, a } = anchorVaForExprIdx(tri, exprIdx);
             const m = blendMode
                 ? emotionBlend.blendedEmotionArmMotion(blendV, blendA)
                 : emotionBlend.blendedEmotionArmMotion(v, a);
             if (m && m.min_offset_deg !== m.max_offset_deg) {
-                return kFrameAnim.emotion_bob_amp_follow_arm;
+                return emotionBobAmpFollowArmPx;
             }
         }
         return 0;
@@ -208,10 +207,14 @@ export interface FrameController {
     lastBlendTriangle(): BlendTriangle | null;
     /** Same blend instance used for ticks and the V/A diagram. */
     emotionBlendApi(): EmotionBlendApi;
-    /** Mutable live triangulation (clone of shipped data); safe to edit in the editor. */
+    /** Mutable live triangulation; safe to edit in the editor. */
     emotionTriangulation(): EmotionTriangulationTable;
-    /** Session-local verb keyframe tables (clone of shipped `kVerbTimelines`; lost on refresh). */
+    /** Session-local verb keyframe tables. */
     verbTimelines(): MutableVerbTimeline[];
+    /** Full mutable face config (all `FACE_CONFIG_DATA` tables + triangulation). */
+    faceConfig(): FaceConfigState;
+    /** Replace session config (e.g. after save + reload). */
+    replaceFaceConfigState(next: FaceConfigState): void;
     /** When set, `tick()` uses `timeMs` as verb phase for that verb instead of wall-clock verb time. */
     setVerbTimelinePreview(p: { verb: Expression; timeMs: number } | null): void;
     /**
@@ -240,27 +243,25 @@ export interface FrameController {
 }
 
 export interface CreateFrameControllerOptions {
-    /** Defaults to a mutable clone of `EMOTION_TRIANGULATION` (editor can move anchors). */
-    triangulation?: EmotionTriangulationTable;
+    faceConfig: FaceConfigState;
 }
 
-export function createFrameController(opts?: CreateFrameControllerOptions): FrameController {
-    const liveTriangulation =
-        opts?.triangulation ?? cloneMutableEmotionTriangulation(EMOTION_TRIANGULATION);
-    const liveBaseTargets = cloneMutableBaseTargets();
-    const liveVerbTimelines = cloneMutableVerbTimelines();
-    const emotionBlend = createEmotionBlend({
-        triangulation: liveTriangulation as EmotionTriangulationTable,
-        baseTargets: liveBaseTargets,
+export function createFrameController(opts: CreateFrameControllerOptions): FrameController {
+    let faceConfig = opts.faceConfig;
+    let emotionBlend = createEmotionBlend({
+        triangulation: faceConfig.emotionTriangulation as EmotionTriangulationTable,
+        baseTargets: faceConfig.baseTargets,
+        armPresets: faceConfig.armPresets,
+        idleAnim: faceConfig.idleAnim,
     });
 
     const settings = createRobotSettings();
     const face = createFaceRenderer({ settings, tft });
 
-    const animCfg = () => kFrameAnim;
+    const animCfg = () => faceConfig.frameAnim;
 
-    let sSmoothed: ParamI16[] = cloneFaceParamsIndexed(liveBaseTargets[0]!);
-    let sLastRendered: ParamI16[] = cloneFaceParamsIndexed(liveBaseTargets[0]!);
+    let sSmoothed: ParamI16[] = cloneFaceParamsIndexed(faceConfig.baseTargets[0]!);
+    let sLastRendered: ParamI16[] = cloneFaceParamsIndexed(faceConfig.baseTargets[0]!);
     let sLastEmotionSmoothMs = 0;
 
     let sNextBlinkMs = 0;
@@ -308,7 +309,7 @@ export function createFrameController(opts?: CreateFrameControllerOptions): Fram
 
     let sStaticMode = false;
     let sStaticOverride: StaticOverrideState = {
-        params: { ...presetTargetForExpression("Neutral") },
+        params: { ...faceParamsFromIndexed(faceConfig.baseTargets[0]!) },
         blinkAmt: 0,
         gdx: 0,
         gdy: 0,
@@ -336,7 +337,7 @@ export function createFrameController(opts?: CreateFrameControllerOptions): Fram
     let sBlendVerbEnteredMs = 0;
 
     const resolveLiveVerbTable: VerbTimelineTableResolver = (verb: Expression) =>
-        liveVerbTimelines.find(t => t.verb === verb);
+        faceConfig.verbTimelines.find(t => t.verb === verb);
 
     const listeners: Array<(name: string) => void> = [];
     let rafHandle: number | null = null;
@@ -451,12 +452,13 @@ export function createFrameController(opts?: CreateFrameControllerOptions): Fram
         blendA: number
     ): number {
         const period = periodMsForContext(
-            liveTriangulation,
+            faceConfig.emotionTriangulation,
             exprIdx,
             blendMode,
             blendV,
             blendA,
-            emotionBlend
+            emotionBlend,
+            faceConfig.motion
         );
         if (period === 0) {
             sBodyBobPhaseLastMs = t;
@@ -464,13 +466,15 @@ export function createFrameController(opts?: CreateFrameControllerOptions): Fram
             return 0;
         }
         const liveAmp = bodyBobAmpFor(
-            liveTriangulation,
+            faceConfig.emotionTriangulation,
             exprIdx,
             idle,
             blendMode,
             blendV,
             blendA,
-            emotionBlend
+            emotionBlend,
+            faceConfig.bobAmpFollowEmotionArm,
+            faceConfig.frameAnim.emotion_bob_amp_follow_arm
         );
         const tt = verbTransitionT(t);
         const effAmpF = tt >= 1.0 ? liveAmp : sFromBobAmp + (liveAmp - sFromBobAmp) * tt;
@@ -495,12 +499,13 @@ export function createFrameController(opts?: CreateFrameControllerOptions): Fram
         sLastExprIdx = newExprIdx;
         sBlinkActive = false;
         const idleNew = idleFor(
-            liveTriangulation,
+            faceConfig.emotionTriangulation,
             newExprIdx,
             sBlendMode,
             sBlendV,
             sBlendA,
-            emotionBlend
+            emotionBlend,
+            faceConfig.idleAnim
         );
         scheduleNextBlink(idleNew, t);
 
@@ -564,7 +569,7 @@ export function createFrameController(opts?: CreateFrameControllerOptions): Fram
     }
 
     function verbArmOffset(exprIdx: number, t: number): number {
-        const m = kMotion[exprIdx];
+        const m = faceConfig.motion[exprIdx];
         if (!m) return 0;
         switch (exprIdx) {
             case Expression.VerbReading:
@@ -618,7 +623,7 @@ export function createFrameController(opts?: CreateFrameControllerOptions): Fram
         }
 
         if (isEmotionExpressionIndex(exprIdx) && emotionBlend.ready()) {
-            const an = liveTriangulation.anchors.find(
+            const an = faceConfig.emotionTriangulation.anchors.find(
                 x => expressionIndexFromName(x.emotion) === exprIdx
             );
             const arm = an ? emotionBlend.blendedEmotionArmMotion(an.v, an.a) : null;
@@ -709,7 +714,7 @@ export function createFrameController(opts?: CreateFrameControllerOptions): Fram
         const settingsVersion = settings.version();
         if (settingsVersion !== sLastSettingsVersion) {
             sLastSettingsVersion = settingsVersion;
-            const tgt = liveBaseTargets[exprIdx]!;
+            const tgt = faceConfig.baseTargets[exprIdx]!;
             if (tgt) smoothFaceValuesToward(sSmoothed, tgt, 1.0);
             const flat = faceParamsFromIndexed(sSmoothed);
             sMoodR = flat.ring_r;
@@ -728,13 +733,21 @@ export function createFrameController(opts?: CreateFrameControllerOptions): Fram
             onExpressionChange(exprIdx, t);
         }
 
-        const idle = idleFor(liveTriangulation, exprIdx, false, sBlendV, sBlendA, emotionBlend);
+        const idle = idleFor(
+            faceConfig.emotionTriangulation,
+            exprIdx,
+            false,
+            sBlendV,
+            sBlendA,
+            emotionBlend,
+            faceConfig.idleAnim
+        );
 
         const emoDt = sLastEmotionSmoothMs === 0 ? tickInterval : t - sLastEmotionSmoothMs;
         sLastEmotionSmoothMs = t;
         const emoAlpha = 1.0 - Math.exp(-emoDt / animCfg().emotion_geometry_smooth_tau_ms);
 
-        let targetRow: ParamI16[] = [...liveBaseTargets[exprIdx]!];
+        let targetRow: ParamI16[] = [...faceConfig.baseTargets[exprIdx]!];
         if (
             sVerbTimelinePreview !== null &&
             expressionUsesVerbTimeline(exprEnum) &&
@@ -893,7 +906,15 @@ export function createFrameController(opts?: CreateFrameControllerOptions): Fram
         }
         sLastTickMs = t;
         const exprIdx = expressionIndexFromName(sCurrentExpr);
-        const idle = idleFor(liveTriangulation, exprIdx, true, sBlendV, sBlendA, emotionBlend);
+        const idle = idleFor(
+            faceConfig.emotionTriangulation,
+            exprIdx,
+            true,
+            sBlendV,
+            sBlendA,
+            emotionBlend,
+            faceConfig.idleAnim
+        );
 
         const blended = emotionBlend.blendedFaceParamsIndexed(sBlendV, sBlendA);
         if (!blended) {
@@ -973,8 +994,8 @@ export function createFrameController(opts?: CreateFrameControllerOptions): Fram
             sprite = new TFTSprite(240, 240);
             outputCanvas = canvas;
             resetVerbTransition();
-            sSmoothed = cloneFaceParamsIndexed(liveBaseTargets[0]!);
-            sLastRendered = cloneFaceParamsIndexed(liveBaseTargets[0]!);
+            sSmoothed = cloneFaceParamsIndexed(faceConfig.baseTargets[0]!);
+            sLastRendered = cloneFaceParamsIndexed(faceConfig.baseTargets[0]!);
             sLastExprIdx = -1;
             sLastTickMs = 0;
             sLastEmotionSmoothMs = 0;
@@ -1023,33 +1044,36 @@ export function createFrameController(opts?: CreateFrameControllerOptions): Fram
         },
 
         baseTargetForExpression(name: string): FaceParams {
-            return presetTargetForExpression(name);
+            const i = expressionIndexFromName(name);
+            const row = faceConfig.baseTargets[i];
+            if (!row) return { ...faceParamsFromIndexed(faceConfig.baseTargets[0]!) };
+            return { ...faceParamsFromIndexed(row) };
         },
 
         liveBaseFaceParams(name: string): FaceParams {
             const i = expressionIndexFromName(name);
-            const row = liveBaseTargets[i];
-            if (!row) return { ...faceParamsFromIndexed(liveBaseTargets[0]!) };
+            const row = faceConfig.baseTargets[i];
+            if (!row) return { ...faceParamsFromIndexed(faceConfig.baseTargets[0]!) };
             return { ...faceParamsFromIndexed(row) };
         },
 
         liveBaseFaceStrengths(name: string): FaceParams {
             const i = expressionIndexFromName(name);
-            const row = liveBaseTargets[i];
-            if (!row) return { ...faceStrengthsFromIndexed(liveBaseTargets[0]!) };
+            const row = faceConfig.baseTargets[i];
+            if (!row) return { ...faceStrengthsFromIndexed(faceConfig.baseTargets[0]!) };
             return { ...faceStrengthsFromIndexed(row) };
         },
 
         patchLiveBaseFaceParams(name: string, partial: Partial<FaceParams>): void {
             const i = expressionIndexFromName(name);
-            const row = liveBaseTargets[i];
+            const row = faceConfig.baseTargets[i];
             if (!row) return;
             mergeValuesIntoIndexedRow(row, partial);
         },
 
         patchLiveBaseFaceStrengths(name: string, partial: Partial<FaceParams>): void {
             const i = expressionIndexFromName(name);
-            const row = liveBaseTargets[i];
+            const row = faceConfig.baseTargets[i];
             if (!row) return;
             mergeStrengthsIntoIndexedRow(row, partial);
         },
@@ -1105,11 +1129,11 @@ export function createFrameController(opts?: CreateFrameControllerOptions): Fram
         },
 
         emotionTriangulation(): EmotionTriangulationTable {
-            return liveTriangulation as EmotionTriangulationTable;
+            return faceConfig.emotionTriangulation as EmotionTriangulationTable;
         },
 
         verbTimelines(): MutableVerbTimeline[] {
-            return liveVerbTimelines;
+            return faceConfig.verbTimelines;
         },
 
         setVerbTimelinePreview(p: { verb: Expression; timeMs: number } | null): void {
@@ -1180,6 +1204,23 @@ export function createFrameController(opts?: CreateFrameControllerOptions): Fram
 
         armOffsetDeg(): number {
             return sCurrentArmDeg;
+        },
+
+        faceConfig(): FaceConfigState {
+            return faceConfig;
+        },
+
+        replaceFaceConfigState(next: FaceConfigState): void {
+            faceConfig = cloneFaceConfigState(next);
+            emotionBlend = createEmotionBlend({
+                triangulation: faceConfig.emotionTriangulation as EmotionTriangulationTable,
+                baseTargets: faceConfig.baseTargets,
+                armPresets: faceConfig.armPresets,
+                idleAnim: faceConfig.idleAnim,
+            });
+            sSmoothed = cloneFaceParamsIndexed(faceConfig.baseTargets[0]!);
+            sLastRendered = cloneFaceParamsIndexed(faceConfig.baseTargets[0]!);
+            sCurrentParams = faceParamsFromIndexed(sSmoothed);
         },
     };
 }

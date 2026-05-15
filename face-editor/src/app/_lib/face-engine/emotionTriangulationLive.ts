@@ -1,5 +1,5 @@
 import Delaunator from "delaunator";
-import { EMOTION_TRIANGULATION } from "./emotionTriangulation";
+import type { EmotionPoint } from "./faceConfigTypes";
 import type { EmotionTriangulationTable, TriangulationAnchor } from "./types";
 
 /** Editor-local triangulation: anchors and triangle indices are mutated in place. */
@@ -9,8 +9,23 @@ export type MutableEmotionTriangulation = {
     triangles: [number, number, number][];
 };
 
+const DOMAIN_V: [number, number] = [-1.0, 1.0];
+const DOMAIN_A: [number, number] = [0.0, 1.0];
+
+/** `kEmotionNames` slug → PascalCase anchor label (e.g. `disappointed` → `Disappointed`). */
+export function namedEmotionAnchorLabel(emotionName: string): string {
+    if (!emotionName) return emotionName;
+    return emotionName.charAt(0).toUpperCase() + emotionName.slice(1);
+}
+
+/** Slug for `kEmotionNames` from a triangulation anchor label. */
+export function namedEmotionSlugFromAnchor(anchorEmotion: string): string {
+    if (!anchorEmotion) return anchorEmotion;
+    return anchorEmotion.charAt(0).toLowerCase() + anchorEmotion.slice(1);
+}
+
 export function cloneMutableEmotionTriangulation(
-    src: EmotionTriangulationTable = EMOTION_TRIANGULATION
+    src: EmotionTriangulationTable
 ): MutableEmotionTriangulation {
     return {
         domain: {
@@ -24,6 +39,32 @@ export function cloneMutableEmotionTriangulation(
         })),
         triangles: src.triangles.map(t => [t[0]!, t[1]!, t[2]!]),
     };
+}
+
+/** Build anchors from `kEmotionPoints` and Delaunay-triangulate (editor; firmware uses baked mesh). */
+export function buildEmotionTriangulationFromPoints(
+    emotionNames: readonly string[],
+    emotionPoints: readonly EmotionPoint[]
+): MutableEmotionTriangulation {
+    if (emotionNames.length !== emotionPoints.length) {
+        throw new Error(
+            `emotionNames.length (${emotionNames.length}) !== emotionPoints.length (${emotionPoints.length})`
+        );
+    }
+    const tri: MutableEmotionTriangulation = {
+        domain: { v: [...DOMAIN_V], a: [...DOMAIN_A] },
+        anchors: emotionNames.map((name, i) => {
+            const p = emotionPoints[i]!;
+            return {
+                v: p.v,
+                a: p.a,
+                emotion: namedEmotionAnchorLabel(name),
+            };
+        }),
+        triangles: [],
+    };
+    retriangulateEmotionAnchors(tri);
+    return tri;
 }
 
 /** Replaces `tri.triangles` with a Delaunay triangulation of current anchor V/A. */
@@ -43,4 +84,17 @@ export function retriangulateEmotionAnchors(tri: MutableEmotionTriangulation): v
     }
     tri.triangles.length = 0;
     for (const t of next) tri.triangles.push(t);
+}
+
+/** Keep `emotionPoints` aligned when an anchor is dragged (same index order as `kEmotionNames`). */
+export function syncEmotionPointFromAnchor(
+    emotionNames: readonly string[],
+    emotionPoints: EmotionPoint[],
+    anchor: TriangulationAnchor
+): void {
+    const slug = namedEmotionSlugFromAnchor(anchor.emotion);
+    const idx = emotionNames.indexOf(slug);
+    if (idx < 0) return;
+    emotionPoints[idx]!.v = anchor.v;
+    emotionPoints[idx]!.a = anchor.a;
 }

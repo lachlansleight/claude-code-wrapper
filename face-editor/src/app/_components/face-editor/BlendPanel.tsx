@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FrameController } from "../../_lib/face-engine/frameController";
 import type { MutableEmotionTriangulation } from "../../_lib/face-engine/emotionTriangulationLive";
-import { retriangulateEmotionAnchors } from "../../_lib/face-engine/emotionTriangulationLive";
+import {
+    retriangulateEmotionAnchors,
+    syncEmotionPointFromAnchor,
+} from "../../_lib/face-engine/emotionTriangulationLive";
 import { canvasClientToVa } from "../../_lib/face-editor/blendCanvasMath";
 import {
     computeBlendMetaHtml,
@@ -178,6 +181,12 @@ export function BlendPanel({
                                     if (an) {
                                         an.v = v;
                                         an.a = a;
+                                        const cfg = fc.faceConfig();
+                                        syncEmotionPointFromAnchor(
+                                            cfg.emotionNames,
+                                            cfg.emotionPoints,
+                                            an
+                                        );
                                     }
                                     retriangulateEmotionAnchors(tri);
                                     redraw();

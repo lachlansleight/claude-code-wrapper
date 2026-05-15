@@ -13,8 +13,8 @@ import {
     kArmPresets,
     kBaseTargets,
     kIdleAnim,
-    expressionIndexFromName,
 } from "./FACE_CONFIG_DATA";
+import { expressionIndexFromName } from "./faceConfigTypes";
 import type { FaceParams } from "./faceParams";
 import { PARAM_FIELDS, faceParamsFromIndexed } from "./faceParams";
 import type { BlendTriangle, EmotionArmMotion, EmotionTriangulationTable } from "./types";
@@ -179,6 +179,8 @@ export interface EmotionBlendDeps {
     triangulation: EmotionTriangulationTable;
     /** When set, blend geometry rows come from this table (same shape as `kBaseTargets`). */
     baseTargets?: readonly (readonly ParamI16[])[];
+    armPresets?: readonly ArmPreset[];
+    idleAnim?: readonly IdleAnimRow[];
 }
 
 export interface EmotionBlendApi {
@@ -193,6 +195,8 @@ export interface EmotionBlendApi {
 export function createEmotionBlend(deps: EmotionBlendDeps): EmotionBlendApi {
     const { triangulation: t } = deps;
     const baseTable = deps.baseTargets ?? kBaseTargets;
+    const armTable = deps.armPresets ?? kArmPresets;
+    const idleTable = deps.idleAnim ?? kIdleAnim;
 
     function ready(): boolean {
         return !!(t && Array.isArray(t.anchors) && Array.isArray(t.triangles));
@@ -249,8 +253,8 @@ export function createEmotionBlend(deps: EmotionBlendDeps): EmotionBlendApi {
     }
 
     function armPresetForExpressionIndex(exIdx: number): ArmPreset {
-        if (exIdx < 0 || exIdx >= kArmPresets.length) return kArmPresets[0]!;
-        return kArmPresets[exIdx]!;
+        if (exIdx < 0 || exIdx >= armTable.length) return armTable[0]!;
+        return armTable[exIdx]!;
     }
 
     function blendThreeIndexed(
@@ -384,14 +388,14 @@ export function createEmotionBlend(deps: EmotionBlendDeps): EmotionBlendApi {
             const idx = nearestAnchor(v, a);
             const e = t.anchors[idx]!.emotion;
             const ex = expressionIndexFromName(e);
-            return { ...kIdleAnim[ex]! };
+            return { ...idleTable[ex]! };
         }
         const [i0, i1, i2] = tri.indices;
         const [l0, l1, l2] = tri.weights;
         const eA = expressionIndexFromName(t.anchors[i0]!.emotion);
         const eB = expressionIndexFromName(t.anchors[i1]!.emotion);
         const eC = expressionIndexFromName(t.anchors[i2]!.emotion);
-        return blendIdleThree(kIdleAnim[eA]!, kIdleAnim[eB]!, kIdleAnim[eC]!, l0, l1, l2);
+        return blendIdleThree(idleTable[eA]!, idleTable[eB]!, idleTable[eC]!, l0, l1, l2);
     }
 
     function blendedFaceParams(v: number, a: number): FaceParams | null {
