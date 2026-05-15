@@ -1195,7 +1195,9 @@ export function createFrameController(
       if (verb === sBlendVerbPreview) return;
       sBlendVerbPreview = verb;
       sBlendVerbEnteredMs = now();
-      resetVerbTransition();
+      // Do not resetVerbTransition() — tickBlend passes the new target to
+      // sampleEffectiveVerb each frame; it snapshots in-flight output and
+      // cross-fades over kVerbTransitionDurMs (matches firmware VerbTimeline).
     },
 
     blendVerbPreview(): Expression | null {

@@ -22,7 +22,8 @@ export function VerbButtons({ fc }: { fc: FrameController }) {
         Verb overlay + robot
       </h4>
       <p className="mb-2 text-[0.72em] leading-snug text-face-muted">
-        Layers a verb timeline on the blended face. POSTs{" "}
+        Layers a verb timeline on the blended face (500&nbsp;ms cross-fade
+        in/out/between). POSTs{" "}
         <span className="font-mono">/api/raw/verb/start</span> or{" "}
         <span className="font-mono">/api/raw/verb/clear</span> (None).
       </p>
