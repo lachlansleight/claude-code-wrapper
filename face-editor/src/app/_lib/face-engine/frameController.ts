@@ -225,6 +225,18 @@ export interface FrameController {
   verbTimelines(): MutableVerbTimeline[];
   /** When set, `tick()` uses `timeMs` as verb phase for that verb instead of wall-clock verb time. */
   setVerbTimelinePreview(p: { verb: Expression; timeMs: number } | null): void;
+  /**
+   * While verb timeline preview is active, smooth the base face toward this blended
+   * V/A point instead of the verb expression row in `kBaseTargets`.
+   */
+  setVerbPreviewBaseVa(v: number, a: number): void;
+  verbPreviewBaseVa(): { v: number; a: number };
+  /**
+   * When blend mode is on, optionally sample this verb timeline on top of the blended face.
+   * Use `null` for no verb overlay (matches bridge `POST /api/raw/verb/clear`).
+   */
+  setBlendVerbPreview(verb: Expression | null): void;
+  blendVerbPreview(): Expression | null;
   setStaticOverride(partial: {
     params?: Partial<FaceParams>;
     blinkAmt?: number;
@@ -330,6 +342,12 @@ export function createFrameController(
   let sPrevArmDriverEmotion = false;
 
   let sVerbTimelinePreview: { verb: Expression; timeMs: number } | null = null;
+
+  /** Base emotion (V/A) under verb-timeline preview — see `setVerbPreviewBaseVa`. */
+  let sVerbPreviewBaseVa = { v: 0, a: 0.5 };
+  /** Optional verb layered in blend-mode tick — see `setBlendVerbPreview`. */
+  let sBlendVerbPreview: Expression | null = null;
+  let sBlendVerbEnteredMs = 0;
 
   const resolveLiveVerbTable: VerbTimelineTableResolver = (verb: Expression) =>
     liveVerbTimelines.find((t) => t.verb === verb);
@@ -746,10 +764,19 @@ export function createFrameController(
     const emoAlpha =
       1.0 - Math.exp(-emoDt / animCfg().emotion_geometry_smooth_tau_ms);
 
-    const targetRow: ParamI16[] | null = [...liveBaseTargets[exprIdx]!];
-    if (targetRow) {
-      smoothFaceValuesToward(sSmoothed, targetRow, emoAlpha);
+    let targetRow: ParamI16[] = [...liveBaseTargets[exprIdx]!];
+    if (
+      sVerbTimelinePreview !== null &&
+      expressionUsesVerbTimeline(exprEnum) &&
+      emotionBlend.ready()
+    ) {
+      const blended = emotionBlend.blendedFaceParamsIndexed(
+        sVerbPreviewBaseVa.v,
+        sVerbPreviewBaseVa.a,
+      );
+      if (blended) targetRow = [...blended];
     }
+    smoothFaceValuesToward(sSmoothed, targetRow, emoAlpha);
 
     if (exprEnum !== sLastVerbForXfade) {
       sFromBobAmp = sLastBobAmp;
@@ -932,10 +959,19 @@ export function createFrameController(
         strength: 0,
       }),
     );
+    let blendVerbPhaseExpr: Expression = Expression.Count;
+    let blendVerbTimeMs = 0;
+    if (
+      sBlendVerbPreview !== null &&
+      expressionUsesVerbTimeline(sBlendVerbPreview)
+    ) {
+      blendVerbPhaseExpr = sBlendVerbPreview;
+      blendVerbTimeMs = Math.max(0, t - sBlendVerbEnteredMs);
+    }
     sampleEffectiveVerb(
-      Expression.Count,
+      blendVerbPhaseExpr,
       t,
-      0,
+      blendVerbTimeMs,
       verbHas,
       verbVals,
       resolveLiveVerbTable,
@@ -1138,6 +1174,29 @@ export function createFrameController(
       p: { verb: Expression; timeMs: number } | null,
     ): void {
       sVerbTimelinePreview = p;
+    },
+
+    setVerbPreviewBaseVa(v: number, a: number): void {
+      if (typeof v === "number")
+        sVerbPreviewBaseVa.v = Math.max(-1, Math.min(1, v));
+      if (typeof a === "number")
+        sVerbPreviewBaseVa.a = Math.max(0, Math.min(1, a));
+    },
+
+    verbPreviewBaseVa(): { v: number; a: number } {
+      return { ...sVerbPreviewBaseVa };
+    },
+
+    setBlendVerbPreview(verb: Expression | null): void {
+      if (verb !== null && !expressionUsesVerbTimeline(verb)) return;
+      if (verb === sBlendVerbPreview) return;
+      sBlendVerbPreview = verb;
+      sBlendVerbEnteredMs = now();
+      resetVerbTransition();
+    },
+
+    blendVerbPreview(): Expression | null {
+      return sBlendVerbPreview;
     },
 
     setStaticOverride(partial: {

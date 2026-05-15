@@ -24,11 +24,13 @@ import { formatKBaseTargetsCpp } from "../../_lib/face-editor/cppRowFormat";
 import { postRaw } from "../../_lib/face-editor/bridge";
 import { OVERLAY_MAP } from "../../_lib/face-editor/simulatorLayout";
 import { BlendPanel } from "./BlendPanel";
+import { EmotionButtons } from "./EmotionButtons";
 import { EmotionPointInspector } from "./EmotionPointInspector";
 import { FaceStage } from "./FaceStage";
 import { KeyframeInspector } from "./KeyframeInspector";
 import { StaticModePanel } from "./StaticModePanel";
 import { VerbTimelinePanel, type VerbTimelineName } from "./VerbTimelinePanel";
+import { VerbButtons } from "./VerbButtons";
 import PanelModeSwitcher from "./PanelModeSwitcher";
 
 export function FaceSimulator() {
@@ -137,6 +139,7 @@ export function FaceSimulator() {
 
   const setModeBlend = useCallback(() => {
     verbDropdownAwaitingEngineRef.current = false;
+    fc.setBlendVerbPreview(null);
     setSimulatorMode("blend");
     setBlendOn(true);
     setStaticOn(false);
@@ -146,6 +149,9 @@ export function FaceSimulator() {
   }, [fc]);
 
   const setModeVerbTimeline = useCallback(() => {
+    const va = fc.blendVA();
+    fc.setBlendVerbPreview(null);
+    fc.setVerbPreviewBaseVa(va.v, va.a);
     setBlendOn(false);
     setStaticOn(false);
     fc.setStaticMode(false);
@@ -199,10 +205,23 @@ export function FaceSimulator() {
     }
   }, [staticOn, verbTimelineMode, setModeBlend]);
 
+  /**
+   * `FrameController.tick()` only samples verb timelines when `currentExpression`
+   * is that verb. Without this, the UI can be in verb-timeline mode while the
+   * engine is still on Neutral / blend pick — face and sliders stay frozen.
+   */
+  useEffect(() => {
+    if (!verbTimelineMode) return;
+    resetVerbTransition();
+    fc.requestExpression(verbTimelineName);
+  }, [verbTimelineMode, verbTimelineName, fc]);
+
   useEffect(() => {
     if (!verbTimelineMode) return;
     if (!currentExpr.startsWith("Verb")) {
       verbDropdownAwaitingEngineRef.current = false;
+      resetVerbTransition();
+      fc.requestExpression(verbTimelineName);
       return;
     }
     if (verbDropdownAwaitingEngineRef.current) {
@@ -216,7 +235,7 @@ export function FaceSimulator() {
       setVerbPlayheadMs(0);
       setVerbSelectedKeyframe(null);
     }
-  }, [verbTimelineMode, currentExpr, verbTimelineName]);
+  }, [verbTimelineMode, currentExpr, verbTimelineName, fc]);
 
   useEffect(() => {
     if (!verbTimelineMode) {
@@ -435,9 +454,6 @@ export function FaceSimulator() {
   async function onExpressionClick(name: string): Promise<void> {
     verbDropdownAwaitingEngineRef.current = false;
     fc.requestExpression(name);
-    await handleExpressionBridge(name, {
-      emotionTriangulation: fc.emotionTriangulation(),
-    });
     if (verbTimelineMode && name.startsWith("Verb")) {
       setVerbTimelineName(name as VerbTimelineName);
     }
@@ -455,7 +471,6 @@ export function FaceSimulator() {
     verbDropdownAwaitingEngineRef.current = false;
     await postRaw("/api/raw/verb/clear", {});
     fc.requestExpression("Neutral");
-    await handleExpressionBridge("Neutral");
   }
 
   const expressions = fc.expressions();
@@ -486,39 +501,45 @@ export function FaceSimulator() {
 
         <div className="col-span-6">
           {!verbTimelineMode ? (
-            <BlendPanel
-              fc={fc}
-              blendOn={blendOn}
-              setBlendOn={setBlendOn}
-              staticOn={staticOn}
-              setStaticOn={setStaticOn}
-              autoSend={autoSend}
-              setAutoSend={setAutoSend}
-              markBlendDirty={markBlendDirty}
-              onBlendVaCommit={syncStaticSlidersFromBlendedParams}
-              onEmotionPointSelect={onEmotionPointSelect}
-            />
+            <>
+              <BlendPanel
+                fc={fc}
+                blendOn={blendOn}
+                setBlendOn={setBlendOn}
+                staticOn={staticOn}
+                setStaticOn={setStaticOn}
+                autoSend={autoSend}
+                setAutoSend={setAutoSend}
+                markBlendDirty={markBlendDirty}
+                onBlendVaCommit={syncStaticSlidersFromBlendedParams}
+                onEmotionPointSelect={onEmotionPointSelect}
+              />
+              {blendOn && !staticOn ? <VerbButtons fc={fc} /> : null}
+            </>
           ) : (
-            <VerbTimelinePanel
-              selectedVerb={verbTimelineName}
-              onVerbChange={(v) => {
-                verbDropdownAwaitingEngineRef.current = true;
-                setVerbTimelineName(v);
-              }}
-              tab={verbTab}
-              timelineRev={timelineRev}
-              playheadMs={verbPlayheadMs}
-              onPlayheadMs={setVerbPlayheadSnapped}
-              selectedKeyframeIndex={verbSelectedKeyframe}
-              onSelectKeyframe={setVerbSelectedKeyframe}
-              playSpeed={verbPlaySpeed}
-              onPlaySpeed={setVerbPlaySpeed}
-              onJumpToStart={() => {
-                setVerbPlayheadSnapped(0);
-                setVerbPlaySpeed(0);
-              }}
-              onLoopDurationMsCommit={commitVerbLoopDurationMs}
-            />
+            <>
+              <VerbTimelinePanel
+                selectedVerb={verbTimelineName}
+                onVerbChange={(v) => {
+                  verbDropdownAwaitingEngineRef.current = true;
+                  setVerbTimelineName(v);
+                }}
+                tab={verbTab}
+                timelineRev={timelineRev}
+                playheadMs={verbPlayheadMs}
+                onPlayheadMs={setVerbPlayheadSnapped}
+                selectedKeyframeIndex={verbSelectedKeyframe}
+                onSelectKeyframe={setVerbSelectedKeyframe}
+                playSpeed={verbPlaySpeed}
+                onPlaySpeed={setVerbPlaySpeed}
+                onJumpToStart={() => {
+                  setVerbPlayheadSnapped(0);
+                  setVerbPlaySpeed(0);
+                }}
+                onLoopDurationMsCommit={commitVerbLoopDurationMs}
+              />
+              <EmotionButtons fc={fc} />
+            </>
           )}
         </div>
         <div className="col-span-3">
