@@ -31,7 +31,6 @@ enum class Expression : uint8_t {
   Depressed,
   Shocked,
   Disappointed,
-  Cheeky,
   Gleeful,
   Frustrated,
   Count
@@ -53,7 +52,6 @@ enum class NamedEmotion : uint8_t {
   Depressed,
   Shocked,
   Disappointed,
-  Cheeky,
   Gleeful,
   Frustrated,
   Count
@@ -67,15 +65,15 @@ static constexpr const char* kExpressionNames[(size_t)Face::Expression::Count] =
     "neutral", "happy", "excited", "joyful", "sad", "verb_thinking",
     "verb_reading", "verb_writing", "verb_executing", "verb_straining", "verb_sleeping", "verb_waking",
     "verb_attracting_attention", "sleepy", "distressed", "blissed", "depressed", "shocked",
-    "disappointed", "cheeky", "gleeful", "frustrated",
+    "disappointed", "gleeful", "frustrated",
 };
 
 static constexpr bool kExpressionIsEmotion[(size_t)Face::Expression::Count] = {
-    true, true, true, true, true, false, false, false, false, false, false, false, false, true, true, true, true, true, true, true, true, true,
+    true, true, true, true, true, false, false, false, false, false, false, false, false, true, true, true, true, true, true, true, true,
 };
 
 static constexpr const char* kEmotionNames[(size_t)EmotionSystem::NamedEmotion::Count] = {
-    "neutral", "happy", "excited", "joyful", "sad", "sleepy", "distressed", "blissed", "depressed", "shocked", "disappointed", "cheeky", "gleeful", "frustrated",
+    "neutral", "happy", "excited", "joyful", "sad", "sleepy", "distressed", "blissed", "depressed", "shocked", "disappointed", "gleeful", "frustrated",
 };
 
 struct EmotionPoint {
@@ -84,26 +82,24 @@ struct EmotionPoint {
 };
 
 static constexpr EmotionPoint kEmotionPoints[(size_t)EmotionSystem::NamedEmotion::Count] = {
-    {+0.0f, +0.5f},    // Neutral
+    {+0.0f, +0.499097f},    // Neutral
     {+0.5f, +0.5f},    // Happy
     {+1.0f, +0.6f},    // Excited
     {+1.0f, +1.0f},    // Joyful
-    {-0.343931f, +0.220195f},    // Sad
+    {-0.534682f, +0.496207f},    // Sad
     {-0.2f, +0.0f},    // Sleepy
     {-1.0f, +1.0f},    // Distressed
     {+1.0f, +0.0f},    // Blissed
     {-1.0f, +0.0f},    // Depressed
     {-0.3f, +1.0f},    // Shocked
-    {-1.0f, +0.46297f},    // Disappointed
-    {+0.5f, +0.7f},    // Cheeky
+    {-1.0f, +0.312681f},    // Disappointed
     {+0.6f, +1.0f},    // Gleeful
-    {-0.265896f, +0.606033f},    // Frustrated
+    {-0.693642f, +0.766438f},    // Frustrated
 };
 
 /// Tie-break when two anchors are equidistant (earlier wins).
 static constexpr EmotionSystem::NamedEmotion kPickOrder[] = {
     EmotionSystem::NamedEmotion::Gleeful,
-    EmotionSystem::NamedEmotion::Cheeky,
     EmotionSystem::NamedEmotion::Sleepy,
     EmotionSystem::NamedEmotion::Distressed,
     EmotionSystem::NamedEmotion::Frustrated,
@@ -123,8 +119,8 @@ static constexpr Face::Expression
     Face::Expression::Neutral, Face::Expression::Happy, Face::Expression::Excited,
     Face::Expression::Joyful, Face::Expression::Sad, Face::Expression::Sleepy,
     Face::Expression::Distressed, Face::Expression::Blissed, Face::Expression::Depressed,
-    Face::Expression::Shocked, Face::Expression::Disappointed, Face::Expression::Cheeky,
-    Face::Expression::Gleeful, Face::Expression::Frustrated,
+    Face::Expression::Shocked, Face::Expression::Disappointed, Face::Expression::Gleeful,
+    Face::Expression::Frustrated,
 };
 
 #ifndef FACE_P
@@ -193,10 +189,6 @@ static const Face::FaceParams kBaseTargets[(uint8_t)Face::Expression::Count] = {
     /* Disappointed */     { FACE_P(5), FACE_P(21), FACE_P(0), FACE_P(+27), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(3), FACE_P(8),
                               FACE_P(-15), FACE_P(25), FACE_P(2), FACE_P(-21), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(2),
                               FACE_P(0), FACE_P(0), FACE_P(225), FACE_P(53), FACE_P(93) },
-
-    /* Cheeky */           { FACE_P(-10), FACE_P(28), FACE_P(17), FACE_P(-131), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(3), FACE_P(15),
-                              FACE_P(-18), FACE_P(20), FACE_P(2), FACE_P(+34), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0),
-                              FACE_P(0), FACE_P(-3), FACE_P(0), FACE_P(0), FACE_P(0) },
 
     /* Gleeful */          { FACE_P(-10), FACE_P(27), FACE_P(13), FACE_P(-137), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(1), FACE_P(0), FACE_P(1), FACE_P(14),
                               FACE_P(-17), FACE_P(27), FACE_P(7), FACE_P(+61), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(1),
@@ -599,7 +591,6 @@ static constexpr ArmPreset kArmPresets[(uint8_t)Face::Expression::Count] = {
     {-25, -20, 3.0f, 6.0f},   // Depressed
     {-15, -5, 1.0f, 0.0f},   // Shocked
     {-23, -7, 1.5f, 0.5f},   // Disappointed
-    {-20, -5, 1.4f, 0.45f},   // Cheeky
     {10, 25, 0.9f, 0.2f},   // Gleeful
     {-18, -8, 1.1f, 0.15f},   // Frustrated
 };
@@ -642,7 +633,6 @@ static constexpr ExprMotionRow kMotion[(uint8_t)Face::Expression::Count] = {
     /* Depressed */ {MotionMode::None, 0, 0, 0, 0, 0},
     /* Shocked */ {MotionMode::Static, 0, 0, 0, 0, 0},
     /* Disappointed */ {MotionMode::None, 0, 0, 0, 0, 0},
-    /* Cheeky */ {MotionMode::Waggle, 0, 12, 880, 0, 0},
     /* Gleeful */ {MotionMode::Waggle, 0, 15, 900, 0, 0},
     /* Frustrated */ {MotionMode::Oscillate, 0, 6, 820, 0, 0},
 };
@@ -693,7 +683,6 @@ static constexpr IdleAnimRow kIdleAnim[(uint8_t)Face::Expression::Count] = {
     /* Depressed */ {2000, 3999, 80, 130, kBobAmpFollowEmotionArm, GazeStyle::Off, 0, 0, 0, 0, 0, 0, 0, 0},
     /* Shocked */ {2000, 3999, 80, 130, kBobAmpFollowEmotionArm, GazeStyle::Off, 0, 0, 0, 0, 0, 0, 0, 0},
     /* Disappointed */ {2000, 3999, 80, 130, kBobAmpFollowEmotionArm, GazeStyle::Off, 0, 0, 0, 0, 0, 0, 0, 0},
-    /* Cheeky */ {2800, 4199, 80, 130, kBobAmpFollowEmotionArm, GazeStyle::Off, 0, 0, 0, 0, 0, 0, 0, 0},
     /* Gleeful */ {2200, 3799, 80, 130, kBobAmpFollowEmotionArm, GazeStyle::Off, 0, 0, 0, 0, 0, 0, 0, 0},
     /* Frustrated */ {1800, 3199, 80, 130, kBobAmpFollowEmotionArm, GazeStyle::Off, 0, 0, 0, 0, 0, 0, 0, 0},
 };

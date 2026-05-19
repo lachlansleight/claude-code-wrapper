@@ -39,7 +39,6 @@ export enum Expression {
   Depressed,
   Shocked,
   Disappointed,
-  Cheeky,
   Gleeful,
   Frustrated,
   Count,
@@ -65,14 +64,13 @@ export const EXPRESSIONS = [
   "Depressed",
   "Shocked",
   "Disappointed",
-  "Cheeky",
   "Gleeful",
   "Frustrated",
 ] as const;
 
 export type ExpressionName = (typeof EXPRESSIONS)[number];
 
-export const EXPRESSION_COUNT = 22 as const;
+export const EXPRESSION_COUNT = 21 as const;
 
 export const kExpressionIsEmotion: readonly boolean[] = [
   true,
@@ -96,7 +94,6 @@ export const kExpressionIsEmotion: readonly boolean[] = [
   true,
   true,
   true,
-  true,
 ] as const;
 
 export const kEmotionNames = [
@@ -111,7 +108,6 @@ export const kEmotionNames = [
   "depressed",
   "shocked",
   "disappointed",
-  "cheeky",
   "gleeful",
   "frustrated",
 ] as const;
@@ -120,28 +116,27 @@ export const kEmotionPoints: readonly {
   readonly v: number;
   readonly a: number;
 }[] = [
-  { v: 0, a: 0.5 },
+  { v: 0, a: 0.499097 },
   { v: 0.5, a: 0.5 },
   { v: 1, a: 0.6 },
   { v: 1, a: 1 },
-  { v: -0.343931, a: 0.220195 },
+  { v: -0.534682, a: 0.496207 },
   { v: -0.2, a: 0 },
   { v: -1, a: 1 },
   { v: 1, a: 0 },
   { v: -1, a: 0 },
   { v: -0.3, a: 1 },
-  { v: -1, a: 0.46297 },
-  { v: 0.5, a: 0.7 },
+  { v: -1, a: 0.312681 },
   { v: 0.6, a: 1 },
-  { v: -0.265896, a: 0.606033 },
+  { v: -0.693642, a: 0.766438 },
 ] as const;
 
 export const kPickOrderIndices = [
-  12, 11, 5, 6, 13, 9, 7, 8, 10, 0, 1, 2, 3, 4,
+  11, 5, 6, 12, 9, 7, 8, 10, 0, 1, 2, 3, 4,
 ] as const;
 
 export const kNamedEmotionToExpressionIndex: readonly number[] = [
-  0, 1, 2, 3, 4, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+  0, 1, 2, 3, 4, 13, 14, 15, 16, 17, 18, 19, 20,
 ] as const;
 
 export const kBaseTargets: readonly FaceParamsIndexed[] = [
@@ -658,33 +653,6 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(53, 100),
     P(93, 100),
   ],
-  // Cheeky
-  [
-    P(-10, 100),
-    P(28, 100),
-    P(17, 100),
-    P(-131, 100),
-    P(3, 100),
-    P(0, 100),
-    P(0, 100),
-    P(0, 100),
-    P(0, 100),
-    P(3, 100),
-    P(15, 100),
-    P(-18, 100),
-    P(20, 100),
-    P(2, 100),
-    P(34, 100),
-    P(3, 100),
-    P(0, 100),
-    P(0, 100),
-    P(0, 100),
-    P(0, 100),
-    P(-3, 100),
-    P(0, 100),
-    P(0, 100),
-    P(0, 100),
-  ],
   // Gleeful
   [
     P(-10, 100),
@@ -1118,7 +1086,6 @@ export const kArmPresets: readonly ArmPreset[] = [
   { min_deg: -25, max_deg: -20, period_s: 3, interval_s: 6 },
   { min_deg: -15, max_deg: -5, period_s: 1, interval_s: 0 },
   { min_deg: -23, max_deg: -7, period_s: 1.5, interval_s: 0.5 },
-  { min_deg: -20, max_deg: -5, period_s: 1.4, interval_s: 0.45 },
   { min_deg: 10, max_deg: 25, period_s: 0.9, interval_s: 0.2 },
   { min_deg: -18, max_deg: -8, period_s: 1.1, interval_s: 0.15 },
 ] as const;
@@ -1292,15 +1259,6 @@ export const kMotion: readonly ExprMotionRow[] = [
     center: 0,
     amplitude: 0,
     period_ms: 0,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-  // Cheeky
-  {
-    mode: MotionMode.Waggle,
-    center: 0,
-    amplitude: 12,
-    period_ms: 880,
     period_jitter_ms: 0,
     slew_ms: 0,
   },
@@ -1635,23 +1593,6 @@ export const kIdleAnim: readonly IdleAnimRow[] = [
   {
     blink_period_min_ms: 2000,
     blink_period_max_ms: 3999,
-    blink_close_ms: 80,
-    blink_open_ms: 130,
-    bob_amplitude_px: BOB_AMP_FOLLOW_EMOTION_ARM,
-    gaze_style: GazeStyle.Off,
-    gaze_move_ms: 0,
-    gaze_rand_span_x: 0,
-    gaze_rand_span_y: 0,
-    gaze_reroll_min_ms: 0,
-    gaze_reroll_max_ms: 0,
-    gaze_scan_period_ms: 0,
-    gaze_amp_x: 0,
-    gaze_amp_y: 0,
-  },
-  // Cheeky
-  {
-    blink_period_min_ms: 2800,
-    blink_period_max_ms: 4199,
     blink_close_ms: 80,
     blink_open_ms: 130,
     bob_amplitude_px: BOB_AMP_FOLLOW_EMOTION_ARM,
