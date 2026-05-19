@@ -19,13 +19,29 @@ export function fieldIndexEnumName(field: number): string {
     return name;
 }
 
+/**
+ * C++ `float` field initializers that use unary +/- (e.g. emotion V/A points).
+ * Always includes a `.` before `f` so lexers never split `123` + user-defined `f`
+ * (Arduino / some GCC builds treat `1f` / `6000f` as `operator""f`).
+ */
 export function fmtCppFloat(v: number): string {
     const s = v.toFixed(6).replace(/\.?0+$/, "");
     if (s === "-0") return "+0.0f";
     const n = Number(s);
-    if (n > 0) return `+${s}f`;
-    if (n < 0) return `${s}f`;
+    const body = s.includes(".") ? s : `${s}.0`;
+    if (n > 0) return `+${body}f`;
+    if (n < 0) return `${body}f`;
     return "+0.0f";
+}
+
+/** Plain `float` literal for struct fields (no leading `+`). */
+export function fmtCppFloatLiteral(v: number): string {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return "0.0f";
+    const s = n.toFixed(6).replace(/\.?0+$/, "");
+    if (s === "-0") return "0.0f";
+    const body = s.includes(".") ? s : `${s}.0`;
+    return `${body}f`;
 }
 
 export function fmtTsFloat(v: number): string {

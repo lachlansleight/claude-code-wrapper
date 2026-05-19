@@ -86,17 +86,17 @@ struct EmotionPoint {
 static constexpr EmotionPoint kEmotionPoints[(size_t)EmotionSystem::NamedEmotion::Count] = {
     {+0.0f, +0.5f},    // Neutral
     {+0.5f, +0.5f},    // Happy
-    {+1f, +0.6f},    // Excited
-    {+1f, +1f},    // Joyful
+    {+1.0f, +0.6f},    // Excited
+    {+1.0f, +1.0f},    // Joyful
     {-0.343931f, +0.220195f},    // Sad
     {-0.2f, +0.0f},    // Sleepy
-    {-1f, +1f},    // Distressed
-    {+1f, +0.0f},    // Blissed
-    {-1f, +0.0f},    // Depressed
-    {-0.3f, +1f},    // Shocked
-    {-1f, +0.46297f},    // Disappointed
+    {-1.0f, +1.0f},    // Distressed
+    {+1.0f, +0.0f},    // Blissed
+    {-1.0f, +0.0f},    // Depressed
+    {-0.3f, +1.0f},    // Shocked
+    {-1.0f, +0.46297f},    // Disappointed
     {+0.5f, +0.7f},    // Cheeky
-    {+0.6f, +1f},    // Gleeful
+    {+0.6f, +1.0f},    // Gleeful
     {-0.265896f, +0.606033f},    // Frustrated
 };
 
@@ -580,24 +580,24 @@ struct ArmPreset {
 };
 
 static constexpr ArmPreset kArmPresets[(uint8_t)Face::Expression::Count] = {
-    {-25, -15, 2f, 1f},   // Neutral
+    {-25, -15, 2.0f, 1.0f},   // Neutral
     {-23, -7, 1.5f, 0.5f},   // Happy
-    {-15, -5, 1f, 0f},   // Excited
+    {-15, -5, 1.0f, 0.0f},   // Excited
     {10, 25, 0.9f, 0.2f},   // Joyful
-    {-25, -15, 2f, 1f},   // Sad
-    {-25, -15, 2f, 1f},   // VerbThinking
-    {-25, -15, 2f, 1f},   // VerbReading
-    {-25, -15, 2f, 1f},   // VerbWriting
-    {-25, -15, 2f, 1f},   // VerbExecuting
-    {-25, -15, 2f, 1f},   // VerbStraining
-    {-25, -15, 2f, 1f},   // VerbSleeping
-    {-25, -15, 2f, 1f},   // VerbWaking
-    {-25, -15, 2f, 1f},   // VerbAttractingAttention
-    {-25, -20, 3f, 6f},   // Sleepy
-    {-15, -5, 1f, 0f},   // Distressed
-    {-25, -20, 3f, 6f},   // Blissed
-    {-25, -20, 3f, 6f},   // Depressed
-    {-15, -5, 1f, 0f},   // Shocked
+    {-25, -15, 2.0f, 1.0f},   // Sad
+    {-25, -15, 2.0f, 1.0f},   // VerbThinking
+    {-25, -15, 2.0f, 1.0f},   // VerbReading
+    {-25, -15, 2.0f, 1.0f},   // VerbWriting
+    {-25, -15, 2.0f, 1.0f},   // VerbExecuting
+    {-25, -15, 2.0f, 1.0f},   // VerbStraining
+    {-25, -15, 2.0f, 1.0f},   // VerbSleeping
+    {-25, -15, 2.0f, 1.0f},   // VerbWaking
+    {-25, -15, 2.0f, 1.0f},   // VerbAttractingAttention
+    {-25, -20, 3.0f, 6.0f},   // Sleepy
+    {-15, -5, 1.0f, 0.0f},   // Distressed
+    {-25, -20, 3.0f, 6.0f},   // Blissed
+    {-25, -20, 3.0f, 6.0f},   // Depressed
+    {-15, -5, 1.0f, 0.0f},   // Shocked
     {-23, -7, 1.5f, 0.5f},   // Disappointed
     {-20, -5, 1.4f, 0.45f},   // Cheeky
     {10, 25, 0.9f, 0.2f},   // Gleeful
@@ -729,18 +729,18 @@ struct FrameAnimConfig {
 };
 
 static constexpr EmotionSimConfig kEmotionSim = {
-    6000f,  // tau_ms_activation
-    90000f, // tau_ms_valence
-    50f,    // tau_ms_raw_follow
+    6000.0f,  // tau_ms_activation
+    90000.0f, // tau_ms_valence
+    50.0f,    // tau_ms_raw_follow
     0.05f,    // snap_hysteresis_dist
     100,      // snap_hysteresis_hold_ms
-    -7f,    // dist_sq_tie_eps
+    -7.0f,    // dist_sq_tie_eps
     0.5f,     // baseline_activation
 };
 
 static constexpr FrameAnimConfig kFrameAnim = {
-    200f, // mood_ring_tau_ms
-    250f, // emotion_geometry_smooth_tau_ms
+    200.0f, // mood_ring_tau_ms
+    250.0f, // emotion_geometry_smooth_tau_ms
     33,     // tick_interval_ms
     16,     // tick_interval_stream_ms
     600,    // thinking_flip_dur_ms

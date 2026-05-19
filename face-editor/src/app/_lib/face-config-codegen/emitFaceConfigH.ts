@@ -7,6 +7,7 @@ import {
     expressionToFirmwareSlug,
     fieldIndexEnumName,
     fmtCppFloat,
+    fmtCppFloatLiteral,
     namedEmotionEnumName,
 } from "./format";
 import { emitFaceExpressionEnum, emitNamedEmotionEnum } from "./emitSchemaEnums";
@@ -126,21 +127,21 @@ function emitIdleAnimRowCpp(row: IdleAnimRow): string {
 function emitEmotionSim(config: FaceConfigState): string {
     const s = config.emotionSim;
     return `static constexpr EmotionSimConfig kEmotionSim = {
-    ${s.tau_ms_activation}f,  // tau_ms_activation
-    ${s.tau_ms_valence}f, // tau_ms_valence
-    ${s.tau_ms_raw_follow}f,    // tau_ms_raw_follow
-    ${s.snap_hysteresis_dist}f,    // snap_hysteresis_dist
+    ${fmtCppFloatLiteral(s.tau_ms_activation)},  // tau_ms_activation
+    ${fmtCppFloatLiteral(s.tau_ms_valence)}, // tau_ms_valence
+    ${fmtCppFloatLiteral(s.tau_ms_raw_follow)},    // tau_ms_raw_follow
+    ${fmtCppFloatLiteral(s.snap_hysteresis_dist)},    // snap_hysteresis_dist
     ${s.snap_hysteresis_hold_ms},      // snap_hysteresis_hold_ms
-    ${s.dist_sq_tie_eps}f,    // dist_sq_tie_eps
-    ${s.baseline_activation}f,     // baseline_activation
+    ${fmtCppFloatLiteral(s.dist_sq_tie_eps)},    // dist_sq_tie_eps
+    ${fmtCppFloatLiteral(s.baseline_activation)},     // baseline_activation
 };`;
 }
 
 function emitFrameAnim(config: FaceConfigState): string {
     const f = config.frameAnim;
     return `static constexpr FrameAnimConfig kFrameAnim = {
-    ${f.mood_ring_tau_ms}f, // mood_ring_tau_ms
-    ${f.emotion_geometry_smooth_tau_ms}f, // emotion_geometry_smooth_tau_ms
+    ${fmtCppFloatLiteral(f.mood_ring_tau_ms)}, // mood_ring_tau_ms
+    ${fmtCppFloatLiteral(f.emotion_geometry_smooth_tau_ms)}, // emotion_geometry_smooth_tau_ms
     ${f.tick_interval_ms},     // tick_interval_ms
     ${f.tick_interval_stream_ms},     // tick_interval_stream_ms
     ${f.thinking_flip_dur_ms},    // thinking_flip_dur_ms
@@ -149,8 +150,8 @@ function emitFrameAnim(config: FaceConfigState): string {
     ${f.progress_fade_ms},    // progress_fade_ms
     ${f.effects_fade_ms},    // effects_fade_ms
     ${f.breath_period_ms},   // breath_period_ms
-    ${f.breath_eye_amp_px}f,   // breath_eye_amp_px
-    ${f.breath_mouth_scale}f,   // breath_mouth_scale
+    ${fmtCppFloatLiteral(f.breath_eye_amp_px)},   // breath_eye_amp_px
+    ${fmtCppFloatLiteral(f.breath_mouth_scale)},   // breath_mouth_scale
     ${f.emotion_bob_amp_follow_arm},      // emotion_bob_amp_follow_arm
     ${f.default_blink_close_ms},     // default_blink_close_ms
     ${f.default_blink_open_ms},     // default_blink_open_ms
@@ -175,7 +176,7 @@ export function emitFaceConfigH(config: FaceConfigState): string {
 
     const armLines = config.armPresets.map((p, i) => {
         const name = config.expressions[i]!;
-        return `    {${p.min_deg}, ${p.max_deg}, ${p.period_s}f, ${p.interval_s}f},   // ${name}`;
+        return `    {${p.min_deg}, ${p.max_deg}, ${fmtCppFloatLiteral(p.period_s)}, ${fmtCppFloatLiteral(p.interval_s)}},   // ${name}`;
     });
 
     const emotionNameLine = "    " + config.emotionNames.map(n => `"${n}"`).join(", ") + ",";
