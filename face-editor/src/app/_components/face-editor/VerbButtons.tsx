@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { expressionIndexFromName, type Expression } from "../../_lib/face-engine/FACE_CONFIG_DATA";
+import { type Expression } from "../../_lib/face-engine/FACE_CONFIG_DATA";
 import type { FrameController } from "../../_lib/face-engine/frameController";
 import { postRaw } from "../../_lib/face-editor/bridge";
 import { robotVerbStartSlug } from "../../_lib/face-editor/robotVerbBridge";
@@ -64,7 +64,7 @@ export function VerbButtons({ fc }: { fc: FrameController }) {
                     None
                 </button>
                 {fc.verbTimelineNames().map((name: string) => {
-                    const expr = expressionIndexFromName(name) as Expression;
+                    const expr = fc.expressionIndex(name) as Expression;
                     const slug = robotVerbStartSlug(expr);
                     const on = !overlayMode && activeVerb === expr;
                     return (

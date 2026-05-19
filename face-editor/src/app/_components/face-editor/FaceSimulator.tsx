@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Expression } from "../../_lib/face-engine/FACE_CONFIG_DATA";
-import { expressionIndexFromName } from "../../_lib/face-engine/faceConfigHelpers";
 import type { FaceConfigState } from "../../_lib/face-engine/faceConfigState";
 import { cloneFaceConfigState } from "../../_lib/face-engine/mutableFaceConfig";
 import {
@@ -134,8 +133,8 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
     const verbTimelineMode = simulatorMode === "verbTimeline";
 
     const verbEnum = useMemo(
-        () => expressionIndexFromName(verbTimelineName) as Expression,
-        [verbTimelineName]
+        () => fc.expressionIndex(verbTimelineName) as Expression,
+        [verbTimelineName, fc, schemaRev]
     );
 
     const verbTab = fc.verbTimelines().find(t => t.verb === verbEnum);
@@ -291,12 +290,12 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
     }, [verbTimelineMode, verbEnum, verbPlayheadMs, fc]);
 
     useEffect(() => {
-        const vEnum = expressionIndexFromName(verbTimelineName) as Expression;
+        const vEnum = fc.expressionIndex(verbTimelineName) as Expression;
         const t = fc.verbTimelines().find(x => x.verb === vEnum);
         const loop = t?.loop_duration_ms ?? 1000;
         setVerbPlayheadMs(snapVerbPlayheadMs(0, loop));
         setVerbSelectedKeyframe(null);
-    }, [verbTimelineName, fc]);
+    }, [verbTimelineName, fc, schemaRev]);
 
     useEffect(() => {
         if (!verbTimelineMode || verbPlaySpeed === 0) return;

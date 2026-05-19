@@ -13,6 +13,19 @@ export function expressionIndexFromName(name: string): number {
     return i >= 0 ? i : 0;
 }
 
+/** Session-local expression table (after add/remove in editor). */
+export function expressionIndexInList(expressions: readonly string[], name: string): number {
+    const i = expressions.indexOf(name);
+    return i >= 0 ? i : 0;
+}
+
+export function isEmotionExpressionIndexInList(
+    expressionIsEmotion: readonly boolean[],
+    idx: number
+): boolean {
+    return idx >= 0 && idx < expressionIsEmotion.length && !!expressionIsEmotion[idx];
+}
+
 export function isEmotionExpressionIndex(idx: number): boolean {
     return idx >= 0 && idx < kExpressionIsEmotion.length && !!kExpressionIsEmotion[idx];
 }
