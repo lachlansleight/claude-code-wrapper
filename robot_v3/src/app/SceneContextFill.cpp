@@ -32,55 +32,16 @@ Face::Expression expressionForVerb(VerbSystem::Verb v) {
   return FaceConfig::kVerbToExpression[i];
 }
 
-Settings::NamedColor accentNamedColor(Face::Expression e) {
-  switch (e) {
-    case Face::Expression::Neutral:
-      return Settings::NamedColor::Background;
-    case Face::Expression::Happy:
-      return Settings::NamedColor::Happy;
-    case Face::Expression::Excited:
-      return Settings::NamedColor::Excited;
-    case Face::Expression::Joyful:
-      return Settings::NamedColor::Joyful;
-    case Face::Expression::Sad:
-      return Settings::NamedColor::Sad;
-    case Face::Expression::VerbThinking:
-      return Settings::NamedColor::Thinking;
-    case Face::Expression::VerbReading:
-      return Settings::NamedColor::Reading;
-    case Face::Expression::VerbWriting:
-      return Settings::NamedColor::Writing;
-    case Face::Expression::VerbExecuting:
-      return Settings::NamedColor::Executing;
-    case Face::Expression::VerbStraining:
-      return Settings::NamedColor::Straining;
-    case Face::Expression::VerbSleeping:
-      return Settings::NamedColor::Sleeping;
-    case Face::Expression::VerbWaking:
-      return Settings::NamedColor::Excited;
-    case Face::Expression::VerbAttractingAttention:
-      return Settings::NamedColor::Attention;
-    case Face::Expression::Sleepy:
-      return Settings::NamedColor::EmotionSleepy;
-    case Face::Expression::Distressed:
-      return Settings::NamedColor::EmotionDistressed;
-    case Face::Expression::Blissed:
-      return Settings::NamedColor::EmotionBlissed;
-    case Face::Expression::Depressed:
-      return Settings::NamedColor::EmotionDepressed;
-    case Face::Expression::Shocked:
-      return Settings::NamedColor::EmotionShocked;
-    case Face::Expression::Disappointed:
-      return Settings::NamedColor::EmotionDisappointed;
-    case Face::Expression::Cheeky:
-      return Settings::NamedColor::Happy;
-    case Face::Expression::Gleeful:
-      return Settings::NamedColor::Joyful;
-    case Face::Expression::Frustrated:
-      return Settings::NamedColor::EmotionFrustrated;
-    default:
-      return Settings::NamedColor::Foreground;
-  }
+uint8_t clampRingChannel(int16_t v) {
+  if (v < 0) return 0;
+  if (v > 255) return 255;
+  return (uint8_t)v;
+}
+
+void accentFromRing(const Face::FaceParams& p, uint8_t& r, uint8_t& g, uint8_t& b) {
+  r = clampRingChannel(p.ring_r.value);
+  g = clampRingChannel(p.ring_g.value);
+  b = clampRingChannel(p.ring_b.value);
 }
 
 }  // namespace
@@ -157,10 +118,15 @@ void fill(Face::SceneContext& out) {
     out.expression_entered_at_ms = 0;
   }
 
-  const Settings::Rgb888 ac = Settings::colorRgb(accentNamedColor(out.effective_expression));
-  out.accent_r = ac.r;
-  out.accent_g = ac.g;
-  out.accent_b = ac.b;
+  if (eff != VerbSystem::Verb::None) {
+    const uint8_t idx = (uint8_t)out.effective_expression;
+    const Face::FaceParams& target =
+        (idx < (uint8_t)Face::Expression::Count) ? FaceConfig::kBaseTargets[idx]
+                                                   : FaceConfig::kBaseTargets[0];
+    accentFromRing(target, out.accent_r, out.accent_g, out.accent_b);
+  } else {
+    accentFromRing(out.base_face_params, out.accent_r, out.accent_g, out.accent_b);
+  }
 }
 
 }  // namespace SceneContextFill
