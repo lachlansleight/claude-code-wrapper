@@ -3868,17 +3868,17 @@
             },
             {
               "field": 24,
-              "targetValue": 20,
+              "targetValue": 10,
               "strength": 100
             },
             {
               "field": 25,
-              "targetValue": 24,
+              "targetValue": 30,
               "strength": 100
             },
             {
               "field": 26,
-              "targetValue": 750,
+              "targetValue": 500,
               "strength": 100
             },
             {
@@ -3922,16 +3922,11 @@
         },
         {
           "time_ms": 660,
-          "override_count": 2,
+          "override_count": 1,
           "overrides": [
             {
               "field": 20,
               "targetValue": -24,
-              "strength": 100
-            },
-            {
-              "field": 24,
-              "targetValue": -9,
               "strength": 100
             }
           ]
@@ -3981,8 +3976,8 @@
           ]
         },
         {
-          "time_ms": 1440,
-          "override_count": 9,
+          "time_ms": 1500,
+          "override_count": 13,
           "overrides": [
             {
               "field": 1,
@@ -4027,6 +4022,26 @@
             {
               "field": 23,
               "targetValue": 38,
+              "strength": 100
+            },
+            {
+              "field": 24,
+              "targetValue": 10,
+              "strength": 100
+            },
+            {
+              "field": 25,
+              "targetValue": 30,
+              "strength": 100
+            },
+            {
+              "field": 26,
+              "targetValue": 500,
+              "strength": 100
+            },
+            {
+              "field": 27,
+              "targetValue": 0,
               "strength": 100
             }
           ]

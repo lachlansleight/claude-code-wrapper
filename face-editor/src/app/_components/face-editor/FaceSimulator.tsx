@@ -7,6 +7,7 @@ import { cloneFaceConfigState } from "../../_lib/face-engine/mutableFaceConfig";
 import {
     createFrameController,
     type FrameController,
+    type StreamEffectPreview,
 } from "../../_lib/face-engine/frameController";
 import {
     PARAM_FIELDS,
@@ -36,6 +37,7 @@ import { VerbSchemaPanel } from "./VerbSchemaPanel";
 import { VerbButtons } from "./VerbButtons";
 import PanelModeSwitcher from "./PanelModeSwitcher";
 import { SaveFaceConfigButton } from "./SaveFaceConfigButton";
+import { StreamEffectPanel } from "./StreamEffectPanel";
 
 export function FaceSimulator() {
     const [faceConfig, setFaceConfig] = useState<FaceConfigState | null>(null);
@@ -118,6 +120,7 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
     const [inspectorParams, setInspectorParams] = useState<FaceParams | null>(null);
     const [inspectorStrengths, setInspectorStrengths] = useState<FaceParams | null>(null);
     const [inspectorSendLive, setInspectorSendLive] = useState(false);
+    const [streamEffect, setStreamEffect] = useState<StreamEffectPreview>("none");
 
     const [simulatorMode, setSimulatorMode] = useState<"blend" | "verbTimeline">("blend");
     const [verbTimelineName, setVerbTimelineName] = useState("VerbThinking");
@@ -504,6 +507,10 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot after mount
     }, []);
 
+    useEffect(() => {
+        fc.setStreamEffectPreview(streamEffect);
+    }, [fc, streamEffect]);
+
     async function onExpressionClick(name: string): Promise<void> {
         verbDropdownAwaitingEngineRef.current = false;
         fc.requestExpression(name);
@@ -572,6 +579,8 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
                             />
                         </>
                     )}
+
+                    <StreamEffectPanel value={streamEffect} onChange={setStreamEffect} />
                 </div>
 
                 <div className="col-span-6">

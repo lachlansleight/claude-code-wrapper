@@ -580,9 +580,9 @@ static constexpr VerbTimeline kVerbTimelines[] = {
              KO(Face::FieldIndex::RingG, 228),
              KO(Face::FieldIndex::RingB, 38),
              KO(Face::FieldIndex::FaceRot, 0),
-             KO(Face::FieldIndex::ArmMinDeg, 20),
-             KO(Face::FieldIndex::ArmMaxDeg, 24),
-             KO(Face::FieldIndex::ArmPeriodMs, 750),
+             KO(Face::FieldIndex::ArmMinDeg, 10),
+             KO(Face::FieldIndex::ArmMaxDeg, 30),
+             KO(Face::FieldIndex::ArmPeriodMs, 500),
              KO(Face::FieldIndex::ArmIntervalMs, 0),
              },
          },
@@ -604,10 +604,9 @@ static constexpr VerbTimeline kVerbTimelines[] = {
          },
          {
              660u,
-             2u,
+             1u,
              {
              KO(Face::FieldIndex::FaceY, -24),
-             KO(Face::FieldIndex::ArmMinDeg, -9),
              },
          },
          {
@@ -639,8 +638,8 @@ static constexpr VerbTimeline kVerbTimelines[] = {
              },
          },
          {
-             1440u,
-             9u,
+             1500u,
+             13u,
              {
              KO(Face::FieldIndex::EyeRx, 20),
              KO(Face::FieldIndex::EyeOpenAmt, 0),
@@ -651,6 +650,10 @@ static constexpr VerbTimeline kVerbTimelines[] = {
              KO(Face::FieldIndex::RingR, 255),
              KO(Face::FieldIndex::RingG, 228),
              KO(Face::FieldIndex::RingB, 38),
+             KO(Face::FieldIndex::ArmMinDeg, 10),
+             KO(Face::FieldIndex::ArmMaxDeg, 30),
+             KO(Face::FieldIndex::ArmPeriodMs, 500),
+             KO(Face::FieldIndex::ArmIntervalMs, 0),
              },
          },
      }},

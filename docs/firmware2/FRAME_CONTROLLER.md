@@ -179,10 +179,8 @@ table. `EmotionBlend` interpolates them like any other field, weighted
 by strength. Verbs that want to change the ring color set
 `ring_r/g/b` (with strength) in their verb timeline keyframes in
 `FACE_CONFIG_DATA.h` — for example `VerbThinking` pulls the ring
-toward a blue-purple. `MoodRingRenderer::moodRingShouldDraw(expression)`
-suppresses the ring entirely for a whitelist of states (e.g. Neutral,
-Sleeping, Waking), to avoid a permanent ring that distracts from the
-geometry.
+toward a blue-purple. The ring is drawn whenever resolved `ring_r/g/b`
+are non-zero; `drawMoodRing` no-ops on `(0,0,0)`.
 
 ## Stream effects
 

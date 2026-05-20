@@ -3,6 +3,7 @@
  * Ported from control/scripts/face-v3.js
  */
 
+import { drawEffects } from "./effectsRenderer";
 import type { FaceParams } from "./faceParams";
 import type { RobotSettings } from "./robotSettings";
 import type { TFTSprite } from "./tftSprite";
@@ -15,7 +16,8 @@ export interface FaceRendererApi {
         blinkAmt: number,
         gdx: number,
         gdy: number,
-        nowMs: number
+        nowMs: number,
+        streamAlphas?: { read: number; write: number }
     ): void;
     smoothstep01(t: number): number;
     clamp01(t: number): number;
@@ -444,9 +446,15 @@ export function createFaceRenderer(deps: {
         blinkAmt: number,
         gdx: number,
         gdy: number,
-        nowMs: number
+        nowMs: number,
+        streamAlphas?: { read: number; write: number }
     ): void {
         s.fillSprite(bg565());
+        const readA = streamAlphas?.read ?? 0;
+        const writeA = streamAlphas?.write ?? 0;
+        if (readA > 0.01 || writeA > 0.01) {
+            drawEffects(s, nowMs, readA, writeA);
+        }
         drawFace(s, p, blinkAmt, gdx, gdy, nowMs);
         drawMoodRing(s, p.ring_r, p.ring_g, p.ring_b);
     }

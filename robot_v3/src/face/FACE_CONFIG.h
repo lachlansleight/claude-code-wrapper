@@ -34,30 +34,4 @@ inline const char* expressionName(Face::Expression e) {
   return kExpressionNames[idx];
 }
 
-/// Mood ring for non-emotion expressions (emotions always draw from blend).
-inline bool moodRingEnabledVerbOrOverlay(Face::Expression expr) {
-  switch (expr) {
-    case Face::Expression::VerbThinking:
-    case Face::Expression::VerbReading:
-    case Face::Expression::VerbWriting:
-    case Face::Expression::VerbExecuting:
-    case Face::Expression::VerbStraining:
-    case Face::Expression::Joyful:
-    case Face::Expression::Excited:
-    case Face::Expression::Sad:
-    case Face::Expression::Distressed:
-    case Face::Expression::Depressed:
-    case Face::Expression::Shocked:
-    case Face::Expression::Disappointed:
-    case Face::Expression::VerbAttractingAttention:
-      return true;
-    case Face::Expression::Neutral:
-    case Face::Expression::Happy:
-    case Face::Expression::VerbWaking:
-    case Face::Expression::VerbSleeping:
-    default:
-      return false;
-  }
-}
-
 }  // namespace FaceConfig

@@ -33,8 +33,8 @@ into the sprite:
    if those overlays are active.
 4. **`drawEffects()`** — read/write code-stream overlays
    (`EffectsRenderer`).
-5. **`drawMoodRing()`** — only if `moodRingShouldDraw(expression)` and
-   the smoothed `(r,g,b)` is non-zero (`MoodRingRenderer`).
+5. **`drawMoodRing()`** — smoothed `(r,g,b)` from `FaceParams`; no-op when
+   all channels are zero (`MoodRingRenderer`).
 6. **`drawActivityDots()`** — read arc at the bottom, write arc at the
    top, sized by per-turn tool counts (`ActivityDots`).
 
@@ -173,13 +173,10 @@ A 6-px ring at radii 110–115 from the screen centre. Colour comes
 from `FaceParams::ring_r/g/b` after smoothing (200 ms τ inside
 FrameController). Behaviour:
 
-- `moodRingShouldDraw(expression)` (in `FACE_CONFIG.h`) gates drawing
-  by expression — Neutral, Sleeping, Waking, etc. are excluded so the
-  ring isn't a permanent fixture.
-- A no-op early-out if `(r, g, b) == (0, 0, 0)`.
+- No-op if `(r, g, b) == (0, 0, 0)` — ring visibility follows effective
+  `ring_*` from emotion blend and verb keyframes, not an expression allow-list.
 
-Together this means the ring fades on as a verb or a strong emotion
-takes over, fades off as you return to Neutral.
+Ring colour still eases in/out via FrameController's mood-ring low-pass.
 
 ## ActivityDots
 

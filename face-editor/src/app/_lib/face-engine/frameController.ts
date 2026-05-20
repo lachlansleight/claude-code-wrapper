@@ -139,6 +139,9 @@ function bodyBobPxFromArmDeg(armDeg: number, effective: readonly ParamI16[], amp
     return Math.round(amp * (2 * u - 1));
 }
 
+/** Simulator-only backdrop for `EffectsRenderer` (not tied to verb state). */
+export type StreamEffectPreview = "none" | "reading" | "writing";
+
 export interface StaticOverrideState {
     params: FaceParams;
     blinkAmt: number;
@@ -223,6 +226,9 @@ export interface FrameController {
     /** Last values passed to `renderScene` (blink + gaze); meaningful when not in static mode. */
     liveRenderMod(): { blinkAmt: number; gdx: number; gdy: number };
     armOffsetDeg(): number;
+    /** Preview read/write code streams behind the face (simulation only). */
+    setStreamEffectPreview(mode: StreamEffectPreview): void;
+    streamEffectPreview(): StreamEffectPreview;
 }
 
 export interface CreateFrameControllerOptions {
@@ -316,6 +322,7 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
     /** Previous verb playhead (ms) for loop-wrap detection. */
     let sLastArmDriveVerbMs: number | undefined;
     let sVerbTimelinePreview: { verb: Expression; timeMs: number } | null = null;
+    let sStreamEffectPreview: StreamEffectPreview = "none";
 
     /** Base emotion (V/A) under verb-timeline preview — see `setVerbPreviewBaseVa`. */
     let sVerbPreviewBaseVa = { v: 0, a: 0.5 };
@@ -559,6 +566,12 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
         return verbTime;
     }
 
+    function streamEffectAlphas(): { read: number; write: number } {
+        if (sStreamEffectPreview === "reading") return { read: 1, write: 0 };
+        if (sStreamEffectPreview === "writing") return { read: 0, write: 1 };
+        return { read: 0, write: 0 };
+    }
+
     function pushSpriteToCanvas(): void {
         if (!outputCanvas || !sprite) return;
         const octx = outputCanvas.getContext("2d");
@@ -788,7 +801,7 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
         sLiveGdy = gdy;
 
         if (sprite) {
-            face.renderScene(sprite, pFlat, blinkAmt, gdx, gdy, t);
+            face.renderScene(sprite, pFlat, blinkAmt, gdx, gdy, t, streamEffectAlphas());
         }
         sCurrentParams = { ...pFlat };
         pushSpriteToCanvas();
@@ -812,7 +825,8 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
                 sStaticOverride.blinkAmt,
                 sStaticOverride.gdx,
                 sStaticOverride.gdy,
-                t
+                t,
+                streamEffectAlphas()
             );
         }
         sCurrentParams = { ...p };
@@ -903,7 +917,7 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
         sLiveGdx = 0;
         sLiveGdy = 0;
         if (sprite) {
-            face.renderScene(sprite, pFlat, 0, 0, 0, t);
+            face.renderScene(sprite, pFlat, 0, 0, 0, t, streamEffectAlphas());
         }
         sCurrentParams = { ...pFlat };
         pushSpriteToCanvas();
@@ -1239,6 +1253,14 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
 
         armOffsetDeg(): number {
             return sCurrentArmDeg;
+        },
+
+        setStreamEffectPreview(mode: StreamEffectPreview): void {
+            sStreamEffectPreview = mode;
+        },
+
+        streamEffectPreview(): StreamEffectPreview {
+            return sStreamEffectPreview;
         },
 
         faceConfig(): FaceConfigState {

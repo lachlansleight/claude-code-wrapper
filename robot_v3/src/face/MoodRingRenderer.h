@@ -11,17 +11,12 @@
  * Colour comes from FrameController's smoothed tween of `FaceParams::ring_*`
  * (`FaceConfig::kBaseTargets` literals and emotion blend), not from Settings.
  *
- * **Emotion** expressions (Neutral … Disappointed) always run the draw
- * path (`drawMoodRing` no-ops when RGB is black). **Verb / overlay**
- * expressions use a smaller allow-list so idle chrome stays minimal.
+ * Ring is drawn whenever resolved `ring_r/g/b` are non-zero (`drawMoodRing`
+ * no-ops on black). No per-expression allow-list.
  */
 namespace Face {
 
-/**
- * True if the mood ring should be drawn for @p expr. All emotion
- * expressions return true; verbs/overlays defer to the legacy verb table
- * (e.g. thinking/reading, not VerbSleeping or VerbWaking).
- */
+/** Always true; visibility is determined by the RGB passed to `drawMoodRing`. */
 bool moodRingShouldDraw(Expression expr);
 
 /**

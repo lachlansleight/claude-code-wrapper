@@ -1198,9 +1198,9 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
           { field: FieldIndex.RingG, targetValue: 228, strength: 100 },
           { field: FieldIndex.RingB, targetValue: 38, strength: 100 },
           { field: FieldIndex.FaceRot, targetValue: 0, strength: 75 },
-          { field: FieldIndex.ArmMinDeg, targetValue: 20, strength: 100 },
-          { field: FieldIndex.ArmMaxDeg, targetValue: 24, strength: 100 },
-          { field: FieldIndex.ArmPeriodMs, targetValue: 750, strength: 100 },
+          { field: FieldIndex.ArmMinDeg, targetValue: 10, strength: 100 },
+          { field: FieldIndex.ArmMaxDeg, targetValue: 30, strength: 100 },
+          { field: FieldIndex.ArmPeriodMs, targetValue: 500, strength: 100 },
           { field: FieldIndex.ArmIntervalMs, targetValue: 0, strength: 100 },
         ],
       },
@@ -1222,10 +1222,9 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
       },
       {
         time_ms: 660,
-        override_count: 2,
+        override_count: 1,
         overrides: [
           { field: FieldIndex.FaceY, targetValue: -24, strength: 100 },
-          { field: FieldIndex.ArmMinDeg, targetValue: -9, strength: 100 },
         ],
       },
       {
@@ -1257,8 +1256,8 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
         ],
       },
       {
-        time_ms: 1440,
-        override_count: 9,
+        time_ms: 1500,
+        override_count: 13,
         overrides: [
           { field: FieldIndex.EyeRx, targetValue: 20, strength: 76 },
           { field: FieldIndex.EyeOpenAmt, targetValue: 0, strength: 75 },
@@ -1269,6 +1268,10 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
           { field: FieldIndex.RingR, targetValue: 255, strength: 100 },
           { field: FieldIndex.RingG, targetValue: 228, strength: 100 },
           { field: FieldIndex.RingB, targetValue: 38, strength: 100 },
+          { field: FieldIndex.ArmMinDeg, targetValue: 10, strength: 100 },
+          { field: FieldIndex.ArmMaxDeg, targetValue: 30, strength: 100 },
+          { field: FieldIndex.ArmPeriodMs, targetValue: 500, strength: 100 },
+          { field: FieldIndex.ArmIntervalMs, targetValue: 0, strength: 100 },
         ],
       },
     ],

@@ -1,12 +1,11 @@
 #include "MoodRingRenderer.h"
 
-#include "FACE_CONFIG.h"
-
 namespace Face {
 
 bool moodRingShouldDraw(Expression expr) {
-  if (isEmotionExpression(expr)) return true;
-  return FaceConfig::moodRingEnabledVerbOrOverlay(expr);
+  (void)expr;
+  // Caller passes resolved ring RGB; drawMoodRing() is a no-op when all channels are 0.
+  return true;
 }
 
 void drawMoodRing(TFT_eSprite& s, uint8_t r, uint8_t g, uint8_t b) {
