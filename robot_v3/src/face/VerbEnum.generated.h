@@ -22,6 +22,7 @@ enum class Verb : uint8_t {
   Sleeping,
   Waking,
   AttractingAttention,
+  Celebrating,
   Count
 };
 
@@ -38,7 +39,8 @@ static constexpr Face::Expression kVerbToExpression[(uint8_t)VerbSystem::Verb::C
   Face::Expression::VerbStraining,  // straining
   Face::Expression::VerbSleeping,  // sleeping
   Face::Expression::VerbWaking,  // waking
-  Face::Expression::VerbAttractingAttention,  // attracting_attention,
+  Face::Expression::VerbAttractingAttention,  // attracting_attention
+  Face::Expression::VerbCelebrating,  // celebrating,
 };
 
 static constexpr const char* kVerbSlugs[(uint8_t)VerbSystem::Verb::Count] = {
@@ -51,6 +53,7 @@ static constexpr const char* kVerbSlugs[(uint8_t)VerbSystem::Verb::Count] = {
     "sleeping",
     "waking",
     "attracting_attention",
+    "celebrating",
 };
 
 }  // namespace FaceConfig

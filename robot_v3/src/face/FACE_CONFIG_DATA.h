@@ -33,6 +33,7 @@ enum class Expression : uint8_t {
   Disappointed,
   Gleeful,
   Frustrated,
+  VerbCelebrating,
   Count
 };
 
@@ -65,11 +66,11 @@ static constexpr const char* kExpressionNames[(size_t)Face::Expression::Count] =
     "neutral", "happy", "excited", "joyful", "sad", "verb_thinking",
     "verb_reading", "verb_writing", "verb_executing", "verb_straining", "verb_sleeping", "verb_waking",
     "verb_attracting_attention", "sleepy", "distressed", "blissed", "depressed", "shocked",
-    "disappointed", "gleeful", "frustrated",
+    "disappointed", "gleeful", "frustrated", "verb_celebrating",
 };
 
 static constexpr bool kExpressionIsEmotion[(size_t)Face::Expression::Count] = {
-    true, true, true, true, true, false, false, false, false, false, false, false, false, true, true, true, true, true, true, true, true,
+    true, true, true, true, true, false, false, false, false, false, false, false, false, true, true, true, true, true, true, true, true, false,
 };
 
 static constexpr const char* kEmotionNames[(size_t)EmotionSystem::NamedEmotion::Count] = {
@@ -198,6 +199,7 @@ static const Face::FaceParams kBaseTargets[(uint8_t)Face::Expression::Count] = {
                               FACE_P(0), FACE_P(18), FACE_P(0), FACE_P(0), FACE_P(3), FACE_P(4), FACE_P(96), FACE_P(348),
                               FACE_P(0), FACE_P(1), FACE_P(212), FACE_P(75), FACE_P(212) },
 
+    /* VerbCelebrating */ FACE_ROW_EMPTY,
 };
 #undef FACE_P
 
@@ -282,8 +284,8 @@ static constexpr VerbTimeline kVerbTimelines[] = {
          },
      }},
     {Face::Expression::VerbReading,
-     1300u,
-     4u,
+     1620u,
+     5u,
      {
          {
              0u,
@@ -322,7 +324,14 @@ static constexpr VerbTimeline kVerbTimelines[] = {
              1300u,
              1u,
              {
-             KO(Face::FieldIndex::PupilDx, 12),
+             KO(Face::FieldIndex::PupilDx, 10),
+             },
+         },
+         {
+             1620u,
+             1u,
+             {
+             KO(Face::FieldIndex::PupilDx, 0),
              },
          },
      }},
@@ -536,6 +545,95 @@ static constexpr VerbTimeline kVerbTimelines[] = {
              },
          },
      }},
+    {Face::Expression::VerbCelebrating,
+     1500u,
+     9u,
+     {
+         {
+             0u,
+             12u,
+             {
+             KO(Face::FieldIndex::EyeRx, 20),
+             KO(Face::FieldIndex::EyeOpenAmt, 0),
+             KO(Face::FieldIndex::EyeArcAmt, -63),
+             KO(Face::FieldIndex::PupilR, 14),
+             KO(Face::FieldIndex::MouthRx, 39),
+             KO(Face::FieldIndex::MouthOpenAmt, 0),
+             KO(Face::FieldIndex::MouthArcAmt, 100),
+             KO(Face::FieldIndex::FaceY, 0),
+             KO(Face::FieldIndex::RingR, 255),
+             KO(Face::FieldIndex::RingG, 228),
+             KO(Face::FieldIndex::RingB, 38),
+             KO(Face::FieldIndex::FaceRot, 0),
+             },
+         },
+         {
+             300u,
+             3u,
+             {
+             KO(Face::FieldIndex::MouthOpenAmt, 14),
+             KO(Face::FieldIndex::EyeOpenAmt, 13),
+             KO(Face::FieldIndex::FaceY, -24),
+             },
+         },
+         {
+             480u,
+             1u,
+             {
+             KO(Face::FieldIndex::FaceY, -15),
+             },
+         },
+         {
+             660u,
+             1u,
+             {
+             KO(Face::FieldIndex::FaceY, -24),
+             },
+         },
+         {
+             720u,
+             1u,
+             {
+             KO(Face::FieldIndex::EyeOpenAmt, 17),
+             },
+         },
+         {
+             900u,
+             1u,
+             {
+             KO(Face::FieldIndex::FaceY, -14),
+             },
+         },
+         {
+             1020u,
+             1u,
+             {
+             KO(Face::FieldIndex::MouthOpenAmt, 18),
+             },
+         },
+         {
+             1200u,
+             1u,
+             {
+             KO(Face::FieldIndex::FaceY, -24),
+             },
+         },
+         {
+             1440u,
+             9u,
+             {
+             KO(Face::FieldIndex::EyeRx, 20),
+             KO(Face::FieldIndex::EyeOpenAmt, 0),
+             KO(Face::FieldIndex::EyeArcAmt, -63),
+             KO(Face::FieldIndex::PupilR, 14),
+             KO(Face::FieldIndex::MouthOpenAmt, 0),
+             KO(Face::FieldIndex::FaceY, 0),
+             KO(Face::FieldIndex::RingR, 255),
+             KO(Face::FieldIndex::RingG, 228),
+             KO(Face::FieldIndex::RingB, 38),
+             },
+         },
+     }},
 };
 #undef KO
 
@@ -571,6 +669,7 @@ static constexpr ArmPreset kArmPresets[(uint8_t)Face::Expression::Count] = {
     {-23, -7, 1.5f, 0.5f},   // Disappointed
     {10, 25, 0.9f, 0.2f},   // Gleeful
     {-18, -8, 1.1f, 0.15f},   // Frustrated
+    {-25, -15, 2.0f, 1.0f},   // VerbCelebrating
 };
 
 enum class MotionMode : uint8_t {
@@ -613,6 +712,7 @@ static constexpr ExprMotionRow kMotion[(uint8_t)Face::Expression::Count] = {
     /* Disappointed */ {MotionMode::None, 0, 0, 0, 0, 0},
     /* Gleeful */ {MotionMode::Waggle, 0, 15, 900, 0, 0},
     /* Frustrated */ {MotionMode::Oscillate, 0, 6, 820, 0, 0},
+    /* VerbCelebrating */ {MotionMode::Thinking, -15, 5, 2000, 0, 0},
 };
 
 inline constexpr int16_t kBobAmpFollowEmotionArm = (int16_t)(0x8000);
@@ -663,6 +763,7 @@ static constexpr IdleAnimRow kIdleAnim[(uint8_t)Face::Expression::Count] = {
     /* Disappointed */ {2000, 3999, 80, 130, kBobAmpFollowEmotionArm, GazeStyle::Off, 0, 0, 0, 0, 0, 0, 0, 0},
     /* Gleeful */ {2200, 3799, 80, 130, kBobAmpFollowEmotionArm, GazeStyle::Off, 0, 0, 0, 0, 0, 0, 0, 0},
     /* Frustrated */ {1800, 3199, 80, 130, kBobAmpFollowEmotionArm, GazeStyle::Off, 0, 0, 0, 0, 0, 0, 0, 0},
+    /* VerbCelebrating */ {2000, 3499, 80, 130, 0, GazeStyle::Orbit, 0, 0, 0, 0, 0, 900, 2, 2},
 };
 
 struct EmotionSimConfig {

@@ -21,7 +21,8 @@
     "Shocked",
     "Disappointed",
     "Gleeful",
-    "Frustrated"
+    "Frustrated",
+    "VerbCelebrating"
   ],
   "expressionIsEmotion": [
     true,
@@ -44,7 +45,8 @@
     true,
     true,
     true,
-    true
+    true,
+    false
   ],
   "emotionNames": [
     "neutral",
@@ -2203,6 +2205,104 @@
         "value": 212,
         "strength": 100
       }
+    ],
+    [
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      },
+      {
+        "value": 0,
+        "strength": 0
+      }
     ]
   ],
   "verbKeyframeOverridesMax": 32,
@@ -2352,8 +2452,8 @@
     },
     {
       "verb": 6,
-      "loop_duration_ms": 1300,
-      "keyframe_count": 4,
+      "loop_duration_ms": 1620,
+      "keyframe_count": 5,
       "keyframes": [
         {
           "time_ms": 0,
@@ -2454,7 +2554,18 @@
           "overrides": [
             {
               "field": 8,
-              "targetValue": 12,
+              "targetValue": 10,
+              "strength": 100
+            }
+          ]
+        },
+        {
+          "time_ms": 1620,
+          "override_count": 1,
+          "overrides": [
+            {
+              "field": 8,
+              "targetValue": 0,
               "strength": 100
             }
           ]
@@ -3258,6 +3369,217 @@
           ]
         }
       ]
+    },
+    {
+      "verb": 21,
+      "loop_duration_ms": 1500,
+      "keyframe_count": 9,
+      "keyframes": [
+        {
+          "time_ms": 0,
+          "override_count": 12,
+          "overrides": [
+            {
+              "field": 1,
+              "targetValue": 20,
+              "strength": 75
+            },
+            {
+              "field": 2,
+              "targetValue": 0,
+              "strength": 77
+            },
+            {
+              "field": 3,
+              "targetValue": -63,
+              "strength": 77
+            },
+            {
+              "field": 10,
+              "targetValue": 14,
+              "strength": 75
+            },
+            {
+              "field": 12,
+              "targetValue": 39,
+              "strength": 76
+            },
+            {
+              "field": 13,
+              "targetValue": 0,
+              "strength": 79
+            },
+            {
+              "field": 14,
+              "targetValue": 100,
+              "strength": 80
+            },
+            {
+              "field": 20,
+              "targetValue": 0,
+              "strength": 100
+            },
+            {
+              "field": 21,
+              "targetValue": 255,
+              "strength": 100
+            },
+            {
+              "field": 22,
+              "targetValue": 228,
+              "strength": 100
+            },
+            {
+              "field": 23,
+              "targetValue": 38,
+              "strength": 100
+            },
+            {
+              "field": 19,
+              "targetValue": 0,
+              "strength": 75
+            }
+          ]
+        },
+        {
+          "time_ms": 300,
+          "override_count": 3,
+          "overrides": [
+            {
+              "field": 13,
+              "targetValue": 14,
+              "strength": 76
+            },
+            {
+              "field": 2,
+              "targetValue": 13,
+              "strength": 75
+            },
+            {
+              "field": 20,
+              "targetValue": -24,
+              "strength": 100
+            }
+          ]
+        },
+        {
+          "time_ms": 480,
+          "override_count": 1,
+          "overrides": [
+            {
+              "field": 20,
+              "targetValue": -15,
+              "strength": 100
+            }
+          ]
+        },
+        {
+          "time_ms": 660,
+          "override_count": 1,
+          "overrides": [
+            {
+              "field": 20,
+              "targetValue": -24,
+              "strength": 100
+            }
+          ]
+        },
+        {
+          "time_ms": 720,
+          "override_count": 1,
+          "overrides": [
+            {
+              "field": 2,
+              "targetValue": 17,
+              "strength": 75
+            }
+          ]
+        },
+        {
+          "time_ms": 900,
+          "override_count": 1,
+          "overrides": [
+            {
+              "field": 20,
+              "targetValue": -14,
+              "strength": 100
+            }
+          ]
+        },
+        {
+          "time_ms": 1020,
+          "override_count": 1,
+          "overrides": [
+            {
+              "field": 13,
+              "targetValue": 18,
+              "strength": 76
+            }
+          ]
+        },
+        {
+          "time_ms": 1200,
+          "override_count": 1,
+          "overrides": [
+            {
+              "field": 20,
+              "targetValue": -24,
+              "strength": 100
+            }
+          ]
+        },
+        {
+          "time_ms": 1440,
+          "override_count": 9,
+          "overrides": [
+            {
+              "field": 1,
+              "targetValue": 20,
+              "strength": 76
+            },
+            {
+              "field": 2,
+              "targetValue": 0,
+              "strength": 75
+            },
+            {
+              "field": 3,
+              "targetValue": -63,
+              "strength": 76
+            },
+            {
+              "field": 10,
+              "targetValue": 14,
+              "strength": 76
+            },
+            {
+              "field": 13,
+              "targetValue": 0,
+              "strength": 75
+            },
+            {
+              "field": 20,
+              "targetValue": 0,
+              "strength": 100
+            },
+            {
+              "field": 21,
+              "targetValue": 255,
+              "strength": 100
+            },
+            {
+              "field": 22,
+              "targetValue": 228,
+              "strength": 100
+            },
+            {
+              "field": 23,
+              "targetValue": 38,
+              "strength": 100
+            }
+          ]
+        }
+      ]
     }
   ],
   "armPresets": [
@@ -3386,6 +3708,12 @@
       "max_deg": -8,
       "period_s": 1.1,
       "interval_s": 0.15
+    },
+    {
+      "min_deg": -25,
+      "max_deg": -15,
+      "period_s": 2,
+      "interval_s": 1
     }
   ],
   "motion": [
@@ -3554,6 +3882,14 @@
       "center": 0,
       "amplitude": 6,
       "period_ms": 820,
+      "period_jitter_ms": 0,
+      "slew_ms": 0
+    },
+    {
+      "mode": 5,
+      "center": -15,
+      "amplitude": 5,
+      "period_ms": 2000,
       "period_jitter_ms": 0,
       "slew_ms": 0
     }
@@ -3895,6 +4231,22 @@
       "gaze_scan_period_ms": 0,
       "gaze_amp_x": 0,
       "gaze_amp_y": 0
+    },
+    {
+      "blink_period_min_ms": 2000,
+      "blink_period_max_ms": 3499,
+      "blink_close_ms": 80,
+      "blink_open_ms": 130,
+      "bob_amplitude_px": 0,
+      "gaze_style": 2,
+      "gaze_move_ms": 0,
+      "gaze_rand_span_x": 0,
+      "gaze_rand_span_y": 0,
+      "gaze_reroll_min_ms": 0,
+      "gaze_reroll_max_ms": 0,
+      "gaze_scan_period_ms": 900,
+      "gaze_amp_x": 2,
+      "gaze_amp_y": 2
     }
   ],
   "emotionSim": {

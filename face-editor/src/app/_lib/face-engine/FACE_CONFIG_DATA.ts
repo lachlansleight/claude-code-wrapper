@@ -41,6 +41,7 @@ export enum Expression {
   Disappointed,
   Gleeful,
   Frustrated,
+  VerbCelebrating,
   Count,
 }
 
@@ -66,11 +67,12 @@ export const EXPRESSIONS = [
   "Disappointed",
   "Gleeful",
   "Frustrated",
+  "VerbCelebrating",
 ] as const;
 
 export type ExpressionName = (typeof EXPRESSIONS)[number];
 
-export const EXPRESSION_COUNT = 21 as const;
+export const EXPRESSION_COUNT = 22 as const;
 
 export const kExpressionIsEmotion: readonly boolean[] = [
   true,
@@ -94,6 +96,7 @@ export const kExpressionIsEmotion: readonly boolean[] = [
   true,
   true,
   true,
+  false,
 ] as const;
 
 export const kEmotionNames = [
@@ -707,6 +710,33 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(75, 100),
     P(212, 100),
   ],
+  // VerbCelebrating
+  [
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+    P(0, 0),
+  ],
 ] as const;
 
 export const kVerbKeyframeOverridesMax = 32 as const;
@@ -773,8 +803,8 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
   },
   {
     verb: Expression.VerbReading,
-    loop_duration_ms: 1300,
-    keyframe_count: 4,
+    loop_duration_ms: 1620,
+    keyframe_count: 5,
     keyframes: [
       {
         time_ms: 0,
@@ -813,7 +843,14 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
         time_ms: 1300,
         override_count: 1,
         overrides: [
-          { field: FieldIndex.PupilDx, targetValue: 12, strength: 100 },
+          { field: FieldIndex.PupilDx, targetValue: 10, strength: 100 },
+        ],
+      },
+      {
+        time_ms: 1620,
+        override_count: 1,
+        overrides: [
+          { field: FieldIndex.PupilDx, targetValue: 0, strength: 100 },
         ],
       },
     ],
@@ -1040,6 +1077,97 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
       },
     ],
   },
+  {
+    verb: Expression.VerbCelebrating,
+    loop_duration_ms: 1500,
+    keyframe_count: 9,
+    keyframes: [
+      {
+        time_ms: 0,
+        override_count: 12,
+        overrides: [
+          { field: FieldIndex.EyeRx, targetValue: 20, strength: 75 },
+          { field: FieldIndex.EyeOpenAmt, targetValue: 0, strength: 77 },
+          { field: FieldIndex.EyeArcAmt, targetValue: -63, strength: 77 },
+          { field: FieldIndex.PupilR, targetValue: 14, strength: 75 },
+          { field: FieldIndex.MouthRx, targetValue: 39, strength: 76 },
+          { field: FieldIndex.MouthOpenAmt, targetValue: 0, strength: 79 },
+          { field: FieldIndex.MouthArcAmt, targetValue: 100, strength: 80 },
+          { field: FieldIndex.FaceY, targetValue: 0, strength: 100 },
+          { field: FieldIndex.RingR, targetValue: 255, strength: 100 },
+          { field: FieldIndex.RingG, targetValue: 228, strength: 100 },
+          { field: FieldIndex.RingB, targetValue: 38, strength: 100 },
+          { field: FieldIndex.FaceRot, targetValue: 0, strength: 75 },
+        ],
+      },
+      {
+        time_ms: 300,
+        override_count: 3,
+        overrides: [
+          { field: FieldIndex.MouthOpenAmt, targetValue: 14, strength: 76 },
+          { field: FieldIndex.EyeOpenAmt, targetValue: 13, strength: 75 },
+          { field: FieldIndex.FaceY, targetValue: -24, strength: 100 },
+        ],
+      },
+      {
+        time_ms: 480,
+        override_count: 1,
+        overrides: [
+          { field: FieldIndex.FaceY, targetValue: -15, strength: 100 },
+        ],
+      },
+      {
+        time_ms: 660,
+        override_count: 1,
+        overrides: [
+          { field: FieldIndex.FaceY, targetValue: -24, strength: 100 },
+        ],
+      },
+      {
+        time_ms: 720,
+        override_count: 1,
+        overrides: [
+          { field: FieldIndex.EyeOpenAmt, targetValue: 17, strength: 75 },
+        ],
+      },
+      {
+        time_ms: 900,
+        override_count: 1,
+        overrides: [
+          { field: FieldIndex.FaceY, targetValue: -14, strength: 100 },
+        ],
+      },
+      {
+        time_ms: 1020,
+        override_count: 1,
+        overrides: [
+          { field: FieldIndex.MouthOpenAmt, targetValue: 18, strength: 76 },
+        ],
+      },
+      {
+        time_ms: 1200,
+        override_count: 1,
+        overrides: [
+          { field: FieldIndex.FaceY, targetValue: -24, strength: 100 },
+        ],
+      },
+      {
+        time_ms: 1440,
+        override_count: 9,
+        overrides: [
+          { field: FieldIndex.EyeRx, targetValue: 20, strength: 76 },
+          { field: FieldIndex.EyeOpenAmt, targetValue: 0, strength: 75 },
+          { field: FieldIndex.EyeArcAmt, targetValue: -63, strength: 76 },
+          { field: FieldIndex.PupilR, targetValue: 14, strength: 76 },
+          { field: FieldIndex.MouthOpenAmt, targetValue: 0, strength: 75 },
+          { field: FieldIndex.FaceY, targetValue: 0, strength: 100 },
+          { field: FieldIndex.RingR, targetValue: 255, strength: 100 },
+          { field: FieldIndex.RingG, targetValue: 228, strength: 100 },
+          { field: FieldIndex.RingB, targetValue: 38, strength: 100 },
+        ],
+      },
+    ],
+  },
 ] as const;
 
 export const kVerbTimelineCount = kVerbTimelines.length;
@@ -1066,6 +1194,7 @@ export const kArmPresets: readonly ArmPreset[] = [
   { min_deg: -23, max_deg: -7, period_s: 1.5, interval_s: 0.5 },
   { min_deg: 10, max_deg: 25, period_s: 0.9, interval_s: 0.2 },
   { min_deg: -18, max_deg: -8, period_s: 1.1, interval_s: 0.15 },
+  { min_deg: -25, max_deg: -15, period_s: 2, interval_s: 1 },
 ] as const;
 
 export const kMotion: readonly ExprMotionRow[] = [
@@ -1255,6 +1384,15 @@ export const kMotion: readonly ExprMotionRow[] = [
     center: 0,
     amplitude: 6,
     period_ms: 820,
+    period_jitter_ms: 0,
+    slew_ms: 0,
+  },
+  // VerbCelebrating
+  {
+    mode: MotionMode.Thinking,
+    center: -15,
+    amplitude: 5,
+    period_ms: 2000,
     period_jitter_ms: 0,
     slew_ms: 0,
   },
@@ -1617,6 +1755,23 @@ export const kIdleAnim: readonly IdleAnimRow[] = [
     gaze_scan_period_ms: 0,
     gaze_amp_x: 0,
     gaze_amp_y: 0,
+  },
+  // VerbCelebrating
+  {
+    blink_period_min_ms: 2000,
+    blink_period_max_ms: 3499,
+    blink_close_ms: 80,
+    blink_open_ms: 130,
+    bob_amplitude_px: 0,
+    gaze_style: GazeStyle.Orbit,
+    gaze_move_ms: 0,
+    gaze_rand_span_x: 0,
+    gaze_rand_span_y: 0,
+    gaze_reroll_min_ms: 0,
+    gaze_reroll_max_ms: 0,
+    gaze_scan_period_ms: 900,
+    gaze_amp_x: 2,
+    gaze_amp_y: 2,
   },
 ] as const;
 
