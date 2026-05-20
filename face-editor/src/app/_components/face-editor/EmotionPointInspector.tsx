@@ -5,6 +5,11 @@ import type { FrameController } from "../../_lib/face-engine/frameController";
 import type { FaceParams, ParamField } from "../../_lib/face-engine/faceParams";
 import { emotionVA } from "../../_lib/face-editor/simulatorBlendShared";
 import { EMOTION_COLOR } from "../../_lib/face-editor/simulatorLayout";
+import {
+    paramRecordToPartialFaceParams,
+    type ParamValueRecord,
+} from "../../_lib/face-editor/inspectorParamClipboard";
+import { InspectorParamActions } from "./InspectorParamActions";
 import { ParamSliderGrid } from "./ParamSliderGrid";
 import Panel from "./atoms/Panel";
 
@@ -43,6 +48,23 @@ export function EmotionPointInspector({
                 {emotion}
             </h3>
             <Panel>
+                <InspectorParamActions
+                    params={sliderMode === "value" ? params : strengthParams}
+                    onPaste={(record: ParamValueRecord) => {
+                        const partial = paramRecordToPartialFaceParams(record);
+                        if (sliderMode === "value") {
+                            fc.patchLiveBaseFaceParams(emotion, partial);
+                            onParamsChange({ ...params, ...partial } as FaceParams);
+                        } else {
+                            fc.patchLiveBaseFaceStrengths(emotion, partial);
+                            onStrengthParamsChange({
+                                ...strengthParams,
+                                ...partial,
+                            } as FaceParams);
+                        }
+                        onDirty();
+                    }}
+                />
                 <div className="mb-2 flex justify-center gap-6 text-sm font-mono text-face-muted">
                     <span>valence {v.toFixed(2)}</span>
                     <span>arousal {a.toFixed(2)}</span>

@@ -598,6 +598,11 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
                                     setVerbPlaySpeed(0);
                                 }}
                                 onLoopDurationMsCommit={commitVerbLoopDurationMs}
+                                onKeyframeMoved={(index, timeMs) => {
+                                    setVerbSelectedKeyframe(index);
+                                    setVerbPlayheadSnapped(timeMs);
+                                    bumpTimeline();
+                                }}
                             />
                             <EmotionButtons fc={fc} />
                         </>
@@ -631,6 +636,7 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
                             selectedKeyframeIndex={verbSelectedKeyframe}
                             highlightFields={keyframeHighlightFields}
                             onTimelineMutated={bumpTimeline}
+                            onSelectKeyframe={setVerbSelectedKeyframe}
                         />
                     ) : inspectorEmotion && inspectorParams && inspectorStrengths ? (
                         <EmotionPointInspector

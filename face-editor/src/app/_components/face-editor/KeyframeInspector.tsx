@@ -4,15 +4,20 @@ import { useMemo, useState } from "react";
 import type { FaceParams, ParamField } from "../../_lib/face-engine/faceParams";
 import { fieldIndexFromParamField, PARAM_FIELDS } from "../../_lib/face-engine/faceParams";
 import type { MutableVerbTimeline } from "../../_lib/face-engine/mutableVerbTimelines";
+import type { ParamValueRecord } from "../../_lib/face-editor/inspectorParamClipboard";
 import {
     applySliderToVerbTimeline,
     applyStrengthSliderToVerbTimeline,
+    deleteKeyframeAtIndex,
     keyframeStrengthFaceParams,
     keyframeValueFaceParams,
+    pasteStrengthsToKeyframe,
+    pasteValuesToKeyframe,
     removeOverrideFromKeyframe,
     resolveVerbSliderKeyframeIndex,
 } from "../../_lib/face-engine/verbTimelineEdit";
 import Panel from "./atoms/Panel";
+import { InspectorParamActions } from "./InspectorParamActions";
 import { ParamSliderGrid } from "./ParamSliderGrid";
 
 function zeroFaceParams(): FaceParams {
@@ -33,6 +38,7 @@ export function KeyframeInspector({
     selectedKeyframeIndex,
     highlightFields,
     onTimelineMutated,
+    onSelectKeyframe,
 }: {
     verbName: string;
     tab: MutableVerbTimeline | undefined;
@@ -43,6 +49,7 @@ export function KeyframeInspector({
     selectedKeyframeIndex: number | null;
     highlightFields: ReadonlySet<ParamField>;
     onTimelineMutated: () => void;
+    onSelectKeyframe: (index: number | null) => void;
 }) {
     const [sliderMode, setSliderMode] = useState<"value" | "strength">("value");
 
@@ -72,6 +79,32 @@ export function KeyframeInspector({
                     : "Paused: drag to edit keyframe target values (green rows) or strengths. Other rows show the face at the playhead until you override them."}
             </p>
             <Panel>
+                {selectedKeyframeIndex !== null && !isPlaying ? (
+                    <InspectorParamActions
+                        params={sliderMode === "value" ? valueParams : strengthParams}
+                        showDelete
+                        onPaste={(record: ParamValueRecord) => {
+                            if (!tab || selectedKeyframeIndex === null) return;
+                            if (sliderMode === "value") {
+                                pasteValuesToKeyframe(tab, selectedKeyframeIndex, record);
+                            } else {
+                                pasteStrengthsToKeyframe(
+                                    tab,
+                                    selectedKeyframeIndex,
+                                    record,
+                                    renderedParams
+                                );
+                            }
+                            onTimelineMutated();
+                        }}
+                        onDelete={() => {
+                            if (!tab || selectedKeyframeIndex === null) return;
+                            deleteKeyframeAtIndex(tab, selectedKeyframeIndex);
+                            onSelectKeyframe(null);
+                            onTimelineMutated();
+                        }}
+                    />
+                ) : null}
                 <ParamSliderGrid
                     sliderMode={sliderMode}
                     onSliderModeChange={setSliderMode}

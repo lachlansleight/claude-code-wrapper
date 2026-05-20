@@ -4,7 +4,14 @@ import {
     kVerbKeyframeOverridesMax,
     kVerbKeyframesMax,
 } from "./FACE_CONFIG_DATA";
-import { PARAM_FIELDS, paramFieldFromFieldIndex, type FaceParams } from "./faceParams";
+import {
+    PARAM_FIELDS,
+    fieldIndexFromParamField,
+    paramFieldFromFieldIndex,
+    type FaceParams,
+    type ParamField,
+} from "./faceParams";
+import type { ParamValueRecord } from "../face-editor/inspectorParamClipboard";
 import type { MutableVerbKeyframe, MutableVerbTimeline } from "./mutableVerbTimelines";
 
 /** Quantize verb playhead / keyframe authoring to render ticks (matches typical frame step). */
@@ -250,6 +257,75 @@ export function fieldsInKeyframeOverrides(
         if (o && o.strength > 0) out.push(o.field);
     }
     return out;
+}
+
+/**
+ * Move a keyframe to a new time (snapped). Fails if another keyframe already occupies that tick.
+ * Returns the keyframe index after sort (may differ from the input index).
+ */
+export function moveKeyframeToTime(
+    tab: MutableVerbTimeline,
+    keyframeIndex: number,
+    newTimeMsRaw: number
+): { ok: true; timeMs: number; index: number } | { ok: false } {
+    if (keyframeIndex < 0 || keyframeIndex >= tab.keyframe_count) return { ok: false };
+    const loop = tab.loop_duration_ms;
+    const time_ms = snapVerbPlayheadMs(newTimeMsRaw, loop);
+    const conflict = findKeyframeIndexAtTime(tab, time_ms);
+    if (conflict !== null && conflict !== keyframeIndex) return { ok: false };
+    const kf = tab.keyframes[keyframeIndex]!;
+    kf.time_ms = time_ms;
+    sortKeyframes(tab);
+    const index = findKeyframeIndexAtTime(tab, time_ms);
+    if (index === null) return { ok: false };
+    return { ok: true, timeMs: time_ms, index };
+}
+
+/** Remove a keyframe and re-sort the table. */
+export function deleteKeyframeAtIndex(tab: MutableVerbTimeline, keyframeIndex: number): void {
+    if (keyframeIndex < 0 || keyframeIndex >= tab.keyframe_count) return;
+    tab.keyframes.splice(keyframeIndex, 1);
+    sortKeyframes(tab);
+}
+
+/** Apply pasted target values onto a keyframe (creates overrides at strength 100). */
+export function pasteValuesToKeyframe(
+    tab: MutableVerbTimeline,
+    keyframeIndex: number,
+    record: ParamValueRecord
+): void {
+    if (keyframeIndex < 0 || keyframeIndex >= tab.keyframe_count) return;
+    const kf = tab.keyframes[keyframeIndex]!;
+    for (const f of PARAM_FIELDS) {
+        if (!(f in record)) continue;
+        const fi = fieldIndexFromParamField(f);
+        const existing = kf.overrides.find(x => x.field === fi);
+        const strength = existing?.strength ?? 100;
+        upsertOverrideInKeyframe(kf, fi, Math.round(record[f]!), strength);
+    }
+}
+
+/** Apply pasted strengths onto a keyframe; keeps existing target values when present. */
+export function pasteStrengthsToKeyframe(
+    tab: MutableVerbTimeline,
+    keyframeIndex: number,
+    record: ParamValueRecord,
+    fallbackTargets: FaceParams
+): void {
+    if (keyframeIndex < 0 || keyframeIndex >= tab.keyframe_count) return;
+    const kf = tab.keyframes[keyframeIndex]!;
+    for (const f of PARAM_FIELDS) {
+        if (!(f in record)) continue;
+        let s = Math.round(record[f]!);
+        if (s < 0) s = 0;
+        if (s > 100) s = 100;
+        const fi = fieldIndexFromParamField(f);
+        const existing = kf.overrides.find(x => x.field === fi);
+        const targetValue = existing
+            ? existing.targetValue
+            : Math.round(fallbackTargets[f as ParamField] ?? 0);
+        upsertOverrideInKeyframe(kf, fi, targetValue, s);
+    }
 }
 
 /** Drop one field's override from a keyframe; removes the keyframe if it has no overrides left. */

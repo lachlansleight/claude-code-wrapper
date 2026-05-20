@@ -9,8 +9,9 @@ import {
 } from "../../_lib/face-engine/faceParams";
 import type { MutableVerbTimeline } from "../../_lib/face-engine/mutableVerbTimelines";
 import {
-    VERB_PLAYHEAD_QUANT_MS,
+    moveKeyframeToTime,
     snapVerbPlayheadMs,
+    VERB_PLAYHEAD_QUANT_MS,
 } from "../../_lib/face-engine/verbTimelineEdit";
 import { FaFastBackward, FaPause, FaPlay } from "react-icons/fa";
 import Panel from "./atoms/Panel";
@@ -36,6 +37,7 @@ export function VerbTimelinePanel({
     onPlaySpeed,
     onJumpToStart,
     onLoopDurationMsCommit,
+    onKeyframeMoved,
 }: {
     verbNames: string[];
     selectedVerb: string;
@@ -51,9 +53,16 @@ export function VerbTimelinePanel({
     onJumpToStart: () => void;
     /** Mutates `tab` in place; parent should bump revision and re-snap playhead. */
     onLoopDurationMsCommit: (ms: number) => void;
+    /** After a successful keyframe time drag (tab mutated in place). */
+    onKeyframeMoved: (keyframeIndex: number, timeMs: number) => void;
 }) {
     const trackRef = useRef<HTMLDivElement>(null);
     const [loopDraft, setLoopDraft] = useState("1000");
+    const [draggingKeyframe, setDraggingKeyframe] = useState<{
+        ki: number;
+        originMs: number;
+        draftMs: number;
+    } | null>(null);
 
     const loopMs = tab?.loop_duration_ms ?? 1000;
     const displayMs = Math.max(loopMs, 1000);
@@ -102,16 +111,120 @@ export function VerbTimelinePanel({
         [displayMs, loopMs]
     );
 
+    const keyframeDisplayMs = useCallback(
+        (ki: number): number => {
+            if (!tab) return 0;
+            if (draggingKeyframe?.ki === ki) return draggingKeyframe.draftMs;
+            const kf = tab.keyframes[ki];
+            if (!kf) return 0;
+            return snapVerbPlayheadMs(kf.time_ms, loopMs);
+        },
+        [tab, loopMs, draggingKeyframe]
+    );
+
+    const beginKeyframeDrag = useCallback(
+        (ki: number, e: React.PointerEvent<HTMLElement>) => {
+            e.stopPropagation();
+            if (!tab) return;
+            const kf = tab.keyframes[ki];
+            if (!kf) return;
+            const originMs = snapVerbPlayheadMs(kf.time_ms, loopMs);
+            onSelectKeyframe(ki);
+            onPlayheadMs(originMs);
+            if (playSpeed !== 0) return;
+            setDraggingKeyframe({ ki, originMs, draftMs: originMs });
+            e.currentTarget.setPointerCapture(e.pointerId);
+        },
+        [playSpeed, tab, loopMs, onSelectKeyframe, onPlayheadMs]
+    );
+
+    const onKeyframeDragMove = useCallback(
+        (e: React.PointerEvent<HTMLElement>) => {
+            if (!draggingKeyframe) return;
+            if (e.buttons !== 1) return;
+            setDraggingKeyframe(d =>
+                d ? { ...d, draftMs: xToMs(e.clientX) } : d
+            );
+            onPlayheadMs(xToMs(e.clientX));
+        },
+        [draggingKeyframe, xToMs, onPlayheadMs]
+    );
+
+    const endKeyframeDrag = useCallback(
+        (e: React.PointerEvent<HTMLElement>) => {
+            if (!draggingKeyframe || !tab) {
+                setDraggingKeyframe(null);
+                return;
+            }
+            const { ki, originMs, draftMs } = draggingKeyframe;
+            setDraggingKeyframe(null);
+            try {
+                e.currentTarget.releasePointerCapture(e.pointerId);
+            } catch {
+                /* no capture */
+            }
+            const snappedDraft = snapVerbPlayheadMs(draftMs, loopMs);
+            if (snappedDraft === originMs) return;
+            const result = moveKeyframeToTime(tab, ki, snappedDraft);
+            if (!result.ok) return;
+            onKeyframeMoved(result.index, result.timeMs);
+        },
+        [draggingKeyframe, tab, loopMs, onKeyframeMoved]
+    );
+
     const onTrackPointerDown = (e: React.PointerEvent) => {
+        if (draggingKeyframe) return;
         trackRef.current?.setPointerCapture(e.pointerId);
         onPlayheadMs(xToMs(e.clientX));
     };
 
     const onTrackPointerMove = (e: React.PointerEvent) => {
+        if (draggingKeyframe) return;
         if (!trackRef.current?.hasPointerCapture(e.pointerId)) return;
         if (e.buttons !== 1) return;
         onPlayheadMs(xToMs(e.clientX));
     };
+
+    const rulerKeyframeHandles = useMemo(() => {
+        if (!tab) return null;
+        const nodes: React.ReactNode[] = [];
+        for (let ki = 0; ki < tab.keyframe_count; ki++) {
+            const t = keyframeDisplayMs(ki);
+            const leftPct = (t / displayMs) * 100;
+            const sel = selectedKeyframeIndex === ki;
+            const dragging = draggingKeyframe?.ki === ki;
+            nodes.push(
+                <button
+                    key={`ruler-kf-${ki}`}
+                    type="button"
+                    className={
+                        sel || dragging
+                            ? "absolute z-[4] h-3 w-3 -translate-x-1/2 cursor-ew-resize rounded-sm border-2 border-emerald-400 bg-emerald-400/80 p-0 shadow"
+                            : "absolute z-[4] h-2.5 w-2.5 -translate-x-1/2 cursor-ew-resize rounded-sm border border-face-border bg-face-accent p-0 shadow hover:bg-face-accent/90"
+                    }
+                    style={{
+                        left: `${leftPct}%`,
+                        bottom: 2,
+                    }}
+                    title={`Keyframe ${ki} @ ${t}ms — drag horizontally`}
+                    onPointerDown={e => beginKeyframeDrag(ki, e)}
+                    onPointerMove={onKeyframeDragMove}
+                    onPointerUp={endKeyframeDrag}
+                    onPointerCancel={endKeyframeDrag}
+                />
+            );
+        }
+        return nodes;
+    }, [
+        tab,
+        displayMs,
+        selectedKeyframeIndex,
+        draggingKeyframe,
+        keyframeDisplayMs,
+        beginKeyframeDrag,
+        onKeyframeDragMove,
+        endKeyframeDrag,
+    ]);
 
     function keyframeMarkersForField(f: ParamField): React.ReactNode[] {
         if (!tab) return [];
@@ -125,28 +238,27 @@ export function VerbTimelinePanel({
                 const o = kf.overrides[oi];
                 if (!o || o.strength <= 0) continue;
                 if (o.field !== fi) continue;
-                const snappedT = snapVerbPlayheadMs(kf.time_ms, loopMs);
+                const snappedT = keyframeDisplayMs(ki);
                 const leftPct = (snappedT / displayMs) * 100;
                 const sel = selectedKeyframeIndex === ki;
                 nodes.push(
                     <button
                         key={`${ki}-${oi}`}
                         type="button"
-                        onPointerDown={e => {
-                            e.stopPropagation();
-                            onSelectKeyframe(ki);
-                            onPlayheadMs(snappedT);
-                        }}
+                        onPointerDown={e => beginKeyframeDrag(ki, e)}
+                        onPointerMove={onKeyframeDragMove}
+                        onPointerUp={endKeyframeDrag}
+                        onPointerCancel={endKeyframeDrag}
                         className={
                             sel
-                                ? "absolute z-[2] h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-emerald-400 bg-emerald-300 p-0 shadow"
-                                : "absolute z-[1] h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-face-border bg-face-accent p-0 shadow hover:bg-face-accent/90"
+                                ? "absolute z-[2] h-2 w-2 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize rounded-full border-2 border-emerald-400 bg-emerald-300 p-0 shadow"
+                                : "absolute z-[1] h-2 w-2 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize rounded-full border border-face-border bg-face-accent p-0 shadow hover:bg-face-accent/90"
                         }
                         style={{
                             left: `${leftPct}%`,
                             top: "50%",
                         }}
-                        title={`${paramFieldLabel(f)} · kf ${ki} @ ${kf.time_ms}ms (tick ${snappedT}ms)`}
+                        title={`${paramFieldLabel(f)} · kf ${ki} @ ${kf.time_ms}ms (tick ${snappedT}ms) — drag horizontally`}
                     />
                 );
             }
@@ -330,8 +442,8 @@ export function VerbTimelinePanel({
                     <div
                         className="relative shrink-0 border-b border-face-border/50 bg-face-panel/30"
                         style={{ height: RULER_H }}
-                        aria-hidden
                     >
+                        {rulerKeyframeHandles}
                         {rulerTicks.map(({ t, kind }) => {
                             const leftPct = (t / displayMs) * 100;
                             const h =
