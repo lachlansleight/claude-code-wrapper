@@ -1,5 +1,10 @@
 # Face Animation Editor — Brief
 
+> **Schema v3 (landed):** Arm fields live on each `FaceParams` / `kBaseTargets`
+> row (`arm_min_deg`, `arm_max_deg`, `arm_period_ms`, `arm_interval_ms`). Legacy
+> `kArmPresets` / `kMotion` docs below are historical. Current editor coverage:
+> [`face-editor/EDITOR_OUTPUT.md`](../face-editor/EDITOR_OUTPUT.md).
+
 This directory is a self-contained brief for a future coding agent that
 will build a **face animation editor** in a **separate repository**.
 That agent may not have access to the firmware repo this brief was
@@ -23,10 +28,10 @@ geometry each frame, but **authoring** uses richer data:
   a field so neighbours (or later stages) decide.
 - **Verb face geometry** is **not** a static preset row: it is **keyframed
   timelines** of sparse field overrides on top of the emotion blend.
-- **Motion sync:** per-expression **arm/body period** (`kMotion[]` today)
-  and **idle animation policy** (blink cadence, gaze randomness, draw-level
-  bob) are **first-class authored data** in **`FACE_CONFIG.h`**, not hidden
-  in scattered `.cpp` switches.
+- **Arm motion:** four fields on each `FaceParams` row (min/max deg, period
+  and interval in **ms**), blended with emotions and overridable in verb
+  timelines. Body bob **position** follows live servo angle; idle rows
+  still author blink/gaze/bob amplitude policy.
 - **Bespoke visual overlays** (sparkles, fades, one-off effects) stay in
   firmware (**`EffectsRenderer`**-style), **decoupled** from the parametric
   face pipeline — not edited in this tool.

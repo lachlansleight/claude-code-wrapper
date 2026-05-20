@@ -16,9 +16,11 @@
 //                                    overlays as scalar presets since firmware
 //                                    paints them via EffectsRenderer)
 //   verbTimelines                 ↔ FaceConfig::kVerbTimelines
-//   armPresets                    ↔ FaceConfig::kArmPresets    (emotion rows)
-//   motion                        ↔ FaceConfig::kMotion
 //   idleAnim                      ↔ FaceConfig::kIdleAnim
+//
+//   (v3 firmware) arm_* are last four cells of each baseTargets row.
+//   armPresets / motion below are LEGACY for this JS mirror only — see
+//   face-editor FACE_CONFIG_DATA and docs/firmware2/MOTION.md.
 //   emotionSim / frameAnim /
 //     verbSim                     ↔ kEmotionSim / kFrameAnim / kVerbSim
 //

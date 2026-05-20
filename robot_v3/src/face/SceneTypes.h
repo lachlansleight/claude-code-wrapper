@@ -117,9 +117,6 @@ struct SceneContext {
    */
   FaceParams base_face_params;
 
-  /** Continuous arm preset at (mood_v, mood_a); see EmotionArmMotion. */
-  EmotionArmMotion base_emotion_arm;
-
   char latched_session[40];
   char pending_permission[48];
   char status_line[80];

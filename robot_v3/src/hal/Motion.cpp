@@ -359,4 +359,6 @@ void setEnabled(bool enabled) {
 
 bool enabled() { return motionEnabled; }
 
+int8_t currentOffsetDeg() { return (int8_t)((int)commandedAngle - (int)kCentre); }
+
 }  // namespace Motion

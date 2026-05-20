@@ -90,19 +90,6 @@ static float blendFloat(float a, float b, float c, float la, float lb, float lc)
   return a * la + b * lb + c * lc;
 }
 
-static Face::EmotionArmMotion blendArmThree(const FaceConfig::ArmPreset& A, const FaceConfig::ArmPreset& B,
-                                            const FaceConfig::ArmPreset& C, float la, float lb, float lc) {
-  Face::EmotionArmMotion r;
-  auto blendI = [](int16_t a, int16_t b, int16_t c, float la2, float lb2, float lc2) -> int16_t {
-    return (int16_t)lroundf((float)a * la2 + (float)b * lb2 + (float)c * lc2);
-  };
-  r.min_offset_deg = blendI(A.min_deg, B.min_deg, C.min_deg, la, lb, lc);
-  r.max_offset_deg = blendI(A.max_deg, B.max_deg, C.max_deg, la, lb, lc);
-  r.waggle_period_s = blendFloat(A.period_s, B.period_s, C.period_s, la, lb, lc);
-  r.waggle_interval_s = blendFloat(A.interval_s, B.interval_s, C.interval_s, la, lb, lc);
-  return r;
-}
-
 Face::FaceParams blendThree(const Face::FaceParams& A, const Face::FaceParams& B,
                             const Face::FaceParams& C, float la, float lb, float lc) {
   Face::FaceParams r;
@@ -132,6 +119,10 @@ Face::FaceParams blendThree(const Face::FaceParams& A, const Face::FaceParams& B
   r.ring_r = blendParam3(A.ring_r, B.ring_r, C.ring_r, la, lb, lc);
   r.ring_g = blendParam3(A.ring_g, B.ring_g, C.ring_g, la, lb, lc);
   r.ring_b = blendParam3(A.ring_b, B.ring_b, C.ring_b, la, lb, lc);
+  r.arm_min_deg = blendParam3(A.arm_min_deg, B.arm_min_deg, C.arm_min_deg, la, lb, lc);
+  r.arm_max_deg = blendParam3(A.arm_max_deg, B.arm_max_deg, C.arm_max_deg, la, lb, lc);
+  r.arm_period_ms = blendParam3(A.arm_period_ms, B.arm_period_ms, C.arm_period_ms, la, lb, lc);
+  r.arm_interval_ms = blendParam3(A.arm_interval_ms, B.arm_interval_ms, C.arm_interval_ms, la, lb, lc);
   return r;
 }
 
@@ -237,60 +228,6 @@ Face::FaceParams blendedFaceParams(float v, float a) {
 
   return blendThree(Face::baseTargetFor(eA), Face::baseTargetFor(eB),
                     Face::baseTargetFor(eC), l0, l1, l2);
-}
-
-Face::EmotionArmMotion blendedEmotionArmMotion(float v, float a) {
-  v = clampf(v, -1.0f, 1.0f);
-  a = clampf(a, 0.0f, 1.0f);
-
-  uint16_t i0 = 0, i1 = 0, i2 = 0;
-  float l0 = 0.0f, l1 = 0.0f, l2 = 0.0f;
-  if (!findTriangle(v, a, i0, i1, i2, l0, l1, l2)) {
-    float best = INFINITY;
-    uint16_t bestIdx = 0;
-    for (size_t i = 0; i < EmotionSystem::kAnchorCount; ++i) {
-      const EmotionSystem::Anchor& an = EmotionSystem::kAnchors[i];
-      const float dv = v - an.v;
-      const float da = a - an.a;
-      const float d = dv * dv + da * da;
-      if (d < best) {
-        best = d;
-        bestIdx = (uint16_t)i;
-      }
-    }
-    const Face::Expression ex =
-        FaceConfig::expressionForNamedEmotion(EmotionSystem::kAnchors[bestIdx].emotion);
-    const FaceConfig::ArmPreset p = FaceConfig::armPresetFor(ex);
-    Face::EmotionArmMotion one;
-    one.min_offset_deg = p.min_deg;
-    one.max_offset_deg = p.max_deg;
-    if (one.min_offset_deg > one.max_offset_deg) {
-      const int16_t t = one.min_offset_deg;
-      one.min_offset_deg = one.max_offset_deg;
-      one.max_offset_deg = t;
-    }
-    one.waggle_period_s = p.period_s < 0.05f ? 0.05f : p.period_s;
-    one.waggle_interval_s = p.interval_s < 0.0f ? 0.0f : p.interval_s;
-    return one;
-  }
-
-  const Face::Expression eA =
-      FaceConfig::expressionForNamedEmotion(EmotionSystem::kAnchors[i0].emotion);
-  const Face::Expression eB =
-      FaceConfig::expressionForNamedEmotion(EmotionSystem::kAnchors[i1].emotion);
-  const Face::Expression eC =
-      FaceConfig::expressionForNamedEmotion(EmotionSystem::kAnchors[i2].emotion);
-
-  Face::EmotionArmMotion r = blendArmThree(FaceConfig::armPresetFor(eA), FaceConfig::armPresetFor(eB),
-                                            FaceConfig::armPresetFor(eC), l0, l1, l2);
-  if (r.min_offset_deg > r.max_offset_deg) {
-    const int16_t t = r.min_offset_deg;
-    r.min_offset_deg = r.max_offset_deg;
-    r.max_offset_deg = t;
-  }
-  if (r.waggle_period_s < 0.05f) r.waggle_period_s = 0.05f;
-  if (r.waggle_interval_s < 0.0f) r.waggle_interval_s = 0.0f;
-  return r;
 }
 
 FaceConfig::IdleAnimRow blendedIdleAnim(float v, float a) {

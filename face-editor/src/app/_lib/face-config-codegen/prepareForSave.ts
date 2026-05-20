@@ -1,5 +1,6 @@
 import type { FaceConfigState } from "../face-engine/faceConfigState";
 import { ensureSystemVerbTimelines } from "../face-engine/faceConfigMutations";
+import { migrateFaceConfigToSchemaV3 } from "./migrateSchemaV3";
 import {
     buildEmotionTriangulationFromPoints,
     syncEmotionPointFromAnchor,
@@ -7,7 +8,7 @@ import {
 
 /** Align emotionPoints with anchors, then rebuild Delaunay mesh for save/firmware. */
 export function prepareFaceConfigForSave(config: FaceConfigState): FaceConfigState {
-    let next = ensureSystemVerbTimelines(config);
+    let next = migrateFaceConfigToSchemaV3(ensureSystemVerbTimelines(config));
     const emotionPoints = next.emotionPoints.map(p => ({ v: p.v, a: p.a }));
     for (const an of next.emotionTriangulation.anchors) {
         syncEmotionPointFromAnchor(next.emotionNames, emotionPoints, an);
@@ -18,7 +19,7 @@ export function prepareFaceConfigForSave(config: FaceConfigState): FaceConfigSta
     );
     return {
         ...next,
-        schemaVersion: 2,
+        schemaVersion: 3,
         emotionPoints,
         emotionTriangulation,
     };

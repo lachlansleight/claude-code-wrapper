@@ -48,7 +48,7 @@ flowchart LR
   ES -->|kNamedEmotionToExpression| EX
   VT -->|tab.verb = Expression::Verb*| EX
   EP -->|index = NamedEmotion| ES
-  EX -->|index| KM[kMotion / kIdleAnim / kBaseTargets]
+  EX -->|index| KM[kIdleAnim / kBaseTargets]
 ```
 
 ### 2.1 `EmotionSystem::NamedEmotion` (14 values)
@@ -73,7 +73,7 @@ Union of:
 
 Many tables are `[Expression::Count]`:
 
-- `kBaseTargets`, `kArmPresets`, `kMotion`, `kIdleAnim`
+- `kBaseTargets` (28 fields incl. arm), `kIdleAnim`
 - `kExpressionNames`, `kExpressionIsEmotion`
 
 **Editor:** `expressions[]` is fixed to `EXPRESSIONS` in `faceConfigTypes.ts`;
@@ -119,7 +119,7 @@ Hardcoded in:
    keep compact `uint8_t` indices as long as they are regenerated with the schema.
 
 4. **Keep compile-time tables where ESP32 needs them** — `kVerbTimelines[]`,
-   `kMotion[]`, and triangulation can stay `static constexpr` **sized to Count**
+   `kBaseTargets[]` / `kIdleAnim[]`, and triangulation can stay `static constexpr` **sized to Count**
    from generated headers. No requirement for heap-loaded config on device (unless
    we later add OTA schema upload).
 
@@ -172,7 +172,7 @@ interface VerbDef {
   expressionIndex: number;   // row in expressions[] (Verb* or neutral naming)
   loop_duration_ms: number;
   keyframes: VerbKeyframe[];
-  motion: ExprMotionRow;     // move out of global kMotion[expression] if desired
+  // arm_* fields: on kBaseTargets row + verb keyframe overrides (v3)
   idleAnim: IdleAnimRow;
   // Optional behaviour flags (see §5)
   system?: boolean;          // cannot delete; EventRouter may reference
@@ -193,7 +193,7 @@ keyed by `Expression` enum in TS.
 
 ### 4.3 Expressions (dynamic, derived)
 
-`expressions[]` remains the **union index space** for `kBaseTargets`, `kMotion`,
+`expressions[]` remains the **union index space** for `kBaseTargets`,
 `kIdleAnim`, but is **derived on save**, not a fixed 22-name const:
 
 | Row kind | How created |
@@ -299,7 +299,8 @@ Implement in `validate.ts` (save) and inline in UI (immediate feedback).
 
 After save, `static_assert` in generated `.h`:
 
-- `sizeof(kMotion)/sizeof(kMotion[0]) == (uint8_t)Face::Expression::Count`
+- `sizeof(kBaseTargets)/sizeof(kBaseTargets[0]) == (uint8_t)Face::Expression::Count`
+  (28 `ParamI16` per row in v3)
 - `kVerbTimelineCount == verbs.length`
 - `EmotionSystem::kAnchorCount == emotions.length`
 
@@ -504,7 +505,7 @@ Ideal: **one** generator (`emitAllFaceConfigArtifacts`) also writes
 
 - [ ] Derive `expressions[]` from emotions + verbs on save (drop fixed `EXPRESSIONS`).
 - [ ] Generate `Face::Expression` enum.
-- [ ] Split or tag `kMotion` / `kIdleAnim` per verb in config (cleaner than 22-row matrix).
+- [x] Arm on `FaceParams` row + verb overrides (v3); optional: per-verb `kIdleAnim` only.
 
 ### Phase 4 — Behaviour mapping (Option B)
 

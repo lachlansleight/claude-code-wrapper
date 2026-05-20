@@ -4,10 +4,11 @@
 #include <math.h>
 
 #include "FACE_CONFIG.h"
+#include "FrameEffective.h"
 #include "VerbTimeline.h"
 #include "../behaviour/EmotionBlend.h"
 #include "../hal/Display.h"
-#include "../hal/MotionBehaviors.h"
+#include "../hal/Motion.h"
 #include "../hal/Settings.h"
 #include "Scene.h"
 #include "TextScene.h"
@@ -18,9 +19,7 @@ namespace Face {
 
 static int16_t sLastExprIdx = -1;
 
-static FaceParams sSmoothedEmotion;
 static FaceParams sLastRendered;
-static uint32_t sLastEmotionSmoothMs = 0;
 
 static uint32_t sBlinkStartMs = 0;
 static bool sBlinkActive = false;
@@ -45,11 +44,6 @@ static int16_t sIdleGlanceFromDx = 0;
 static int16_t sIdleGlanceFromDy = 0;
 static uint32_t sIdleGlanceStartMs = 0;
 static uint32_t sNextIdleGlanceMs = 0;
-
-// Body vertical bob: integrate phase so a changing waggle period (blended
-// emotion) does not re-phase from wall-clock % period (which jitters).
-static float sBodyBobPhaseRad = 0.0f;
-static uint32_t sBodyBobPhaseLastMs = 0;
 
 // Last-rendered values + snapshots for cross-fading the modification pass
 // across verb transitions. Captured into sFrom* on verb change and lerped
@@ -91,13 +85,10 @@ static float breathPhase(uint32_t now) {
   return sinf(t * 2.0f * (float)PI);
 }
 
-// Pure: live bob amplitude (px) for the given expression / context. Snapshotted
-// into sFromBobAmp at verb change so the cross-fade ramps it.
-static int16_t bodyBobAmpFor(const SceneContext& ctx,
-                             const FaceConfig::IdleAnimRow& idle) {
+static int16_t bodyBobAmpFor(const FaceConfig::IdleAnimRow& idle,
+                             const FaceParams& effective) {
   if (idle.bob_amplitude_px == FaceConfig::kBobAmpFollowEmotionArm) {
-    if (Face::isEmotionExpression(ctx.effective_expression) &&
-        ctx.base_emotion_arm.min_offset_deg != ctx.base_emotion_arm.max_offset_deg) {
+    if (effective.arm_min_deg.value != effective.arm_max_deg.value) {
       return animCfg().emotion_bob_amp_follow_arm;
     }
     return 0;
@@ -105,41 +96,26 @@ static int16_t bodyBobAmpFor(const SceneContext& ctx,
   return idle.bob_amplitude_px;
 }
 
-static int16_t bodyBobFor(const SceneContext& ctx, const FaceConfig::IdleAnimRow& idle,
-                          uint32_t now) {
-  const uint16_t period = MotionBehaviors::periodMsForContext(ctx);
-  if (period == 0) {
-    sBodyBobPhaseLastMs = now;
-    sLastBobAmp = 0;
-    return 0;
-  }
-
-  const int16_t liveAmp = bodyBobAmpFor(ctx, idle);
-  const float tt = verbTransitionT(now);
-  const float effAmpF = (tt >= 1.0f)
-      ? (float)liveAmp
-      : (float)sFromBobAmp + ((float)liveAmp - (float)sFromBobAmp) * tt;
-  const int16_t amp = (int16_t)lroundf(effAmpF);
+/** Map live servo offset (deg) to vertical face bob (px), scaled by idle row. */
+static int16_t bodyBobFor(const FaceConfig::IdleAnimRow& idle, const FaceParams& effective) {
+  const int16_t amp = bodyBobAmpFor(idle, effective);
   sLastBobAmp = amp;
-
-  // Phase keeps integrating whenever either side of the cross-fade has any bob,
-  // so the oscillation runs continuously across the transition.
-  const bool integrate = (liveAmp != 0) || (sFromBobAmp != 0);
-
-  constexpr float kTwoPi = 2.0f * (float)PI;
-  if (integrate) {
-    const float dt_ms =
-        (sBodyBobPhaseLastMs == 0) ? 0.0f : (float)(now - sBodyBobPhaseLastMs);
-    sBodyBobPhaseLastMs = now;
-    sBodyBobPhaseRad += (kTwoPi / (float)period) * dt_ms;
-    sBodyBobPhaseRad = fmodf(sBodyBobPhaseRad, kTwoPi);
-    if (sBodyBobPhaseRad < 0.0f) sBodyBobPhaseRad += kTwoPi;
-  } else {
-    sBodyBobPhaseLastMs = now;
-  }
-
   if (amp == 0) return 0;
-  return (int16_t)(-sinf(sBodyBobPhaseRad) * (float)amp);
+
+  int16_t lo = effective.arm_min_deg.value;
+  int16_t hi = effective.arm_max_deg.value;
+  if (lo > hi) {
+    const int16_t t = lo;
+    lo = hi;
+    hi = t;
+  }
+  if (lo == hi) return 0;
+
+  const int8_t armDeg = Motion::currentOffsetDeg();
+  float t = (float)(armDeg - lo) / (float)(hi - lo);
+  if (t < 0.0f) t = 0.0f;
+  if (t > 1.0f) t = 1.0f;
+  return (int16_t)lroundf((float)amp * (2.0f * t - 1.0f));
 }
 
 static void gazeFor(const FaceConfig::IdleAnimRow& idle, uint32_t now, int16_t& gdx,
@@ -242,6 +218,7 @@ static float currentBlinkAmount(uint32_t now, const FaceConfig::IdleAnimRow& idl
 void begin() {
   randomSeed(esp_random());
 
+  effectiveParamsBegin();
   resetVerbTransition();
   sLastBobAmp = 0;
   sLastGdx = 0;
@@ -256,16 +233,14 @@ void begin() {
   sMouthWavePhaseRad = 0.0f;
   sWavePhaseLastMs = 0;
   sLastExprIdx = -1;
-  sSmoothedEmotion = baseTargetFor(Expression::Neutral);
-  sLastRendered = sSmoothedEmotion;
-  sLastEmotionSmoothMs = 0;
+  sLastRendered = effectiveFaceParams();
   sNextBlinkMs = 0;
   sBlinkActive = false;
   sLastTickMs = 0;
 
-  sMoodR = (float)sSmoothedEmotion.ring_r.value;
-  sMoodG = (float)sSmoothedEmotion.ring_g.value;
-  sMoodB = (float)sSmoothedEmotion.ring_b.value;
+  sMoodR = (float)sLastRendered.ring_r.value;
+  sMoodG = (float)sLastRendered.ring_g.value;
+  sMoodB = (float)sLastRendered.ring_b.value;
   sLastMoodMs = millis();
   sTextStreamAlpha = 0.0f;
   sWriteStreamAlpha = 0.0f;
@@ -282,7 +257,10 @@ void begin() {
   sLastSettingsVersion = Settings::settingsVersion();
 }
 
-void invalidate() { sLastTickMs = 0; }
+void invalidate() {
+  sLastTickMs = 0;
+  invalidateEffectiveParams();
+}
 
 const FaceParams& baseTargetFor(Expression e) {
   const uint8_t idx = (uint8_t)e;
@@ -336,7 +314,7 @@ void tick(const SceneContext& ctx) {
   const uint32_t settingsVersion = ctx.settings_version;
   if (settingsVersion != sLastSettingsVersion) {
     sLastSettingsVersion = settingsVersion;
-    smoothFaceValuesToward(sSmoothedEmotion, ctx.base_face_params, 1.0f);
+    invalidateEffectiveParams();
     sMoodR = (float)ctx.base_face_params.ring_r.value;
     sMoodG = (float)ctx.base_face_params.ring_g.value;
     sMoodB = (float)ctx.base_face_params.ring_b.value;
@@ -371,16 +349,6 @@ void tick(const SceneContext& ctx) {
     sFadeWriteCount = 0;
   }
 
-  const uint32_t emoDt = (sLastEmotionSmoothMs == 0) ? tickInterval : (now - sLastEmotionSmoothMs);
-  sLastEmotionSmoothMs = now;
-  const float emoAlpha =
-      1.0f - expf(-(float)emoDt / animCfg().emotion_geometry_smooth_tau_ms);
-  smoothFaceValuesToward(sSmoothedEmotion, ctx.base_face_params, emoAlpha);
-
-  // Detect verb-edge BEFORE sampleEffectiveVerb so we can snapshot last
-  // frame's bob amplitude and gaze offset. sampleEffectiveVerb does the
-  // same comparison internally and (re)starts the transition timer with the
-  // same `now`, so the timeline blend and the mod blend stay synchronised.
   if (sNow != sLastVerbForXfade) {
     sFromBobAmp = sLastBobAmp;
     sFromGdx = sLastGdx;
@@ -388,16 +356,7 @@ void tick(const SceneContext& ctx) {
     sLastVerbForXfade = sNow;
   }
 
-  // Verb sparse overrides with cross-fade. `sampleEffectiveVerb` is called
-  // every frame regardless of whether the current expression is a verb so
-  // that ramp-out works when transitioning verb → emotion. Pass the
-  // effective expression directly; non-verb values (incl. `Expression::Count`)
-  // ramp the verb influence out toward an empty sample.
-  bool verbHas[(size_t)FieldIndex::Count];
-  ParamI16 verbVals[(size_t)FieldIndex::Count];
-  sampleEffectiveVerb(sNow, now, ctx.verb_time_in_current_ms, verbHas, verbVals);
-
-  FaceParams p = combineEmotionVerbFace(sSmoothedEmotion, verbHas, verbVals);
+  FaceParams p = effectiveFaceParams();
 
   const uint32_t moodDt = (sLastMoodMs == 0) ? 0 : (now - sLastMoodMs);
   const float moodAlpha = 1.0f - expf(-(float)moodDt / animCfg().mood_ring_tau_ms);
@@ -413,7 +372,7 @@ void tick(const SceneContext& ctx) {
     p.mouth_dy.value = (int16_t)(p.mouth_dy.value + (int16_t)((float)b * animCfg().breath_mouth_scale));
   }
 
-  p.face_y.value = (int16_t)(p.face_y.value + bodyBobFor(ctx, idle, now));
+  p.face_y.value = (int16_t)(p.face_y.value + bodyBobFor(idle, p));
 
   if (!sBlinkActive) {
     if (sNextBlinkMs == 0) {

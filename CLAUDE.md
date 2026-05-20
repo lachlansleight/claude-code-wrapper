@@ -129,9 +129,10 @@ Key invariants worth knowing:
 - **Protected `min_ms` windows.** `FINISHED` (1.5 s), `WAKING` (1 s),
   `WANTS_ATTENTION` (1 s) play in full; pre-empting requests are queued
   and fire when the window expires.
-- **`MotionBehaviors::periodMsFor(state)` is the face-sync source.**
-  `FrameController` reads it to body-bob the face in time with the arm.
-  Change a state's `periodMs` in `kMotion[]` and the face auto-resyncs.
+- **Body bob tracks arm position.** `FrameController` maps
+  `Motion::currentOffsetDeg()` to vertical bob using effective `arm_min_deg` /
+  `arm_max_deg` from `Face::effectiveFaceParams()` (28-field row, ms timing).
+  Loop: `tickEffectiveParams` → `MotionBehaviors` → `Motion::tick` → `Face::tick`.
 - **TFT_eSPI bakes pins at compile time.** `robot_v2/User_Setup.h`
   governs display wiring; `config.h` does not.
 - **The sprite framebuffer must be in internal SRAM, not PSRAM** —

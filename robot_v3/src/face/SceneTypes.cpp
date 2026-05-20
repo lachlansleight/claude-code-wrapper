@@ -58,6 +58,14 @@ const ParamI16& fieldConstRef(const FaceParams& p, FieldIndex i) {
       return p.ring_g;
     case FieldIndex::RingB:
       return p.ring_b;
+    case FieldIndex::ArmMinDeg:
+      return p.arm_min_deg;
+    case FieldIndex::ArmMaxDeg:
+      return p.arm_max_deg;
+    case FieldIndex::ArmPeriodMs:
+      return p.arm_period_ms;
+    case FieldIndex::ArmIntervalMs:
+      return p.arm_interval_ms;
     default:
       return p.eye_dy;
   }

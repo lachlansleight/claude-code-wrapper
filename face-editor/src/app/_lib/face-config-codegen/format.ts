@@ -75,7 +75,9 @@ export function emitFacePRowCpp(exprName: string, row: readonly ParamI16[]): str
         ",\n";
     const l3 =
         ind +
-        [19, 20, 21, 22, 23].map(i => `FACE_P(${fmtParamValue(vals[i]!, i)})`).join(", ") +
+        [19, 20, 21, 22, 23, 24, 25, 26, 27]
+            .map(i => `FACE_P(${fmtParamValue(vals[i]!, i)})`)
+            .join(", ") +
         " },\n";
     return l1 + l2 + l3;
 }

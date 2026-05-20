@@ -3,12 +3,12 @@
 **Authoritative numeric tables** (editor-export target) live in:
 
 - **`robot_v3/src/face/FACE_CONFIG_DATA.h`** — `namespace FaceConfig`: `kEmotionPoints`,
-  `kPickOrder`, `kBaseTargets`, `kArmPresets`, plus small POD structs (`EmotionPoint`,
-  `ArmPreset`).
+  `kPickOrder`, `kBaseTargets` (28 `ParamI16` per row, including four arm fields),
+  `kIdleAnim`, `kVerbTimelines`, plus small POD structs (`EmotionPoint`, etc.).
 
 **Helpers and policy** (hand-maintained until the editor owns more):
 
-- **`robot_v3/src/face/FACE_CONFIG.h`** — includes the data header; `armPresetFor`,
+- **`robot_v3/src/face/FACE_CONFIG.h`** — includes the data header;
   `expressionForNamedEmotion`, `emotionName`, `expressionName`,
   `moodRingEnabledVerbOrOverlay`.
 
@@ -21,20 +21,18 @@
 
 1. Update **`FACE_CONFIG_DATA.h`** if you add enum values (keep **`Count`** last).
 2. Append matching rows in **`FACE_CONFIG_DATA.h`**:
-   - `kBaseTargets[]`
+   - `kBaseTargets[]` (28 cells; last four are `arm_min_deg`, `arm_max_deg`,
+     `arm_period_ms`, `arm_interval_ms`)
    - `kEmotionPoints[]` + **`kPickOrder[]`** (for named emotions only)
-   - **`kArmPresets[]`**
+   - `kIdleAnim[]` for the new expression index
 3. Update **`FACE_CONFIG.h`** where needed: `expressionName` / `emotionName` /
    `expressionForNamedEmotion` / `moodRingEnabledVerbOrOverlay`.
-4. Run **`python scripts/gen_emotion_triangulation.py`** from the repo root
-   (reads **`FACE_CONFIG_DATA.h`**, writes **`EmotionTriangulation.h`**,
-   **`control/scripts/emotion-triangulation.js`**, and
-   **`face-editor/src/app/_lib/face-engine/emotionTriangulation.ts`**).
-5. Update **`hal/MotionBehaviors.cpp`** `kMotion[]`, **`SceneContextFill.cpp`**
-   **`accentNamedColor()`**, **`Settings`** / **`BridgeControl`** palette keys,
-   and the web simulator mirrors **only if** you need them in sync (see
-   `EDITOR_BRIEF/08_DECISIONS.md` — simulator sync is optional until the real
-   editor exists).
+4. Regenerate triangulation via face-editor **Save** or
+   **`python scripts/gen_emotion_triangulation.py`** (reads **`FACE_CONFIG_DATA.h`**,
+   writes **`EmotionTriangulation.h`**, JS/TS mirrors).
+5. **`MotionBehaviors`** reads arm fields from `Face::effectiveFaceParams()` —
+   no separate `kMotion[]` / `kArmPresets[]` tables. Update bridge/simulator
+   only if you need palette or UI mirrors in sync.
 
 Long-form product brief: **`EDITOR_BRIEF/README.md`** in the monorepo root.
 

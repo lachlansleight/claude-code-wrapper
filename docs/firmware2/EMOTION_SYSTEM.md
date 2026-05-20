@@ -160,12 +160,14 @@ contribute nothing and don't drag the result toward 0.
 
 The same triangle/barycentrics drive two parallel blends:
 
-- `blendedFaceParams(v, a)` → 28 `ParamI16` fields (eye geometry, mouth
-  geometry, mood ring, face-level transforms).
-- `blendedEmotionArmMotion(v, a)` → arm period, dwell, range; consumed
-  by `MotionBehaviors` for emotion mode.
-- `blendedIdleAnim(v, a)` → blink/gaze/bob configuration; consumed by
+- `blendedFaceParams(v, a)` → 28 `ParamI16` fields (face geometry, mood ring,
+  and arm: `arm_min_deg`, `arm_max_deg`, `arm_period_ms`, `arm_interval_ms`).
+- `blendedIdleAnim(v, a)` → blink/gaze/bob amplitude policy; consumed by
   `FrameController` for idle behaviour.
+
+Arm fields are part of `FaceParams`; `MotionBehaviors` reads them from
+`Face::effectiveFaceParams()` after smoothing and verb combination, not from
+a separate `EmotionArmMotion` preset table.
 
 Inside a rectangular region whose four corners share a NamedEmotion, the
 blend collapses to that preset exactly. Between rectangles you get a
@@ -183,6 +185,5 @@ smooth gradient.
 The output is read by `SceneContextFill`:
 
 - `ctx.mood_v`, `ctx.mood_a` — raw point.
-- `ctx.base_face_params` — `EmotionBlend::blendedFaceParams(v, a)`.
-- `ctx.base_emotion_arm` — `EmotionBlend::blendedEmotionArmMotion(v, a)`.
+- `ctx.base_face_params` — `EmotionBlend::blendedFaceParams(v, a)` (28 fields).
 - `ctx.snapped_emotion` — string name from `snapped()`.

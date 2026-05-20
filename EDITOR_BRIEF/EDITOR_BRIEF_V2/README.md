@@ -1,5 +1,10 @@
 # EDITOR_BRIEF_V2
 
+> **Superseded (schema v3):** Arm motion is four fields on each `kBaseTargets`
+> row (`arm_*`, milliseconds). `kArmPresets`, `kMotion`, and `kMotionRuntime`
+> were removed. See [`face-editor/EDITOR_OUTPUT.md`](../../face-editor/EDITOR_OUTPUT.md)
+> and [`docs/firmware2/MOTION.md`](../../docs/firmware2/MOTION.md).
+
 This folder is the editor-only handoff.
 
 It intentionally excludes historical firmware refactor sequencing and keeps
@@ -30,12 +35,10 @@ and export a deterministic `FACE_CONFIG_DATA.h` initializer.
 The editor must author data for all of the following, in one export:
 
 1. Emotion anchors and tie-break order (`kEmotionPoints`, `kPickOrder`)
-2. Per-expression `FaceParams` base rows (`kBaseTargets`)
-3. Verb sparse overrides (`kVerbTimelines`)
-4. Arm presets (`kArmPresets`)
-5. Arm motion table (`kMotion`)
-6. Idle animation table (`kIdleAnim`)
-7. Runtime simulation tunables (`kEmotionSim`, `kFrameAnim`, `kVerbSim`, `kMotionRuntime`)
+2. Per-expression `FaceParams` base rows (`kBaseTargets`, 28 fields incl. arm)
+3. Verb sparse overrides (`kVerbTimelines`, may override `arm_*`)
+4. Idle animation table (`kIdleAnim`)
+5. Runtime simulation tunables (`kEmotionSim`, `kFrameAnim`, `kVerbSim`, `kVerbTransitionDurMs`)
 
 If these are complete, firmware behavior is fully configurable from the single
 data file.

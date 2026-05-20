@@ -5,47 +5,34 @@ import {
 import type { FaceConfigState } from "./faceConfigState";
 import {
     BOB_AMP_FOLLOW_EMOTION_ARM,
-    EXPRESSIONS,
-    kArmPresets,
-    kBaseTargets,
-    kEmotionNames,
-    kEmotionPoints,
-    kEmotionSim,
-    kExpressionIsEmotion,
-    kFrameAnim,
-    kIdleAnim,
-    kMotion,
-    kMotionRuntime,
-    kNamedEmotionToExpressionIndex,
-    kPickOrderIndices,
-    kVerbSim,
-    kVerbTimelines,
-    kVerbTransitionDurMs,
-} from "./FACE_CONFIG_DATA";
-import type { ParamI16 } from "./faceConfigTypes";
-import { kVerbKeyframeOverridesMax, kVerbKeyframesMax } from "./faceConfigTypes";
+    kVerbKeyframeOverridesMax,
+    kVerbKeyframesMax,
+    type IdleAnimRow,
+    type ParamI16,
+} from "./faceConfigTypes";
+import { FieldIndex, P } from "./faceConfigTypes";
 import { ensureSystemVerbTimelines } from "./faceConfigMutations";
+import { migrateFaceConfigToSchemaV3 } from "../face-config-codegen/migrateSchemaV3";
 import { cloneMutableVerbTimelines, type MutableVerbTimeline } from "./mutableVerbTimelines";
 
+const FIELD_COUNT = FieldIndex.Count;
+
 function cloneBaseTargets(src: readonly (readonly ParamI16[])[]): ParamI16[][] {
-    return src.map(row => row.map(c => ({ value: c.value, strength: c.strength })));
+    return src.map(row => {
+        const cells = row.map(c => ({ value: c.value, strength: c.strength }));
+        if (cells.length >= FIELD_COUNT) return cells.slice(0, FIELD_COUNT);
+        const pad = Array.from({ length: FIELD_COUNT - cells.length }, () => P(0, 0));
+        return [...cells, ...pad];
+    });
 }
 
-function cloneArmPresets(src: typeof kArmPresets): FaceConfigState["armPresets"] {
-    return src.map(p => ({ ...p }));
-}
-
-function cloneMotion(src: typeof kMotion): FaceConfigState["motion"] {
-    return src.map(m => ({ ...m }));
-}
-
-function cloneIdleAnim(src: typeof kIdleAnim): FaceConfigState["idleAnim"] {
+function cloneIdleAnim(src: readonly IdleAnimRow[]): FaceConfigState["idleAnim"] {
     return src.map(r => ({ ...r }));
 }
 
 /** Deep clone of shipped tables into a mutable `FaceConfigState`. */
 export function cloneFaceConfigState(src: FaceConfigState): FaceConfigState {
-    return {
+    return migrateFaceConfigToSchemaV3({
         schemaVersion: src.schemaVersion,
         expressions: [...src.expressions],
         expressionIsEmotion: [...src.expressionIsEmotion],
@@ -66,45 +53,44 @@ export function cloneFaceConfigState(src: FaceConfigState): FaceConfigState {
                 overrides: kf.overrides.map(o => ({ ...o })),
             })),
         })),
-        armPresets: cloneArmPresets(src.armPresets),
-        motion: cloneMotion(src.motion),
         bobAmpFollowEmotionArm: src.bobAmpFollowEmotionArm,
         idleAnim: cloneIdleAnim(src.idleAnim),
         emotionSim: { ...src.emotionSim },
         frameAnim: { ...src.frameAnim },
         verbSim: { ...src.verbSim },
-        motionRuntime: { ...src.motionRuntime },
         verbTransitionDurMs: src.verbTransitionDurMs,
         emotionTriangulation: cloneMutableEmotionTriangulation(src.emotionTriangulation),
-    };
+    });
 }
 
-/** Build mutable session state from the shipped `FACE_CONFIG_DATA` + triangulation modules. */
+/** Build mutable session state from shipped tables (requires regenerated `FACE_CONFIG_DATA.ts`). */
 export function buildFaceConfigStateFromSource(): FaceConfigState {
-    const emotionNames = [...kEmotionNames];
-    const emotionPoints = kEmotionPoints.map(p => ({ v: p.v, a: p.a }));
+    // Dynamic import so a stale generated file does not break snapshot-only codegen.
+    const data = require("./FACE_CONFIG_DATA") as typeof import("./FACE_CONFIG_DATA");
+    const emotionNames = [...data.kEmotionNames];
+    const emotionPoints = data.kEmotionPoints.map((p: { v: number; a: number }) => ({
+        v: p.v,
+        a: p.a,
+    }));
     const emotionTriangulation = buildEmotionTriangulationFromPoints(emotionNames, emotionPoints);
     const base: FaceConfigState = {
-        schemaVersion: 2,
-        expressions: [...EXPRESSIONS],
-        expressionIsEmotion: [...kExpressionIsEmotion],
+        schemaVersion: 3,
+        expressions: [...data.EXPRESSIONS],
+        expressionIsEmotion: [...data.kExpressionIsEmotion],
         emotionNames,
         emotionPoints,
-        pickOrderIndices: [...kPickOrderIndices],
-        namedEmotionToExpressionIndex: [...kNamedEmotionToExpressionIndex],
-        baseTargets: cloneBaseTargets(kBaseTargets),
-        verbKeyframeOverridesMax: kVerbKeyframeOverridesMax,
-        verbKeyframesMax: kVerbKeyframesMax,
+        pickOrderIndices: [...data.kPickOrderIndices],
+        namedEmotionToExpressionIndex: [...data.kNamedEmotionToExpressionIndex],
+        baseTargets: cloneBaseTargets(data.kBaseTargets),
+        verbKeyframeOverridesMax: data.kVerbKeyframeOverridesMax,
+        verbKeyframesMax: data.kVerbKeyframesMax,
         verbTimelines: cloneMutableVerbTimelines() as MutableVerbTimeline[],
-        armPresets: cloneArmPresets(kArmPresets),
-        motion: cloneMotion(kMotion),
         bobAmpFollowEmotionArm: BOB_AMP_FOLLOW_EMOTION_ARM,
-        idleAnim: cloneIdleAnim(kIdleAnim),
-        emotionSim: { ...kEmotionSim },
-        frameAnim: { ...kFrameAnim },
-        verbSim: { ...kVerbSim },
-        motionRuntime: { ...kMotionRuntime },
-        verbTransitionDurMs: kVerbTransitionDurMs,
+        idleAnim: cloneIdleAnim(data.kIdleAnim),
+        emotionSim: { ...data.kEmotionSim },
+        frameAnim: { ...data.kFrameAnim },
+        verbSim: { ...data.kVerbSim },
+        verbTransitionDurMs: data.kVerbTransitionDurMs,
         emotionTriangulation,
     };
     return ensureSystemVerbTimelines(base);

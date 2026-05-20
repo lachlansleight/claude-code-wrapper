@@ -1,4 +1,4 @@
-import { FieldIndex, GazeStyle, MotionMode, P } from "../face-engine/faceConfigTypes";
+import { FieldIndex, GazeStyle, P } from "../face-engine/faceConfigTypes";
 import type { FaceConfigState } from "../face-engine/faceConfigState";
 import { bobAmpTsLiteral, fieldIndexEnumName, fmtTsFloat } from "./format";
 
@@ -48,25 +48,6 @@ export function emitFaceConfigTs(config: FaceConfigState): string {
         return `  // ${name}\n  [\n${cells}\n  ]`;
     });
 
-    const armLines = config.armPresets.map(
-        p =>
-            `  { min_deg: ${p.min_deg}, max_deg: ${p.max_deg}, period_s: ${p.period_s}, interval_s: ${p.interval_s} },`
-    );
-
-    const motionLines = config.motion.map((m, i) => {
-        const name = config.expressions[i]!;
-        const mode = MotionMode[m.mode];
-        return `  // ${name}
-  {
-    mode: MotionMode.${mode},
-    center: ${m.center},
-    amplitude: ${m.amplitude},
-    period_ms: ${m.period_ms},
-    period_jitter_ms: ${m.period_jitter_ms},
-    slew_ms: ${m.slew_ms},
-  }`;
-    });
-
     const idleLines = config.idleAnim.map((row, i) => {
         const name = config.expressions[i]!;
         const gaze = GazeStyle[row.gaze_style];
@@ -104,10 +85,7 @@ import {
   BOB_AMP_FOLLOW_EMOTION_ARM,
   FieldIndex,
   GazeStyle,
-  MotionMode,
   P,
-  type ArmPreset,
-  type ExprMotionRow,
   type FaceParamsIndexed,
   type IdleAnimRow,
   type VerbTimeline,
@@ -157,14 +135,6 @@ ${emitVerbTimelinesTs(config)}
 
 export const kVerbTimelineCount = kVerbTimelines.length;
 
-export const kArmPresets: readonly ArmPreset[] = [
-${armLines.join("\n")}
-] as const;
-
-export const kMotion: readonly ExprMotionRow[] = [
-${motionLines.join(",\n")},
-] as const;
-
 export const kIdleAnim: readonly IdleAnimRow[] = [
 ${idleLines.join(",\n")},
 ] as const;
@@ -202,11 +172,6 @@ export const kFrameAnim = {
 export const kVerbSim = {
   strain_delay_ms: ${config.verbSim.strain_delay_ms},
   default_overlay_duration_ms: ${config.verbSim.default_overlay_duration_ms},
-} as const;
-
-export const kMotionRuntime = {
-  default_static_slew_ms: ${config.motionRuntime.default_static_slew_ms},
-  default_drift_slew_ms: ${config.motionRuntime.default_drift_slew_ms},
 } as const;
 
 export const kVerbTransitionDurMs = ${config.verbTransitionDurMs} as const;

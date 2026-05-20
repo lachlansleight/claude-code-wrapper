@@ -2,8 +2,8 @@
  * Ordered keys matching firmware `FrameController::kBaseTargets` row layout
  * (`Face::FieldIndex` order — keep aligned with `FACE_CONFIG_DATA.ts`).
  */
-import type { FaceParamsIndexed, ParamI16 } from "./FACE_CONFIG_DATA";
-import { FieldIndex } from "./FACE_CONFIG_DATA";
+import type { FaceParamsIndexed, ParamI16 } from "./faceConfigTypes";
+import { FieldIndex } from "./faceConfigTypes";
 
 export const PARAM_FIELDS = [
     "eye_dy",
@@ -30,6 +30,10 @@ export const PARAM_FIELDS = [
     "ring_r",
     "ring_g",
     "ring_b",
+    "arm_min_deg",
+    "arm_max_deg",
+    "arm_period_ms",
+    "arm_interval_ms",
 ] as const;
 
 export type ParamField = (typeof PARAM_FIELDS)[number];
@@ -60,6 +64,10 @@ export const PARAM_FIELD_LABEL = {
     ring_r: "Ring Red",
     ring_g: "Ring Green",
     ring_b: "Ring Blue",
+    arm_min_deg: "Arm min (°)",
+    arm_max_deg: "Arm max (°)",
+    arm_period_ms: "Arm period (ms)",
+    arm_interval_ms: "Arm interval (ms)",
 } as const satisfies Record<ParamField, string>;
 
 export function paramFieldLabel(f: ParamField): string {
@@ -102,6 +110,13 @@ export const PARAM_UI_SECTIONS: readonly ParamUiSection[] = [
     {
         section: "Ring",
         groups: [["ring_r", "ring_g", "ring_b"]],
+    },
+    {
+        section: "Arm",
+        groups: [
+            ["arm_min_deg", "arm_max_deg"],
+            ["arm_period_ms", "arm_interval_ms"],
+        ],
     },
 ] as const;
 

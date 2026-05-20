@@ -150,10 +150,10 @@ Applied in order, on top of the tweened params, every frame:
 - **Breath** — universal idle modulator, ±1.5 px sine on `eye_dy` / `mouth_dy / 2`,
   4 s period. Suppressed in `FINISHED` (face is celebrating) and `SLEEP`
   (slower body-bob takes over).
-- **Body-bob** — vertical face offset on `face_y`, synced to the motor
-  period from `MotionBehaviors::periodMsFor(state)`. Per-state amplitude
-  in `bodyBobFor()`. When the motor swings to its "up" end the face
-  also moves up, reading as one body's rhythm.
+- **Body-bob** — vertical offset on `face_y` from live arm angle
+  (`Motion::currentOffsetDeg()` mapped across effective arm min/max).
+  Per-state amplitude in `bodyBobFor()` / `kIdleAnim`. Face rides the
+  servo position, not a separate phase clock.
 - **Thinking tilt-flip** — every 3–6 s while in `THINKING`, smoothly
   flips the sign of `face_rot` and `pupil_dx` over 600 ms. Bakes the
   active sign into the snapshot when leaving THINKING so the un-rotation

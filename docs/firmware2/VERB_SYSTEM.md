@@ -7,8 +7,10 @@ two ways:
 
 - The **expression** displayed on the face is verb-derived if a verb is
   active, otherwise emotion-derived (`SceneContextFill`).
-- The **arm motion** is driven by the verb's `kMotion` row when a verb
-  is active, otherwise by the blended emotion arm preset.
+- **Arm motion** uses the same effective `FaceParams` row as the face:
+  `tickEffectiveParams` smooths the base row, applies verb timeline overrides
+  (including `arm_*` fields), then `MotionBehaviors` drives the servo from
+  `arm_min_deg`, `arm_max_deg`, `arm_period_ms`, `arm_interval_ms`.
 
 Source files:
 

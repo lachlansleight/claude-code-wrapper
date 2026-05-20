@@ -10,10 +10,7 @@ import {
   BOB_AMP_FOLLOW_EMOTION_ARM,
   FieldIndex,
   GazeStyle,
-  MotionMode,
   P,
-  type ArmPreset,
-  type ExprMotionRow,
   type FaceParamsIndexed,
   type IdleAnimRow,
   type VerbTimeline,
@@ -169,6 +166,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(0, 100),
     P(0, 100),
     P(0, 100),
+    P(-15, 100),
+    P(-15, 100),
+    P(2000, 100),
+    P(1000, 100),
   ],
   // Happy
   [
@@ -196,6 +197,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(0, 100),
     P(0, 100),
     P(0, 100),
+    P(-23, 100),
+    P(-7, 100),
+    P(1500, 100),
+    P(500, 100),
   ],
   // Excited
   [
@@ -223,6 +228,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(40, 100),
     P(252, 100),
     P(79, 100),
+    P(-15, 100),
+    P(-5, 100),
+    P(1000, 100),
+    P(0, 100),
   ],
   // Joyful
   [
@@ -250,6 +259,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(255, 100),
     P(228, 100),
     P(38, 100),
+    P(10, 100),
+    P(25, 100),
+    P(900, 100),
+    P(200, 100),
   ],
   // Sad
   [
@@ -277,6 +290,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(4, 100),
     P(1, 100),
     P(3, 100),
+    P(-25, 100),
+    P(-15, 100),
+    P(2000, 100),
+    P(1000, 100),
   ],
   // VerbThinking
   [
@@ -304,6 +321,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(0, 0),
     P(0, 0),
     P(0, 0),
+    P(-25, 100),
+    P(-15, 100),
+    P(2000, 100),
+    P(1000, 100),
   ],
   // VerbReading
   [
@@ -331,6 +352,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(0, 0),
     P(0, 0),
     P(0, 0),
+    P(-25, 100),
+    P(-15, 100),
+    P(2000, 100),
+    P(1000, 100),
   ],
   // VerbWriting
   [
@@ -358,6 +383,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(0, 0),
     P(0, 0),
     P(0, 0),
+    P(-25, 100),
+    P(-15, 100),
+    P(2000, 100),
+    P(1000, 100),
   ],
   // VerbExecuting
   [
@@ -385,6 +414,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(0, 0),
     P(0, 0),
     P(0, 0),
+    P(-25, 100),
+    P(-15, 100),
+    P(2000, 100),
+    P(1000, 100),
   ],
   // VerbStraining
   [
@@ -412,6 +445,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(0, 0),
     P(0, 0),
     P(0, 0),
+    P(-25, 100),
+    P(-15, 100),
+    P(2000, 100),
+    P(1000, 100),
   ],
   // VerbSleeping
   [
@@ -439,6 +476,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(0, 0),
     P(0, 0),
     P(0, 0),
+    P(-25, 100),
+    P(-15, 100),
+    P(2000, 100),
+    P(1000, 100),
   ],
   // VerbWaking
   [
@@ -466,6 +507,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(0, 0),
     P(0, 0),
     P(0, 0),
+    P(-25, 100),
+    P(-15, 100),
+    P(2000, 100),
+    P(1000, 100),
   ],
   // VerbAttractingAttention
   [
@@ -493,6 +538,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(0, 0),
     P(0, 0),
     P(0, 0),
+    P(-25, 100),
+    P(-15, 100),
+    P(2000, 100),
+    P(1000, 100),
   ],
   // Sleepy
   [
@@ -520,6 +569,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(0, 100),
     P(0, 100),
     P(0, 100),
+    P(-25, 100),
+    P(-20, 100),
+    P(3000, 100),
+    P(6000, 100),
   ],
   // Distressed
   [
@@ -547,6 +600,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(255, 100),
     P(48, 100),
     P(24, 100),
+    P(-15, 100),
+    P(-5, 100),
+    P(1000, 100),
+    P(0, 100),
   ],
   // Blissed
   [
@@ -574,6 +631,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(0, 100),
     P(0, 100),
     P(0, 100),
+    P(-25, 100),
+    P(-20, 100),
+    P(3000, 100),
+    P(6000, 100),
   ],
   // Depressed
   [
@@ -601,6 +662,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(0, 100),
     P(0, 100),
     P(0, 100),
+    P(-25, 100),
+    P(-20, 100),
+    P(3000, 100),
+    P(6000, 100),
   ],
   // Shocked
   [
@@ -628,6 +693,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(255, 100),
     P(255, 100),
     P(255, 100),
+    P(21, 100),
+    P(30, 100),
+    P(600, 100),
+    P(0, 100),
   ],
   // Disappointed
   [
@@ -655,6 +724,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(225, 100),
     P(53, 100),
     P(93, 100),
+    P(-23, 100),
+    P(-7, 100),
+    P(1500, 100),
+    P(500, 100),
   ],
   // Gleeful
   [
@@ -682,6 +755,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(39, 100),
     P(248, 100),
     P(78, 100),
+    P(10, 100),
+    P(25, 100),
+    P(900, 100),
+    P(200, 100),
   ],
   // Frustrated
   [
@@ -709,6 +786,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(212, 100),
     P(75, 100),
     P(212, 100),
+    P(-19, 100),
+    P(-12, 100),
+    P(1100, 100),
+    P(1750, 100),
   ],
   // VerbCelebrating
   [
@@ -736,6 +817,10 @@ export const kBaseTargets: readonly FaceParamsIndexed[] = [
     P(0, 0),
     P(0, 0),
     P(0, 0),
+    P(-25, 100),
+    P(-15, 100),
+    P(2000, 100),
+    P(1000, 100),
   ],
 ] as const;
 
@@ -750,7 +835,7 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
     keyframes: [
       {
         time_ms: 0,
-        override_count: 13,
+        override_count: 16,
         overrides: [
           { field: FieldIndex.EyeRx, targetValue: 28, strength: 75 },
           { field: FieldIndex.EyeOpenAmt, targetValue: 26, strength: 75 },
@@ -765,6 +850,9 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
           { field: FieldIndex.RingR, targetValue: 36, strength: 100 },
           { field: FieldIndex.RingG, targetValue: 56, strength: 100 },
           { field: FieldIndex.RingB, targetValue: 120, strength: 100 },
+          { field: FieldIndex.ArmMaxDeg, targetValue: -11, strength: 100 },
+          { field: FieldIndex.ArmMinDeg, targetValue: -22, strength: 100 },
+          { field: FieldIndex.ArmIntervalMs, targetValue: 0, strength: 100 },
         ],
       },
       {
@@ -808,7 +896,7 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
     keyframes: [
       {
         time_ms: 0,
-        override_count: 13,
+        override_count: 17,
         overrides: [
           { field: FieldIndex.EyeRx, targetValue: 27, strength: 75 },
           { field: FieldIndex.EyeOpenAmt, targetValue: 24, strength: 74 },
@@ -823,6 +911,10 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
           { field: FieldIndex.RingR, targetValue: 78, strength: 100 },
           { field: FieldIndex.RingG, targetValue: 146, strength: 100 },
           { field: FieldIndex.RingB, targetValue: 210, strength: 100 },
+          { field: FieldIndex.ArmMinDeg, targetValue: -20, strength: 100 },
+          { field: FieldIndex.ArmPeriodMs, targetValue: 1800, strength: 100 },
+          { field: FieldIndex.ArmIntervalMs, targetValue: 0, strength: 100 },
+          { field: FieldIndex.ArmMaxDeg, targetValue: -20, strength: 100 },
         ],
       },
       {
@@ -862,7 +954,7 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
     keyframes: [
       {
         time_ms: 0,
-        override_count: 24,
+        override_count: 28,
         overrides: [
           { field: FieldIndex.EyeDy, targetValue: 0, strength: 100 },
           { field: FieldIndex.EyeRx, targetValue: 28, strength: 100 },
@@ -888,18 +980,22 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
           { field: FieldIndex.RingR, targetValue: 104, strength: 100 },
           { field: FieldIndex.RingG, targetValue: 118, strength: 100 },
           { field: FieldIndex.RingB, targetValue: 228, strength: 100 },
+          { field: FieldIndex.ArmMinDeg, targetValue: 10, strength: 100 },
+          { field: FieldIndex.ArmMaxDeg, targetValue: 2, strength: 100 },
+          { field: FieldIndex.ArmPeriodMs, targetValue: 500, strength: 100 },
+          { field: FieldIndex.ArmIntervalMs, targetValue: 0, strength: 100 },
         ],
       },
     ],
   },
   {
     verb: Expression.VerbExecuting,
-    loop_duration_ms: 1000,
+    loop_duration_ms: 3000,
     keyframe_count: 1,
     keyframes: [
       {
         time_ms: 0,
-        override_count: 24,
+        override_count: 28,
         overrides: [
           { field: FieldIndex.EyeDy, targetValue: 0, strength: 100 },
           { field: FieldIndex.EyeRx, targetValue: 30, strength: 100 },
@@ -925,18 +1021,22 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
           { field: FieldIndex.RingR, targetValue: 156, strength: 100 },
           { field: FieldIndex.RingG, targetValue: 64, strength: 100 },
           { field: FieldIndex.RingB, targetValue: 216, strength: 100 },
+          { field: FieldIndex.ArmMinDeg, targetValue: 4, strength: 100 },
+          { field: FieldIndex.ArmMaxDeg, targetValue: -13, strength: 100 },
+          { field: FieldIndex.ArmPeriodMs, targetValue: 800, strength: 100 },
+          { field: FieldIndex.ArmIntervalMs, targetValue: 0, strength: 100 },
         ],
       },
     ],
   },
   {
     verb: Expression.VerbStraining,
-    loop_duration_ms: 1000,
+    loop_duration_ms: 1020,
     keyframe_count: 1,
     keyframes: [
       {
         time_ms: 0,
-        override_count: 24,
+        override_count: 28,
         overrides: [
           { field: FieldIndex.EyeDy, targetValue: 1, strength: 100 },
           { field: FieldIndex.EyeRx, targetValue: 30, strength: 100 },
@@ -962,6 +1062,10 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
           { field: FieldIndex.RingR, targetValue: 210, strength: 100 },
           { field: FieldIndex.RingG, targetValue: 75, strength: 100 },
           { field: FieldIndex.RingB, targetValue: 220, strength: 100 },
+          { field: FieldIndex.ArmMinDeg, targetValue: 10, strength: 100 },
+          { field: FieldIndex.ArmMaxDeg, targetValue: -10, strength: 100 },
+          { field: FieldIndex.ArmPeriodMs, targetValue: 850, strength: 100 },
+          { field: FieldIndex.ArmIntervalMs, targetValue: 0, strength: 100 },
         ],
       },
     ],
@@ -973,7 +1077,7 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
     keyframes: [
       {
         time_ms: 0,
-        override_count: 24,
+        override_count: 26,
         overrides: [
           { field: FieldIndex.EyeDy, targetValue: 2, strength: 100 },
           { field: FieldIndex.EyeRx, targetValue: 30, strength: 100 },
@@ -999,6 +1103,8 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
           { field: FieldIndex.RingR, targetValue: 0, strength: 100 },
           { field: FieldIndex.RingG, targetValue: 0, strength: 100 },
           { field: FieldIndex.RingB, targetValue: 0, strength: 100 },
+          { field: FieldIndex.ArmMinDeg, targetValue: -27, strength: 100 },
+          { field: FieldIndex.ArmMaxDeg, targetValue: -27, strength: 100 },
         ],
       },
     ],
@@ -1010,7 +1116,7 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
     keyframes: [
       {
         time_ms: 0,
-        override_count: 24,
+        override_count: 26,
         overrides: [
           { field: FieldIndex.EyeDy, targetValue: 2, strength: 100 },
           { field: FieldIndex.EyeRx, targetValue: 31, strength: 100 },
@@ -1036,6 +1142,8 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
           { field: FieldIndex.RingR, targetValue: 170, strength: 100 },
           { field: FieldIndex.RingG, targetValue: 210, strength: 100 },
           { field: FieldIndex.RingB, targetValue: 240, strength: 100 },
+          { field: FieldIndex.ArmMaxDeg, targetValue: 23, strength: 100 },
+          { field: FieldIndex.ArmMinDeg, targetValue: 23, strength: 100 },
         ],
       },
     ],
@@ -1047,32 +1155,24 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
     keyframes: [
       {
         time_ms: 0,
-        override_count: 24,
+        override_count: 16,
         overrides: [
-          { field: FieldIndex.EyeDy, targetValue: 3, strength: 100 },
           { field: FieldIndex.EyeRx, targetValue: 30, strength: 100 },
           { field: FieldIndex.EyeOpenAmt, targetValue: 31, strength: 100 },
           { field: FieldIndex.EyeArcAmt, targetValue: 0, strength: 100 },
-          { field: FieldIndex.EyeThick, targetValue: 3, strength: 100 },
-          { field: FieldIndex.EyeWaveAmp, targetValue: 83, strength: 100 },
-          { field: FieldIndex.EyeWaveFreq, targetValue: 707, strength: 100 },
-          { field: FieldIndex.EyeWaveSpeed, targetValue: 0, strength: 100 },
           { field: FieldIndex.PupilDx, targetValue: 0, strength: 100 },
           { field: FieldIndex.PupilDy, targetValue: 3, strength: 100 },
           { field: FieldIndex.PupilR, targetValue: 12, strength: 100 },
-          { field: FieldIndex.MouthDy, targetValue: 0, strength: 100 },
           { field: FieldIndex.MouthRx, targetValue: 17, strength: 100 },
           { field: FieldIndex.MouthOpenAmt, targetValue: 13, strength: 100 },
           { field: FieldIndex.MouthArcAmt, targetValue: 26, strength: 100 },
-          { field: FieldIndex.MouthThick, targetValue: 1, strength: 100 },
-          { field: FieldIndex.MouthWaveAmp, targetValue: 0, strength: 100 },
-          { field: FieldIndex.MouthWaveFreq, targetValue: 48, strength: 100 },
-          { field: FieldIndex.MouthWaveSpeed, targetValue: 707, strength: 100 },
-          { field: FieldIndex.FaceRot, targetValue: 0, strength: 100 },
-          { field: FieldIndex.FaceY, targetValue: 0, strength: 100 },
           { field: FieldIndex.RingR, targetValue: 255, strength: 100 },
           { field: FieldIndex.RingG, targetValue: 20, strength: 100 },
           { field: FieldIndex.RingB, targetValue: 40, strength: 100 },
+          { field: FieldIndex.ArmMinDeg, targetValue: 26, strength: 100 },
+          { field: FieldIndex.ArmMaxDeg, targetValue: -5, strength: 100 },
+          { field: FieldIndex.ArmPeriodMs, targetValue: 800, strength: 100 },
+          { field: FieldIndex.ArmIntervalMs, targetValue: 0, strength: 100 },
         ],
       },
     ],
@@ -1084,7 +1184,7 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
     keyframes: [
       {
         time_ms: 0,
-        override_count: 12,
+        override_count: 16,
         overrides: [
           { field: FieldIndex.EyeRx, targetValue: 20, strength: 75 },
           { field: FieldIndex.EyeOpenAmt, targetValue: 0, strength: 77 },
@@ -1098,6 +1198,10 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
           { field: FieldIndex.RingG, targetValue: 228, strength: 100 },
           { field: FieldIndex.RingB, targetValue: 38, strength: 100 },
           { field: FieldIndex.FaceRot, targetValue: 0, strength: 75 },
+          { field: FieldIndex.ArmMinDeg, targetValue: 20, strength: 100 },
+          { field: FieldIndex.ArmMaxDeg, targetValue: 24, strength: 100 },
+          { field: FieldIndex.ArmPeriodMs, targetValue: 750, strength: 100 },
+          { field: FieldIndex.ArmIntervalMs, targetValue: 0, strength: 100 },
         ],
       },
       {
@@ -1118,9 +1222,10 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
       },
       {
         time_ms: 660,
-        override_count: 1,
+        override_count: 2,
         overrides: [
           { field: FieldIndex.FaceY, targetValue: -24, strength: 100 },
+          { field: FieldIndex.ArmMinDeg, targetValue: -9, strength: 100 },
         ],
       },
       {
@@ -1171,232 +1276,6 @@ export const kVerbTimelines: readonly VerbTimeline[] = [
 ] as const;
 
 export const kVerbTimelineCount = kVerbTimelines.length;
-
-export const kArmPresets: readonly ArmPreset[] = [
-  { min_deg: -25, max_deg: -15, period_s: 2, interval_s: 1 },
-  { min_deg: -23, max_deg: -7, period_s: 1.5, interval_s: 0.5 },
-  { min_deg: -15, max_deg: -5, period_s: 1, interval_s: 0 },
-  { min_deg: 10, max_deg: 25, period_s: 0.9, interval_s: 0.2 },
-  { min_deg: -25, max_deg: -15, period_s: 2, interval_s: 1 },
-  { min_deg: -25, max_deg: -15, period_s: 2, interval_s: 1 },
-  { min_deg: -25, max_deg: -15, period_s: 2, interval_s: 1 },
-  { min_deg: -25, max_deg: -15, period_s: 2, interval_s: 1 },
-  { min_deg: -25, max_deg: -15, period_s: 2, interval_s: 1 },
-  { min_deg: -25, max_deg: -15, period_s: 2, interval_s: 1 },
-  { min_deg: -25, max_deg: -15, period_s: 2, interval_s: 1 },
-  { min_deg: -25, max_deg: -15, period_s: 2, interval_s: 1 },
-  { min_deg: -25, max_deg: -15, period_s: 2, interval_s: 1 },
-  { min_deg: -25, max_deg: -20, period_s: 3, interval_s: 6 },
-  { min_deg: -15, max_deg: -5, period_s: 1, interval_s: 0 },
-  { min_deg: -25, max_deg: -20, period_s: 3, interval_s: 6 },
-  { min_deg: -25, max_deg: -20, period_s: 3, interval_s: 6 },
-  { min_deg: -15, max_deg: -5, period_s: 1, interval_s: 0 },
-  { min_deg: -23, max_deg: -7, period_s: 1.5, interval_s: 0.5 },
-  { min_deg: 10, max_deg: 25, period_s: 0.9, interval_s: 0.2 },
-  { min_deg: -18, max_deg: -8, period_s: 1.1, interval_s: 0.15 },
-  { min_deg: -25, max_deg: -15, period_s: 2, interval_s: 1 },
-] as const;
-
-export const kMotion: readonly ExprMotionRow[] = [
-  // Neutral
-  {
-    mode: MotionMode.RandomDrift,
-    center: -20,
-    amplitude: 5,
-    period_ms: 5000,
-    period_jitter_ms: 5000,
-    slew_ms: 500,
-  },
-  // Happy
-  {
-    mode: MotionMode.RandomDrift,
-    center: -15,
-    amplitude: 8,
-    period_ms: 2000,
-    period_jitter_ms: 1000,
-    slew_ms: 500,
-  },
-  // Excited
-  {
-    mode: MotionMode.Oscillate,
-    center: -10,
-    amplitude: 5,
-    period_ms: 1000,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-  // Joyful
-  {
-    mode: MotionMode.Waggle,
-    center: 0,
-    amplitude: 15,
-    period_ms: 900,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-  // Sad
-  {
-    mode: MotionMode.None,
-    center: 0,
-    amplitude: 0,
-    period_ms: 0,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-  // VerbThinking
-  {
-    mode: MotionMode.Thinking,
-    center: -15,
-    amplitude: 5,
-    period_ms: 2000,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-  // VerbReading
-  {
-    mode: MotionMode.Static,
-    center: -8,
-    amplitude: 0,
-    period_ms: 0,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-  // VerbWriting
-  {
-    mode: MotionMode.Oscillate,
-    center: 5,
-    amplitude: 4,
-    period_ms: 840,
-    period_jitter_ms: 0,
-    slew_ms: 250,
-  },
-  // VerbExecuting
-  {
-    mode: MotionMode.Oscillate,
-    center: -5,
-    amplitude: 5,
-    period_ms: 1000,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-  // VerbStraining
-  {
-    mode: MotionMode.Oscillate,
-    center: 0,
-    amplitude: 5,
-    period_ms: 750,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-  // VerbSleeping
-  {
-    mode: MotionMode.Oscillate,
-    center: -20,
-    amplitude: 5,
-    period_ms: 8000,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-  // VerbWaking
-  {
-    mode: MotionMode.Static,
-    center: 18,
-    amplitude: 0,
-    period_ms: 0,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-  // VerbAttractingAttention
-  {
-    mode: MotionMode.Waggle,
-    center: 0,
-    amplitude: 15,
-    period_ms: 900,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-  // Sleepy
-  {
-    mode: MotionMode.Oscillate,
-    center: -18,
-    amplitude: 4,
-    period_ms: 5000,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-  // Distressed
-  {
-    mode: MotionMode.Oscillate,
-    center: 0,
-    amplitude: 6,
-    period_ms: 900,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-  // Blissed
-  {
-    mode: MotionMode.RandomDrift,
-    center: -10,
-    amplitude: 6,
-    period_ms: 3000,
-    period_jitter_ms: 1500,
-    slew_ms: 500,
-  },
-  // Depressed
-  {
-    mode: MotionMode.None,
-    center: 0,
-    amplitude: 0,
-    period_ms: 0,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-  // Shocked
-  {
-    mode: MotionMode.Static,
-    center: 0,
-    amplitude: 0,
-    period_ms: 0,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-  // Disappointed
-  {
-    mode: MotionMode.None,
-    center: 0,
-    amplitude: 0,
-    period_ms: 0,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-  // Gleeful
-  {
-    mode: MotionMode.Waggle,
-    center: 0,
-    amplitude: 15,
-    period_ms: 900,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-  // Frustrated
-  {
-    mode: MotionMode.Oscillate,
-    center: 0,
-    amplitude: 6,
-    period_ms: 820,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-  // VerbCelebrating
-  {
-    mode: MotionMode.Thinking,
-    center: -15,
-    amplitude: 5,
-    period_ms: 2000,
-    period_jitter_ms: 0,
-    slew_ms: 0,
-  },
-] as const;
 
 export const kIdleAnim: readonly IdleAnimRow[] = [
   // Neutral
@@ -1808,11 +1687,6 @@ export const kFrameAnim = {
 export const kVerbSim = {
   strain_delay_ms: 5000,
   default_overlay_duration_ms: 1500,
-} as const;
-
-export const kMotionRuntime = {
-  default_static_slew_ms: 250,
-  default_drift_slew_ms: 500,
 } as const;
 
 export const kVerbTransitionDurMs = 500 as const;

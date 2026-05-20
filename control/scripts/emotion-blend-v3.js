@@ -80,9 +80,8 @@
     return FC.baseTargetForExpression(name);
   }
 
-  // Mirrors robot_v3/src/face/FACE_CONFIG_DATA.h::kArmPresets — only the
-  // emotion rows (verb/overlay arm policy comes from kMotion, not the blend).
-  // Keep in lockstep when tuning.
+  // LEGACY: pre-v3 arm presets for this JS mirror. Firmware uses arm_* on
+  // kBaseTargets + effectiveFaceParams(); see docs/firmware2/MOTION.md.
   const ARM_PRESETS = {
     Neutral:      { min: -25, max: -15, period_s: 2.0, interval_s: 1.0 },
     Happy:        { min: -23, max:  -7, period_s: 1.5, interval_s: 0.5 },

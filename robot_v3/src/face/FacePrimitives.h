@@ -4,18 +4,6 @@
 
 namespace Face {
 
-/**
- * Blended base-layer arm motion (offsets from centre, degrees).
- * One cycle: sine arch from min → max → min over waggle_period_s,
- * then hold at min for waggle_interval_s.
- */
-struct EmotionArmMotion {
-  int16_t min_offset_deg;
-  int16_t max_offset_deg;
-  float waggle_period_s;
-  float waggle_interval_s;
-};
-
 struct ParamI16 {
   int16_t value{0};
   uint8_t strength{0};  // 0 = abstain for blend weighting; 100 = full insistence.
@@ -47,6 +35,10 @@ enum class FieldIndex : uint8_t {
   RingR,
   RingG,
   RingB,
+  ArmMinDeg,
+  ArmMaxDeg,
+  ArmPeriodMs,
+  ArmIntervalMs,
   Count
 };
 
@@ -75,6 +67,10 @@ struct FaceParams {
   ParamI16 ring_r;
   ParamI16 ring_g;
   ParamI16 ring_b;
+  ParamI16 arm_min_deg;
+  ParamI16 arm_max_deg;
+  ParamI16 arm_period_ms;
+  ParamI16 arm_interval_ms;
 };
 
 }  // namespace Face

@@ -1,12 +1,9 @@
 import type { MutableEmotionTriangulation } from "./emotionTriangulationLive";
 import type {
-    ArmPreset,
     EmotionPoint,
     EmotionSimConfig,
-    ExprMotionRow,
     FrameAnimConfig,
     IdleAnimRow,
-    MotionRuntimeConfig,
     ParamI16,
     VerbSimConfig,
 } from "./faceConfigTypes";
@@ -14,7 +11,7 @@ import type { MutableVerbTimeline } from "./mutableVerbTimelines";
 
 /** Full editor session copy of shipped face config + live triangulation. */
 export interface FaceConfigState {
-    /** Snapshot / codegen schema version (2 = dynamic emotions & verbs). */
+    /** Snapshot / codegen schema version (3 = arm fields in FaceParams). */
     schemaVersion?: number;
     expressions: string[];
     expressionIsEmotion: boolean[];
@@ -26,14 +23,11 @@ export interface FaceConfigState {
     verbKeyframeOverridesMax: number;
     verbKeyframesMax: number;
     verbTimelines: MutableVerbTimeline[];
-    armPresets: ArmPreset[];
-    motion: ExprMotionRow[];
     bobAmpFollowEmotionArm: number;
     idleAnim: IdleAnimRow[];
     emotionSim: EmotionSimConfig;
     frameAnim: FrameAnimConfig;
     verbSim: VerbSimConfig;
-    motionRuntime: MotionRuntimeConfig;
     verbTransitionDurMs: number;
     emotionTriangulation: MutableEmotionTriangulation;
 }

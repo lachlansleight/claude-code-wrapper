@@ -3,7 +3,7 @@
  * `combineEmotionVerbFace`, `smoothFaceValuesToward` (ParamI16 paths).
  */
 
-import { FieldIndex, type ParamI16 } from "./FACE_CONFIG_DATA";
+import { FieldIndex, type ParamI16 } from "./faceConfigTypes";
 
 const FIELD_COUNT = FieldIndex.Count;
 

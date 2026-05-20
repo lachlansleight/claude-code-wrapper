@@ -1,4 +1,4 @@
-import { FieldIndex, GazeStyle, MotionMode } from "../face-engine/faceConfigTypes";
+import { FieldIndex, GazeStyle } from "../face-engine/faceConfigTypes";
 import type { FaceConfigState } from "../face-engine/faceConfigState";
 import type { IdleAnimRow } from "../face-engine/faceConfigTypes";
 import {
@@ -102,15 +102,6 @@ ${blocks.join(",\n")},
 #undef KO`;
 }
 
-function emitMotion(config: FaceConfigState): string {
-    const lines = config.motion.map((m, i) => {
-        const name = config.expressions[i]!;
-        const mode = MotionMode[m.mode];
-        return `    /* ${name} */ {MotionMode::${mode}, ${m.center}, ${m.amplitude}, ${m.period_ms}, ${m.period_jitter_ms}, ${m.slew_ms}}`;
-    });
-    return `static constexpr ExprMotionRow kMotion[(uint8_t)Face::Expression::Count] = {\n${lines.join(",\n")},\n};`;
-}
-
 function emitIdleAnim(config: FaceConfigState): string {
     const lines = config.idleAnim.map((row, i) => {
         const name = config.expressions[i]!;
@@ -174,11 +165,6 @@ export function emitFaceConfigH(config: FaceConfigState): string {
         return emitFacePRowCpp(name, row);
     });
 
-    const armLines = config.armPresets.map((p, i) => {
-        const name = config.expressions[i]!;
-        return `    {${p.min_deg}, ${p.max_deg}, ${fmtCppFloatLiteral(p.period_s)}, ${fmtCppFloatLiteral(p.interval_s)}},   // ${name}`;
-    });
-
     const emotionNameLine = "    " + config.emotionNames.map(n => `"${n}"`).join(", ") + ",";
 
     const isEmotionLine =
@@ -231,7 +217,7 @@ ${emitNamedEmotionToExpression(config)}
   {                                                                                            \\
     FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, \\
         FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ,     \\
-        FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ                                            \\
+        FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ        \\
   }
 #endif
 static const Face::FaceParams kBaseTargets[(uint8_t)Face::Expression::Count] = {
@@ -265,37 +251,6 @@ ${emitVerbTimelines(config)}
 
 static constexpr size_t kVerbTimelineCount =
     sizeof(kVerbTimelines) / sizeof(kVerbTimelines[0]);
-
-struct ArmPreset {
-  int8_t min_deg;
-  int8_t max_deg;
-  float period_s;
-  float interval_s;
-};
-
-static constexpr ArmPreset kArmPresets[(uint8_t)Face::Expression::Count] = {
-${armLines.join("\n")}
-};
-
-enum class MotionMode : uint8_t {
-  None = 0,
-  Static,
-  RandomDrift,
-  Oscillate,
-  Waggle,
-  Thinking,
-};
-
-struct ExprMotionRow {
-  MotionMode mode;
-  int8_t center;
-  uint8_t amplitude;
-  uint16_t period_ms;
-  uint16_t period_jitter_ms;
-  uint16_t slew_ms;
-};
-
-${emitMotion(config)}
 
 inline constexpr int16_t kBobAmpFollowEmotionArm = (int16_t)(0x8000);
 
@@ -364,23 +319,11 @@ struct VerbSimConfig {
   uint32_t default_overlay_duration_ms;
 };
 
-struct MotionRuntimeConfig {
-  uint16_t default_static_slew_ms;
-  uint16_t default_drift_slew_ms;
-};
-
 static constexpr VerbSimConfig kVerbSim = {
     ${config.verbSim.strain_delay_ms}, // strain_delay_ms
     ${config.verbSim.default_overlay_duration_ms}, // default_overlay_duration_ms
 };
 
-static constexpr MotionRuntimeConfig kMotionRuntime = {
-    ${config.motionRuntime.default_static_slew_ms}, // default_static_slew_ms
-    ${config.motionRuntime.default_drift_slew_ms}, // default_drift_slew_ms
-};
-
-static_assert(sizeof(kMotion) / sizeof(kMotion[0]) == (uint8_t)Face::Expression::Count,
-              "kMotion rows must match Face::Expression::Count");
 static_assert(sizeof(kIdleAnim) / sizeof(kIdleAnim[0]) == (uint8_t)Face::Expression::Count,
               "kIdleAnim rows must match Face::Expression::Count");
 

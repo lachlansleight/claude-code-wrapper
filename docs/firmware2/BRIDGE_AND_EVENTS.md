@@ -264,9 +264,9 @@ Responsibilities:
    - If a verb overlay is active → overlay expression.
    - Else if a base verb is active → that verb's expression.
    - Else → emotion's expression (from the snapped `NamedEmotion`).
-2. **Snapshot the emotion blend** outputs:
-   `EmotionBlend::blendedFaceParams()` and
-   `EmotionBlend::blendedEmotionArmMotion()` at the current raw point.
+2. **Snapshot the emotion blend** output:
+   `EmotionBlend::blendedFaceParams()` at the current raw point (28 fields,
+   including arm min/max/period/interval).
 3. **Resolve the accent palette colour** from the active expression's
    `NamedColor` and write the RGB888 + RGB565 forms.
 4. **Sanitize all display strings** through `AsciiCopy::copy()` (or

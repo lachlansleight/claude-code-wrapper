@@ -3,14 +3,27 @@
 The robot has a single hobby servo (SG92R) on `SERVO_PIN` driving the
 arm/antenna. Two layers manage it:
 
-- **`hal/Motion`** — low-level driver, layered control modes.
-- **`hal/MotionBehaviors`** — table-driven mapping from `Expression` to
-  motion mode. Reads `ctx.base_emotion_arm` for emotion mode (the
-  blended preset from `EmotionBlend`).
+- **`hal/Motion`** — low-level driver, layered control modes (jog, waggle,
+  hold, etc. still available for bridge/tests).
+- **`hal/MotionBehaviors`** — each frame, reads **effective** arm fields from
+  `Face::effectiveFaceParams()` and drives the base emotion-arm layer.
 
-`FrameController` reads `MotionBehaviors::periodMsForContext(ctx)` so
-the face body-bob stays in lockstep with the arm — see
-[`FRAME_CONTROLLER.md`](FRAME_CONTROLLER.md).
+Face body bob does **not** integrate a separate phase from arm period. After
+the servo is commanded, `FrameController` maps **live arm offset** to vertical
+bob — see [`FRAME_CONTROLLER.md`](FRAME_CONTROLLER.md).
+
+## Effective params and loop order
+
+Arm timing and range use the same blended + verb-overridden row as face
+geometry (`arm_min_deg`, `arm_max_deg`, `arm_period_ms`, `arm_interval_ms`).
+
+```text
+SceneContextFill → tickEffectiveParams → MotionBehaviors::tick → Motion::tick → Face::tick
+```
+
+`tickEffectiveParams` (`src/face/FrameEffective.cpp`) smooths toward the active
+expression's `kBaseTargets` row, samples `kVerbTimelines`, and combines with
+`combineEmotionVerbFace`. `MotionBehaviors` must run **after** that step.
 
 ## Coordinate system
 
@@ -23,7 +36,7 @@ is ±90°.
 
 ## Motion driver layers
 
-`Motion` runs five layered control modes. Higher layers pre-empt
+`Motion` runs layered control modes. Higher layers pre-empt
 lower layers:
 
 | Priority | Layer                                 | API                                 |
@@ -32,121 +45,77 @@ lower layers:
 | 4        | Jog (one-shot eased move)             | `playJog(deg, durationMs=250)`      |
 | 3        | Pattern (5-frame keyframe waggle)     | `playWaggle(centre, amp, periodMs)` |
 | 2        | Thinking sine drift                   | `setThinkingMode(on, …)`            |
-| 1 (base) | Emotion arm blend                     | `syncEmotionArmLayer(on, …)`        |
+| 1 (base) | Emotion arm sweep                     | `syncEmotionArmLayer(on, …)`        |
 
 The base layer only writes the servo when nothing higher is active.
-Thinking sine drift coexists with emotion-arm output (it adds a sine
-modulation into the live target) but is suppressed by jog/pattern/hold.
+Bridge `set_servo_position` uses **Hold** and pre-empts the sweep.
 
-### Hold
+### Emotion arm sweep (base layer)
 
-`holdPosition(deg, durationMs)` is the single test/diagnostic entry
-point: it eases to the target, then locks the position for the
-duration. Used by the `set_servo_position` raw control frame from the
-bridge. `consumeHoldExpired()` reports the trailing edge so callers
-can clean up (e.g. release the lock state in higher-level UI).
+`syncEmotionArmLayer(enable, minDeg, maxDeg, periodS, intervalS)` sweeps
+between `minDeg` and `maxDeg` with period `periodS` and dwell `intervalS`
+between half-cycles.
 
-### Jog
+`MotionBehaviors::tick` always enables this layer and passes values from
+`effectiveFaceParams()`:
 
-`playJog(deg, durationMs)` is an eased one-shot move from the
-servo's current position to the target via `smoothstep01()`. ~50 Hz
-servo writes. Pre-empts patterns. Used internally and by some
-overlays.
+- `arm_min_deg`, `arm_max_deg` — sweep range (degrees offset from centre).
+- `arm_period_ms` — full sweep period in **milliseconds** (clamped to ≥ 50 ms).
+- `arm_interval_ms` — dwell between sweeps in ms (≥ 0).
 
-### Pattern
+For **emotion** expressions, min/max/period/interval are **barycentric-blended**
+across the triangulation like eye and mouth fields (`EmotionBlend::blendThree`
+on the full `FaceParams` row).
 
-`playWaggle(centre, amplitude, periodMs)` plays a 5-keyframe
-back-and-forth waggle centred at `centre`. Total play time is
-roughly `periodMs / 2`. This is the `WAGGLE` motion mode used by
-some verbs/overlays.
+For **verbs**, the same four fields come from the verb timeline overrides on
+top of the (usually zero) verb `kBaseTargets` row.
 
-### Thinking sine drift
+`Motion::currentOffsetDeg()` returns the **commanded** angle minus centre. The
+face simulator and `FrameController::bodyBobFor` use this for vertical bob.
 
-`setThinkingMode(on, centerOffset=0, amplitude=5, periodMs=2000)` adds
-a continuous sine drift on top of the active layer. It fades in over
-~1 s so engaging it doesn't snap the servo.
+`periodMsFor` / `periodMsForContext` are stubbed to **0** — body bob no longer
+reads arm period. Do not use them for new code.
 
-### Emotion arm
+### Hold, jog, pattern, thinking (legacy / bridge)
 
-`syncEmotionArmLayer(enable, minDeg, maxDeg, periodS, intervalS)` is
-the lowest-priority continuous mode, used while no verb is active.
-Inputs come from `EmotionBlend::blendedEmotionArmMotion(v, a)`:
+These APIs remain for diagnostics and one-off behaviours:
 
-- `minDeg`, `maxDeg` — sweep range.
-- `periodS` — sweep period.
-- `intervalS` — dwell between sweeps.
+- **`holdPosition`** — bridge raw servo tests.
+- **`playJog`** — eased one-shot moves.
+- **`playWaggle`** — 5-keyframe pattern (not driven by `kMotion[]` anymore).
+- **`setThinkingMode`** — sine drift overlay (not table-driven per expression).
 
-The renderer uses the period directly for the body-bob phase, so the
-face nods in time. `resetEmotionArmPhase()` snaps the cycle to the
-beginning at `minDeg` — useful when transitioning into emotion mode
-from a non-arm state.
+There is no per-expression `MotionMode` table in `FACE_CONFIG_DATA.h` after
+schema v3.
 
-`setEnabled(false)` disables motor writes globally, used by the
-`motors_disabled` setting from the bridge `config_change` frame.
+## Tuning arm motion
 
-## MotionBehaviors
+Edit the last four cells of each emotion row in `kBaseTargets` (editor
+**Arm** section on emotion anchors, or generated `FACE_CONFIG_DATA`).
 
-`MotionBehaviors::tick(const Face::SceneContext& ctx)` is called every
-loop iteration, after `EventRouter::tick()` has updated the verb state
-and `SceneContextFill` has produced a fresh `ctx`.
+For verbs, add keyframe overrides for `arm_min_deg`, `arm_max_deg`,
+`arm_period_ms`, `arm_interval_ms` in `kVerbTimelines`. Shipped verb base rows
+are `FACE_ROW_EMPTY` (zeros) so verb arm motion starts untuned until you
+set timeline overrides.
 
-### Emotion expressions vs verbs
+## Tuning body bob
 
-```cpp
-if (FaceConfig::isEmotionExpression(ctx.effective_expression)) {
-    Motion::syncEmotionArmLayer(true, ctx.base_emotion_arm.…);
-} else {
-    // verb / overlay — drive from kMotion[expression]
-    Motion::syncEmotionArmLayer(false, …);
-    applyMotionRow(kMotion[expression], onEnter, onDuring);
-}
+Bob **amplitude** comes from `kIdleAnim[expression].bob_amplitude_px`, or
+`BOB_AMP_FOLLOW_EMOTION_ARM` to derive amplitude from the effective arm span.
+
+Bob **position** each frame:
+
+```text
+t = clamp((currentOffsetDeg - arm_min_deg) / (arm_max_deg - arm_min_deg), 0, 1)
+face_y bob offset ∝ (2*t - 1) * amplitude
 ```
 
-For emotion expressions, the arm preset is *blended* across the
-emotion triangulation, so transitioning from `Happy` → `Excited` is a
-smooth period and range crossfade rather than a discrete jump.
-
-For verbs and overlays, the arm preset is read from the static table
-`kMotion[]` in `FACE_CONFIG_DATA.h`, indexed by `Expression`.
-
-### Motion modes (`kMotion`)
-
-```cpp
-enum class MotionMode : uint8_t {
-    NONE,            // do nothing
-    STATIC,          // hold a fixed offset
-    RANDOM_DRIFT,    // random walk with jitter
-    WAGGLE,          // periodic 5-frame pattern (calls playWaggle)
-    THINKING_SINE,   // continuous sine drift (calls setThinkingMode)
-};
-```
-
-Each row in `kMotion[]` is `{ mode, params… }`. `MotionBehaviors`
-detects expression changes by comparing against the previous tick and
-calls the row's `onEnter` action (e.g. start a waggle, switch to
-thinking mode), then per-tick checks `consumeHoldExpired()` and runs
-the `onDuring` action if defined.
-
-### `periodMsFor(expression)` / `periodMsForContext(ctx)`
-
-These return the active arm period in milliseconds — for emotion mode
-that's `ctx.base_emotion_arm.period_s * 1000`, for verbs it's the
-period from `kMotion[expression]`. `FrameController` calls
-`periodMsForContext(ctx)` and integrates it into `sBodyBobPhaseRad`.
-This is why changing `period_ms` in `kMotion[]` automatically resyncs
-the face — there's no separate face configuration that needs to match.
+So the face rides the arm angle; changing `arm_period_ms` changes how fast the
+bob moves, not a separate face phase clock.
 
 ## Tuning notes
 
-- The default ±45° safe range is conservative. Increase if you've
-  verified the servo + arm geometry can clear the rest of the body.
-- `THINKING_SINE` adds *on top of* whatever the base layer is writing,
-  so a verb that uses `THINKING_SINE` plus a small `STATIC` centre
-  offset gets gentle drift around that centre rather than at zero.
-- `RANDOM_DRIFT` produces gentle random walks rather than jerky jumps;
-  it's the right mode for an "alive but doing nothing" verb (and is
-  the default for `VerbThinking`).
-- The bridge can override the servo with the `set_servo_position`
-  control frame — `EventRouter` translates it to
-  `Motion::holdPosition()`. Useful for testing servo limits without
-  reflashing.
+- Default ±45° safe range is conservative; widen only if mechanics allow.
+- Bridge `set_servo_position` overrides via `Motion::holdPosition()` for
+  limit testing without reflashing.
+- `setEnabled(false)` disables motor writes (`motors_disabled` setting).

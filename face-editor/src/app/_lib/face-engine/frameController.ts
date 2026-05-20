@@ -9,12 +9,10 @@ import {
     EXPRESSIONS,
     FieldIndex,
     GazeStyle,
-    MotionMode,
     type IdleAnimRow,
     type ParamI16,
 } from "./FACE_CONFIG_DATA";
 import { expressionIndexInList, isEmotionExpressionIndexInList } from "./faceConfigHelpers";
-import type { ExprMotionRow } from "./faceConfigTypes";
 import type { FaceConfigState } from "./faceConfigState";
 import {
     addEmotion as addEmotionToConfig,
@@ -39,12 +37,19 @@ import { createFaceRenderer } from "./faceRenderer";
 import { paramFieldsList } from "./presets";
 import { createRobotSettings } from "./robotSettings";
 import {
+    armOffsetDegFromElapsed,
+    createEmotionArmPhaseState,
+    resetEmotionArmPhaseState,
+    tickEmotionArmPhase,
+    type EmotionArmPhaseState,
+} from "./emotionArmSim";
+import {
     cloneFaceParamsIndexed,
     combineEmotionVerbFace,
     smoothFaceValuesToward,
 } from "./sceneFaceCombine";
 import { TFTSprite, tft } from "./tftSprite";
-import type { BlendTriangle, EmotionArmMotion, EmotionTriangulationTable } from "./types";
+import type { BlendTriangle, EmotionTriangulationTable } from "./types";
 import { kVerbTransitionDurMs } from "./FACE_CONFIG_DATA";
 import {
     expressionUsesVerbTimeline,
@@ -68,55 +73,6 @@ function smoothstep01(t: number): number {
 
 function randInt(lo: number, hi: number): number {
     return Math.floor(Math.random() * (hi - lo + 1)) + lo;
-}
-
-function periodMsForExpressionIndex(idx: number, motion: readonly ExprMotionRow[]): number {
-    const m = motion[idx];
-    if (!m) return 0;
-    switch (m.mode) {
-        case MotionMode.Oscillate:
-        case MotionMode.Waggle:
-        case MotionMode.Thinking:
-            return m.period_ms;
-        default:
-            return 0;
-    }
-}
-
-function periodMsForContext(
-    tri: EmotionTriangulationTable,
-    exprIdx: number,
-    blendMode: boolean,
-    blendV: number,
-    blendA: number,
-    emotionBlend: ReturnType<typeof createEmotionBlend>,
-    motion: readonly ExprMotionRow[],
-    expressionIsEmotion: readonly boolean[],
-    expressions: readonly string[]
-): number {
-    if (isEmotionExpressionIndexInList(expressionIsEmotion, exprIdx) && emotionBlend.ready()) {
-        if (blendMode) {
-            const m = emotionBlend.blendedEmotionArmMotion(blendV, blendA);
-            if (m) {
-                const total = m.waggle_period_s + m.waggle_interval_s;
-                let msf = total * 1000.0;
-                if (msf < 50.0) msf = 50.0;
-                if (msf > 65535.0) return 65535;
-                return Math.round(msf);
-            }
-        } else {
-            const { v, a } = anchorVaForExprIdx(tri, exprIdx, expressions);
-            const m = emotionBlend.blendedEmotionArmMotion(v, a);
-            if (m) {
-                const total = m.waggle_period_s + m.waggle_interval_s;
-                let msf = total * 1000.0;
-                if (msf < 50.0) msf = 50.0;
-                if (msf > 65535.0) return 65535;
-                return Math.round(msf);
-            }
-        }
-    }
-    return periodMsForExpressionIndex(exprIdx, motion);
 }
 
 function anchorVaForExprIdx(
@@ -157,32 +113,30 @@ function idleFor(
     return { ...idleAnim[exprIdx]! };
 }
 
-function bodyBobAmpFor(
-    tri: EmotionTriangulationTable,
-    exprIdx: number,
-    idle: IdleAnimRow,
-    blendMode: boolean,
-    blendV: number,
-    blendA: number,
-    emotionBlend: ReturnType<typeof createEmotionBlend>,
-    bobAmpFollowSentinel: number,
-    emotionBobAmpFollowArmPx: number,
-    expressionIsEmotion: readonly boolean[],
-    expressions: readonly string[]
-): number {
-    if (idle.bob_amplitude_px === bobAmpFollowSentinel) {
-        if (isEmotionExpressionIndexInList(expressionIsEmotion, exprIdx) && emotionBlend.ready()) {
-            const { v, a } = anchorVaForExprIdx(tri, exprIdx, expressions);
-            const m = blendMode
-                ? emotionBlend.blendedEmotionArmMotion(blendV, blendA)
-                : emotionBlend.blendedEmotionArmMotion(v, a);
-            if (m && m.min_offset_deg !== m.max_offset_deg) {
-                return emotionBobAmpFollowArmPx;
-            }
-        }
+function bodyBobAmpFor(idle: IdleAnimRow, effective: readonly ParamI16[], followSentinel: number, followPx: number): number {
+    if (idle.bob_amplitude_px === followSentinel) {
+        const lo = effective[FieldIndex.ArmMinDeg]!.value;
+        const hi = effective[FieldIndex.ArmMaxDeg]!.value;
+        if (lo !== hi) return followPx;
         return 0;
     }
     return idle.bob_amplitude_px;
+}
+
+function bodyBobPxFromArmDeg(armDeg: number, effective: readonly ParamI16[], amp: number): number {
+    if (amp === 0) return 0;
+    let lo = effective[FieldIndex.ArmMinDeg]!.value;
+    let hi = effective[FieldIndex.ArmMaxDeg]!.value;
+    if (lo > hi) {
+        const t = lo;
+        lo = hi;
+        hi = t;
+    }
+    if (lo === hi) return 0;
+    let u = (armDeg - lo) / (hi - lo);
+    if (u < 0) u = 0;
+    if (u > 1) u = 1;
+    return Math.round(amp * (2 * u - 1));
 }
 
 export interface StaticOverrideState {
@@ -281,7 +235,6 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
         triangulation: faceConfig.emotionTriangulation as EmotionTriangulationTable,
         expressions: faceConfig.expressions,
         baseTargets: faceConfig.baseTargets,
-        armPresets: faceConfig.armPresets,
         idleAnim: faceConfig.idleAnim,
     });
 
@@ -319,8 +272,6 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
     let sIdleGlanceStartMs = 0;
     let sNextIdleGlanceMs = 0;
 
-    let sBodyBobPhaseRad = 0;
-    let sBodyBobPhaseLastMs = 0;
     let sLastBobAmp = 0;
     let sFromBobAmp = 0;
     let sFromGdx = 0;
@@ -361,11 +312,9 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
 
     let sCurrentArmDeg = 0;
     let sArmLogicLastMs = 0;
-    let sArmEmotionInOsc = true;
-    let sArmEmotionOsc01 = 0;
-    let sArmEmotionDwellS = 0;
-    let sPrevArmDriverEmotion = false;
-
+    let sArmPhase: EmotionArmPhaseState = createEmotionArmPhaseState();
+    /** Previous verb playhead (ms) for loop-wrap detection. */
+    let sLastArmDriveVerbMs: number | undefined;
     let sVerbTimelinePreview: { verb: Expression; timeMs: number } | null = null;
 
     /** Base emotion (V/A) under verb-timeline preview — see `setVerbPreviewBaseVa`. */
@@ -527,60 +476,15 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
         return [gdx, gdy];
     }
 
-    function bodyBobFor(
-        exprIdx: number,
-        idle: IdleAnimRow,
-        t: number,
-        blendMode: boolean,
-        blendV: number,
-        blendA: number
-    ): number {
-        const period = periodMsForContext(
-            faceConfig.emotionTriangulation,
-            exprIdx,
-            blendMode,
-            blendV,
-            blendA,
-            emotionBlend,
-            faceConfig.motion,
-            faceConfig.expressionIsEmotion,
-            faceConfig.expressions
-        );
-        if (period === 0) {
-            sBodyBobPhaseLastMs = t;
-            sLastBobAmp = 0;
-            return 0;
-        }
-        const liveAmp = bodyBobAmpFor(
-            faceConfig.emotionTriangulation,
-            exprIdx,
+    function bodyBobFor(idle: IdleAnimRow, effective: readonly ParamI16[]): number {
+        const amp = bodyBobAmpFor(
             idle,
-            blendMode,
-            blendV,
-            blendA,
-            emotionBlend,
+            effective,
             faceConfig.bobAmpFollowEmotionArm,
-            faceConfig.frameAnim.emotion_bob_amp_follow_arm,
-            faceConfig.expressionIsEmotion,
-            faceConfig.expressions
+            faceConfig.frameAnim.emotion_bob_amp_follow_arm
         );
-        const tt = verbTransitionT(t);
-        const effAmpF = tt >= 1.0 ? liveAmp : sFromBobAmp + (liveAmp - sFromBobAmp) * tt;
-        const amp = Math.round(effAmpF);
         sLastBobAmp = amp;
-        const integrate = liveAmp !== 0 || sFromBobAmp !== 0;
-        const twoPi = 2 * PI;
-        if (integrate) {
-            const dtMs = sBodyBobPhaseLastMs === 0 ? 0 : t - sBodyBobPhaseLastMs;
-            sBodyBobPhaseLastMs = t;
-            sBodyBobPhaseRad += (twoPi / period) * dtMs;
-            sBodyBobPhaseRad %= twoPi;
-            if (sBodyBobPhaseRad < 0) sBodyBobPhaseRad += twoPi;
-        } else {
-            sBodyBobPhaseLastMs = t;
-        }
-        if (amp === 0) return 0;
-        return Math.round(-Math.sin(sBodyBobPhaseRad) * amp);
+        return bodyBobPxFromArmDeg(sCurrentArmDeg, effective, amp);
     }
 
     function onExpressionChange(newExprIdx: number, t: number): void {
@@ -616,113 +520,43 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
         if (isVerbExpression(newExprIdx as Expression)) {
             sVerbEnteredMs = t;
         }
+        resetEmotionArmPhase();
     }
 
     function resetEmotionArmPhase(): void {
-        sArmEmotionInOsc = true;
-        sArmEmotionOsc01 = 0;
-        sArmEmotionDwellS = 0;
+        resetEmotionArmPhaseState(sArmPhase);
         sArmLogicLastMs = 0;
+        sLastArmDriveVerbMs = undefined;
     }
 
-    function tickEmotionArm(dt: number, arm: EmotionArmMotion): number {
-        let lo = arm.min_offset_deg;
-        let hi = arm.max_offset_deg;
-        if (lo > hi) {
-            const tmp = lo;
-            lo = hi;
-            hi = tmp;
+    /**
+     * Drive simulated arm angle from effective arm_* fields.
+     * Verb timelines use playhead time (deterministic scrub + loop at t=0).
+     * Emotions use real-time integration like firmware `Motion::tick`.
+     */
+    function updateArmOffset(
+        t: number,
+        effective: readonly ParamI16[],
+        verbTimeMs?: number
+    ): void {
+        if (verbTimeMs !== undefined) {
+            if (sLastArmDriveVerbMs !== undefined && verbTimeMs + 50 < sLastArmDriveVerbMs) {
+                resetEmotionArmPhaseState(sArmPhase);
+            }
+            sLastArmDriveVerbMs = verbTimeMs;
+            sArmLogicLastMs = t;
+            sCurrentArmDeg = armOffsetDegFromElapsed(verbTimeMs / 1000, effective);
+            return;
         }
-        if (lo === hi) return lo;
-        const period = Math.max(0.05, arm.waggle_period_s);
-        if (sArmEmotionInOsc) {
-            sArmEmotionOsc01 += dt / period;
-            const oscDraw = sArmEmotionOsc01 >= 1 ? 1 : sArmEmotionOsc01;
-            if (sArmEmotionOsc01 >= 1) {
-                sArmEmotionOsc01 = 0;
-                if (arm.waggle_interval_s < 0.02) {
-                    /* immediate next arch */
-                } else {
-                    sArmEmotionInOsc = false;
-                    sArmEmotionDwellS = arm.waggle_interval_s;
-                }
-            }
-            const u = Math.sin(Math.PI * oscDraw);
-            return lo + (hi - lo) * u;
-        }
-        sArmEmotionDwellS -= dt;
-        if (sArmEmotionDwellS <= 0) {
-            sArmEmotionInOsc = true;
-            sArmEmotionOsc01 = 0;
-        }
-        return lo;
-    }
-
-    function verbArmOffset(exprIdx: number, t: number): number {
-        const m = faceConfig.motion[exprIdx];
-        if (!m) return 0;
-        switch (exprIdx) {
-            case Expression.VerbReading:
-                return -8;
-            case Expression.VerbWaking:
-                return 18;
-            case Expression.VerbThinking: {
-                const T = m.period_ms || 2000;
-                const u = (t % T) / T;
-                return -15 + m.amplitude * Math.sin(u * 2 * PI);
-            }
-            case Expression.VerbWriting: {
-                const T = m.period_ms || 840;
-                return m.center + m.amplitude * Math.sin(((t % T) / T) * 2 * PI);
-            }
-            case Expression.VerbExecuting: {
-                const T = m.period_ms || 1000;
-                return m.center + m.amplitude * Math.sin(((t % T) / T) * 2 * PI);
-            }
-            case Expression.VerbStraining: {
-                const T = m.period_ms || 750;
-                return m.amplitude * Math.sin(((t % T) / T) * 2 * PI);
-            }
-            case Expression.VerbSleeping: {
-                const T = m.period_ms || 8000;
-                return m.center + m.amplitude * Math.sin(((t % T) / T) * 2 * PI);
-            }
-            case Expression.VerbAttractingAttention: {
-                const T = m.period_ms || 900;
-                return m.amplitude * Math.sin(((t % T) / T) * 2 * PI);
-            }
-            default:
-                return 0;
-        }
-    }
-
-    function updateArmOffset(t: number, exprIdx: number): void {
+        sLastArmDriveVerbMs = undefined;
         const dt = sArmLogicLastMs === 0 ? 0 : Math.min(0.5, (t - sArmLogicLastMs) / 1000);
         sArmLogicLastMs = t;
+        sCurrentArmDeg = tickEmotionArmPhase(sArmPhase, dt, effective);
+    }
 
-        const armDriverEmotion = sBlendMode || isEmotionIdx(exprIdx);
-        if (armDriverEmotion && !sPrevArmDriverEmotion) {
-            resetEmotionArmPhase();
-        }
-        sPrevArmDriverEmotion = armDriverEmotion;
-
-        if (sBlendMode && emotionBlend.ready()) {
-            const arm = emotionBlend.blendedEmotionArmMotion(sBlendV, sBlendA);
-            sCurrentArmDeg = arm ? tickEmotionArm(dt, arm) : 0;
-            return;
-        }
-
-        if (isEmotionIdx(exprIdx) && emotionBlend.ready()) {
-            const an = faceConfig.emotionTriangulation.anchors.find(
-                x => expressionIndexInList(faceConfig.expressions, x.emotion) === exprIdx
-            );
-            const arm = an ? emotionBlend.blendedEmotionArmMotion(an.v, an.a) : null;
-            sCurrentArmDeg = arm ? tickEmotionArm(dt, arm) : 0;
-            return;
-        }
-
-        resetEmotionArmPhase();
-        sCurrentArmDeg = verbArmOffset(exprIdx, t);
+    function armVerbTimeMs(exprEnum: Expression, verbTime: number): number | undefined {
+        if (!expressionUsesVerbTimeline(exprEnum)) return undefined;
+        return verbTime;
     }
 
     function pushSpriteToCanvas(): void {
@@ -874,6 +708,7 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
         sampleEffectiveVerb(exprEnum, t, verbTime, verbHas, verbVals, resolveLiveVerbTable);
 
         let combined = combineEmotionVerbFace(sSmoothed, verbHas, verbVals);
+        updateArmOffset(t, combined, armVerbTimeMs(exprEnum, verbTime));
         let pFlat = faceParamsFromIndexed(combined);
 
         const moodDt = sLastMoodMs === 0 ? 0 : t - sLastMoodMs;
@@ -900,9 +735,7 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
 
         pFlat = {
             ...pFlat,
-            face_y: Math.round(
-                pFlat.face_y + bodyBobFor(exprIdx, idle, t, false, sBlendV, sBlendA)
-            ),
+            face_y: Math.round(pFlat.face_y + bodyBobFor(idle, combined)),
         };
 
         if (!sBlinkActive) {
@@ -946,8 +779,6 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
         if (sEyeWavePhaseRad < 0) sEyeWavePhaseRad += kTwoPi;
         sMouthWavePhaseRad %= kTwoPi;
         if (sMouthWavePhaseRad < 0) sMouthWavePhaseRad += kTwoPi;
-
-        updateArmOffset(t, exprIdx);
 
         combined = indexedFromFaceParams(pFlat);
         sLastRendered = [...combined];
@@ -1032,6 +863,11 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
         );
 
         let combined = combineEmotionVerbFace(sSmoothed, verbHas, verbVals);
+        const armVerbMs =
+            blendVerbPhaseExpr !== Expression.Count
+                ? armVerbTimeMs(blendVerbPhaseExpr, blendVerbTimeMs)
+                : undefined;
+        updateArmOffset(t, combined, armVerbMs);
         let pFlat = faceParamsFromIndexed(combined);
 
         const moodDt = sLastMoodMs === 0 ? 0 : t - sLastMoodMs;
@@ -1056,10 +892,8 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
 
         pFlat = {
             ...pFlat,
-            face_y: Math.round(pFlat.face_y + bodyBobFor(exprIdx, idle, t, true, sBlendV, sBlendA)),
+            face_y: Math.round(pFlat.face_y + bodyBobFor(idle, combined)),
         };
-
-        updateArmOffset(t, exprIdx);
 
         if (emotionBlend.ready()) {
             sBlendLastTri = emotionBlend.findTriangle(sBlendV, sBlendA);
@@ -1085,7 +919,6 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
             triangulation: faceConfig.emotionTriangulation as EmotionTriangulationTable,
             expressions: faceConfig.expressions,
             baseTargets: faceConfig.baseTargets,
-            armPresets: faceConfig.armPresets,
             idleAnim: faceConfig.idleAnim,
         });
         sSmoothed = cloneFaceParamsIndexed(faceConfig.baseTargets[0]!);
@@ -1136,7 +969,6 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
             sMoodG = flat.ring_g;
             sMoodB = flat.ring_b;
             sLastMoodMs = 0;
-            sPrevArmDriverEmotion = isEmotionIdx(exprIndex(sCurrentExpr));
             resetEmotionArmPhase();
             sCurrentArmDeg = 0;
             rafHandle = requestAnimationFrame(tickDispatch);
@@ -1271,10 +1103,10 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
             sBlendMode = !!on;
             if (sBlendMode) {
                 sStaticMode = false;
-                sPrevArmDriverEmotion = isEmotionIdx(exprIndex(sCurrentExpr));
+                resetEmotionArmPhase();
                 sLastTickMs = 0;
             } else {
-                sPrevArmDriverEmotion = isEmotionIdx(exprIndex(sCurrentExpr));
+                resetEmotionArmPhase();
                 sLastExprIdx = -1;
                 sLastTickMs = 0;
             }

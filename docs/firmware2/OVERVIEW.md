@@ -142,10 +142,10 @@ Different subsystems run at different rates:
   `robot_v3/User_Setup.h`, not `config.h`.
 - **`FrameController` owns all face animation state.** Renderers below it are
   stateless. Nothing else should mutate tweens/blinks/gaze.
-- **`MotionBehaviors::periodMsForContext(ctx)` is the body-bob source.**
-  `FrameController` reads it so the face bob stays in lockstep with the arm.
-  Change a state's period in `FACE_CONFIG_DATA.h`'s `kMotion[]` and the face
-  auto-resyncs.
+- **Body bob follows arm position, not arm period.** `FrameController` maps
+  `Motion::currentOffsetDeg()` across effective `arm_min_deg`…`arm_max_deg`
+  after `tickEffectiveParams` and `MotionBehaviors::tick`. Tune arm in the last
+  four `kBaseTargets` cells or verb timeline overrides (ms for period/interval).
 - **Bridge classifies tools, firmware classifies access.**
   `activity-classify.ts` (bridge) maps tool name → `ActivityKind`;
   `AgentEvents::classifyActivity` (firmware) maps `ActivityKind` plus shell

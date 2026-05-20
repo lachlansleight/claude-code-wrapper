@@ -14,7 +14,7 @@ import {
 } from "./faceSchema";
 import type { MutableVerbTimeline } from "./mutableVerbTimelines";
 
-const EMPTY_PARAM_ROW = (): ParamI16[] => Array.from({ length: 24 }, () => P(0, 0));
+const EMPTY_PARAM_ROW = (): ParamI16[] => Array.from({ length: 28 }, () => P(0, 0));
 
 function cloneRow(row: ParamI16[]): ParamI16[] {
     return row.map(c => ({ value: c.value, strength: c.strength }));
@@ -26,22 +26,10 @@ function defaultEmotionRow(config: FaceConfigState): ParamI16[] {
     return src ? cloneRow(src) : EMPTY_PARAM_ROW();
 }
 
-function defaultVerbMotionRow(config: FaceConfigState) {
-    const thinking = config.expressions.findIndex(n => n === "VerbThinking");
-    const idx = thinking >= 0 ? thinking : 0;
-    return { ...config.motion[idx]! };
-}
-
 function defaultVerbIdleRow(config: FaceConfigState) {
     const thinking = config.expressions.findIndex(n => n === "VerbThinking");
     const idx = thinking >= 0 ? thinking : 0;
     return { ...config.idleAnim[idx]! };
-}
-
-function defaultVerbArmPreset(config: FaceConfigState) {
-    const thinking = config.expressions.findIndex(n => n === "VerbThinking");
-    const idx = thinking >= 0 ? thinking : 0;
-    return { ...config.armPresets[idx]! };
 }
 
 function defaultVerbTimeline(expressionIndex: number): MutableVerbTimeline {
@@ -84,15 +72,11 @@ export function removeEmotion(
     const expressions = [...config.expressions];
     const expressionIsEmotion = [...config.expressionIsEmotion];
     const baseTargets = config.baseTargets.map(r => cloneRow(r));
-    const armPresets = config.armPresets.map(p => ({ ...p }));
-    const motion = config.motion.map(m => ({ ...m }));
     const idleAnim = config.idleAnim.map(r => ({ ...r }));
 
     expressions.splice(exprIdx, 1);
     expressionIsEmotion.splice(exprIdx, 1);
     baseTargets.splice(exprIdx, 1);
-    armPresets.splice(exprIdx, 1);
-    motion.splice(exprIdx, 1);
     idleAnim.splice(exprIdx, 1);
 
     const emotionNames = config.emotionNames.filter((_, i) => i !== emotionIndex);
@@ -117,8 +101,6 @@ export function removeEmotion(
             expressions,
             expressionIsEmotion,
             baseTargets,
-            armPresets,
-            motion,
             idleAnim,
             emotionNames,
             emotionPoints,
@@ -152,8 +134,6 @@ export function addEmotion(
     const expressions = [...config.expressions, exprName];
     const expressionIsEmotion = [...config.expressionIsEmotion, true];
     const baseTargets = [...config.baseTargets.map(r => cloneRow(r)), defaultEmotionRow(config)];
-    const armPresets = [...config.armPresets.map(p => ({ ...p })), defaultVerbArmPreset(config)];
-    const motion = [...config.motion.map(m => ({ ...m })), defaultVerbMotionRow(config)];
     const idleAnim = [...config.idleAnim.map(r => ({ ...r })), defaultVerbIdleRow(config)];
 
     const emotionNames = [...config.emotionNames, slug];
@@ -167,8 +147,6 @@ export function addEmotion(
         expressions,
         expressionIsEmotion,
         baseTargets,
-        armPresets,
-        motion,
         idleAnim,
         emotionNames,
         emotionPoints,
@@ -239,15 +217,11 @@ export function removeVerb(
     const expressions = [...config.expressions];
     const expressionIsEmotion = [...config.expressionIsEmotion];
     const baseTargets = config.baseTargets.map(r => cloneRow(r));
-    const armPresets = config.armPresets.map(p => ({ ...p }));
-    const motion = config.motion.map(m => ({ ...m }));
     const idleAnim = config.idleAnim.map(r => ({ ...r }));
 
     expressions.splice(expressionIndex, 1);
     expressionIsEmotion.splice(expressionIndex, 1);
     baseTargets.splice(expressionIndex, 1);
-    armPresets.splice(expressionIndex, 1);
-    motion.splice(expressionIndex, 1);
     idleAnim.splice(expressionIndex, 1);
 
     const namedEmotionToExpressionIndex = remapIndicesAfterRemove(
@@ -267,8 +241,6 @@ export function removeVerb(
             expressions,
             expressionIsEmotion,
             baseTargets,
-            armPresets,
-            motion,
             idleAnim,
             namedEmotionToExpressionIndex,
             verbTimelines,
@@ -296,8 +268,6 @@ export function addVerb(
     const expressions = [...config.expressions, exprName];
     const expressionIsEmotion = [...config.expressionIsEmotion, false];
     const baseTargets = [...config.baseTargets.map(r => cloneRow(r)), EMPTY_PARAM_ROW()];
-    const armPresets = [...config.armPresets.map(p => ({ ...p })), defaultVerbArmPreset(config)];
-    const motion = [...config.motion.map(m => ({ ...m })), defaultVerbMotionRow(config)];
     const idleAnim = [...config.idleAnim.map(r => ({ ...r })), defaultVerbIdleRow(config)];
     const verbTimelines = [...config.verbTimelines, defaultVerbTimeline(exprIdx)];
 
@@ -306,8 +276,6 @@ export function addVerb(
             expressions,
             expressionIsEmotion,
             baseTargets,
-            armPresets,
-            motion,
             idleAnim,
             verbTimelines,
         }),

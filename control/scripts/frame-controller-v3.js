@@ -286,7 +286,7 @@
     return r;
   }
 
-  // Mirrors MotionBehaviors::periodMsFor — values from face-config-data motion table.
+  // LEGACY: pre-v3 period-from-motion-table. Firmware bob uses arm position.
   function motorPeriodMsFor(name) {
     const m = motionTable[name];
     return m ? (m.period_ms | 0) : 0;
@@ -299,7 +299,7 @@
     return an ? { v: an.v, a: an.a } : { v: 0, a: 0.5 };
   }
 
-  /** Like firmware MotionBehaviors::periodMsForContext. */
+  /** LEGACY — firmware stubbed periodMsForContext; bob follows arm angle. */
   function motorPeriodMsForContext(expr, blendMode, blendV, blendA) {
     const EB = window.EmotionBlendV3;
     if (blendMode && EB && EB.ready()) {

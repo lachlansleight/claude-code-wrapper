@@ -129,4 +129,7 @@ void setEnabled(bool enabled);
 /// True when motion commands are allowed.
 bool enabled();
 
+/** Current arm offset from centre in degrees (after last `tick()` write). */
+int8_t currentOffsetDeg();
+
 }  // namespace Motion

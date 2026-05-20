@@ -19,12 +19,6 @@ export function validateFaceConfigState(config: FaceConfigState): string | null 
     if (config.baseTargets.length !== config.expressions.length) {
         return "baseTargets row count must match expressions";
     }
-    if (config.armPresets.length !== config.expressions.length) {
-        return "armPresets row count must match expressions";
-    }
-    if (config.motion.length !== config.expressions.length) {
-        return "motion row count must match expressions";
-    }
     if (config.idleAnim.length !== config.expressions.length) {
         return "idleAnim row count must match expressions";
     }
@@ -104,8 +98,8 @@ export function validateFaceConfigState(config: FaceConfigState): string | null 
 
     for (let i = 0; i < config.expressions.length; i++) {
         const row = config.baseTargets[i];
-        if (!row || row.length !== 24) {
-            return `baseTargets[${i}] must have 24 ParamI16 cells`;
+        if (!row || row.length !== 28) {
+            return `baseTargets[${i}] must have 28 ParamI16 cells`;
         }
     }
 

@@ -44,6 +44,10 @@ const PARAM_SLIDER_RANGE: Record<
     ring_r: [0, 255, 1],
     ring_g: [0, 255, 1],
     ring_b: [0, 255, 1],
+    arm_min_deg: [-45, 45, 1],
+    arm_max_deg: [-45, 45, 1],
+    arm_period_ms: [50, 30000, 50],
+    arm_interval_ms: [0, 30000, 50],
 };
 
 function sliderRowForField(f: ParamField): SliderRowDef {

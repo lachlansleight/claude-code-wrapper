@@ -208,11 +208,11 @@ That single effective expression drives **both** motion and face rendering.
 
 Two output systems consume the same effective `Face::Expression`:
 
-- **`MotionBehaviors`** (`robot_v3/src/hal/MotionBehaviors.cpp`) is an
-  expression-indexed motor table (modes like `STATIC`, `OSCILLATE`, `WAGGLE`,
-  `THINKING`). It issues `Motion::play*` calls on entry and schedules periodic
-  retriggers. It also exposes `periodMsFor(Expression)` so the face can sync
-  body-bob to arm rhythm.
+- **`MotionBehaviors`** (`robot_v3/src/hal/MotionBehaviors.cpp`) drives the
+  base arm sweep from `Face::effectiveFaceParams()` (`arm_min_deg`,
+  `arm_max_deg`, `arm_period_ms`, `arm_interval_ms`). Higher `Motion` layers
+  (hold/jog/waggle) still exist for bridge tests. Body bob tracks
+  `Motion::currentOffsetDeg()`, not arm period.
 
 - **`Face::FrameController`** (`robot_v3/src/face/FrameController.cpp`) picks a
   target `FaceParams` row for the current expression, tweens between rows, and

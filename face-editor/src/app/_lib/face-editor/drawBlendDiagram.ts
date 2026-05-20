@@ -1,5 +1,6 @@
 import type { FrameController } from "../face-engine/frameController";
 import type { EmotionBlendApi } from "../face-engine/emotionBlend";
+import { FieldIndex } from "../face-engine/faceConfigTypes";
 import type { EmotionTriangulationTable } from "../face-engine/types";
 import { vaToCanvas } from "./blendCanvasMath";
 import { EMOTION_COLOR } from "./simulatorLayout";
@@ -154,14 +155,14 @@ export function computeBlendMetaHtml(
     let armPlain = "";
     let armHtml = "";
     if (blendApi.ready()) {
-        const m = blendApi.blendedEmotionArmMotion(va.v, va.a);
-        if (m) {
-            armPlain =
-                ` · arm blend: [${m.min_offset_deg}°, ${m.max_offset_deg}°] ` +
-                `P=${m.waggle_period_s.toFixed(2)}s I=${m.waggle_interval_s.toFixed(2)}s`;
-            armHtml =
-                ` &nbsp;·&nbsp; arm blend: [${m.min_offset_deg}°, ${m.max_offset_deg}°] ` +
-                `P=${m.waggle_period_s.toFixed(2)}s I=${m.waggle_interval_s.toFixed(2)}s`;
+        const row = blendApi.blendedFaceParamsIndexed(va.v, va.a);
+        if (row) {
+            const lo = row[FieldIndex.ArmMinDeg]!.value;
+            const hi = row[FieldIndex.ArmMaxDeg]!.value;
+            const pMs = row[FieldIndex.ArmPeriodMs]!.value;
+            const iMs = row[FieldIndex.ArmIntervalMs]!.value;
+            armPlain = ` · arm blend: [${lo}°, ${hi}°] P=${pMs}ms I=${iMs}ms`;
+            armHtml = ` &nbsp;·&nbsp; arm blend: [${lo}°, ${hi}°] P=${pMs}ms I=${iMs}ms`;
         }
     }
     if (!foundTri) {

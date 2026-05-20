@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "expressions": [
     "Neutral",
     "Happy",
@@ -244,6 +244,22 @@
       {
         "value": 0,
         "strength": 100
+      },
+      {
+        "value": -15,
+        "strength": 100
+      },
+      {
+        "value": -15,
+        "strength": 100
+      },
+      {
+        "value": 2000,
+        "strength": 100
+      },
+      {
+        "value": 1000,
+        "strength": 100
       }
     ],
     [
@@ -341,6 +357,22 @@
       },
       {
         "value": 0,
+        "strength": 100
+      },
+      {
+        "value": -23,
+        "strength": 100
+      },
+      {
+        "value": -7,
+        "strength": 100
+      },
+      {
+        "value": 1500,
+        "strength": 100
+      },
+      {
+        "value": 500,
         "strength": 100
       }
     ],
@@ -440,6 +472,22 @@
       {
         "value": 79,
         "strength": 100
+      },
+      {
+        "value": -15,
+        "strength": 100
+      },
+      {
+        "value": -5,
+        "strength": 100
+      },
+      {
+        "value": 1000,
+        "strength": 100
+      },
+      {
+        "value": 0,
+        "strength": 100
       }
     ],
     [
@@ -537,6 +585,22 @@
       },
       {
         "value": 38,
+        "strength": 100
+      },
+      {
+        "value": 10,
+        "strength": 100
+      },
+      {
+        "value": 25,
+        "strength": 100
+      },
+      {
+        "value": 900,
+        "strength": 100
+      },
+      {
+        "value": 200,
         "strength": 100
       }
     ],
@@ -636,6 +700,22 @@
       {
         "value": 3,
         "strength": 100
+      },
+      {
+        "value": -25,
+        "strength": 100
+      },
+      {
+        "value": -15,
+        "strength": 100
+      },
+      {
+        "value": 2000,
+        "strength": 100
+      },
+      {
+        "value": 1000,
+        "strength": 100
       }
     ],
     [
@@ -734,6 +814,22 @@
       {
         "value": 0,
         "strength": 0
+      },
+      {
+        "value": -25,
+        "strength": 100
+      },
+      {
+        "value": -15,
+        "strength": 100
+      },
+      {
+        "value": 2000,
+        "strength": 100
+      },
+      {
+        "value": 1000,
+        "strength": 100
       }
     ],
     [
@@ -832,6 +928,22 @@
       {
         "value": 0,
         "strength": 0
+      },
+      {
+        "value": -25,
+        "strength": 100
+      },
+      {
+        "value": -15,
+        "strength": 100
+      },
+      {
+        "value": 2000,
+        "strength": 100
+      },
+      {
+        "value": 1000,
+        "strength": 100
       }
     ],
     [
@@ -930,6 +1042,22 @@
       {
         "value": 0,
         "strength": 0
+      },
+      {
+        "value": -25,
+        "strength": 100
+      },
+      {
+        "value": -15,
+        "strength": 100
+      },
+      {
+        "value": 2000,
+        "strength": 100
+      },
+      {
+        "value": 1000,
+        "strength": 100
       }
     ],
     [
@@ -1028,6 +1156,22 @@
       {
         "value": 0,
         "strength": 0
+      },
+      {
+        "value": -25,
+        "strength": 100
+      },
+      {
+        "value": -15,
+        "strength": 100
+      },
+      {
+        "value": 2000,
+        "strength": 100
+      },
+      {
+        "value": 1000,
+        "strength": 100
       }
     ],
     [
@@ -1126,6 +1270,22 @@
       {
         "value": 0,
         "strength": 0
+      },
+      {
+        "value": -25,
+        "strength": 100
+      },
+      {
+        "value": -15,
+        "strength": 100
+      },
+      {
+        "value": 2000,
+        "strength": 100
+      },
+      {
+        "value": 1000,
+        "strength": 100
       }
     ],
     [
@@ -1224,6 +1384,22 @@
       {
         "value": 0,
         "strength": 0
+      },
+      {
+        "value": -25,
+        "strength": 100
+      },
+      {
+        "value": -15,
+        "strength": 100
+      },
+      {
+        "value": 2000,
+        "strength": 100
+      },
+      {
+        "value": 1000,
+        "strength": 100
       }
     ],
     [
@@ -1322,6 +1498,22 @@
       {
         "value": 0,
         "strength": 0
+      },
+      {
+        "value": -25,
+        "strength": 100
+      },
+      {
+        "value": -15,
+        "strength": 100
+      },
+      {
+        "value": 2000,
+        "strength": 100
+      },
+      {
+        "value": 1000,
+        "strength": 100
       }
     ],
     [
@@ -1420,6 +1612,22 @@
       {
         "value": 0,
         "strength": 0
+      },
+      {
+        "value": -25,
+        "strength": 100
+      },
+      {
+        "value": -15,
+        "strength": 100
+      },
+      {
+        "value": 2000,
+        "strength": 100
+      },
+      {
+        "value": 1000,
+        "strength": 100
       }
     ],
     [
@@ -1517,6 +1725,22 @@
       },
       {
         "value": 0,
+        "strength": 100
+      },
+      {
+        "value": -25,
+        "strength": 100
+      },
+      {
+        "value": -20,
+        "strength": 100
+      },
+      {
+        "value": 3000,
+        "strength": 100
+      },
+      {
+        "value": 6000,
         "strength": 100
       }
     ],
@@ -1616,6 +1840,22 @@
       {
         "value": 24,
         "strength": 100
+      },
+      {
+        "value": -15,
+        "strength": 100
+      },
+      {
+        "value": -5,
+        "strength": 100
+      },
+      {
+        "value": 1000,
+        "strength": 100
+      },
+      {
+        "value": 0,
+        "strength": 100
       }
     ],
     [
@@ -1713,6 +1953,22 @@
       },
       {
         "value": 0,
+        "strength": 100
+      },
+      {
+        "value": -25,
+        "strength": 100
+      },
+      {
+        "value": -20,
+        "strength": 100
+      },
+      {
+        "value": 3000,
+        "strength": 100
+      },
+      {
+        "value": 6000,
         "strength": 100
       }
     ],
@@ -1812,6 +2068,22 @@
       {
         "value": 0,
         "strength": 100
+      },
+      {
+        "value": -25,
+        "strength": 100
+      },
+      {
+        "value": -20,
+        "strength": 100
+      },
+      {
+        "value": 3000,
+        "strength": 100
+      },
+      {
+        "value": 6000,
+        "strength": 100
       }
     ],
     [
@@ -1909,6 +2181,22 @@
       },
       {
         "value": 255,
+        "strength": 100
+      },
+      {
+        "value": 21,
+        "strength": 100
+      },
+      {
+        "value": 30,
+        "strength": 100
+      },
+      {
+        "value": 600,
+        "strength": 100
+      },
+      {
+        "value": 0,
         "strength": 100
       }
     ],
@@ -2008,6 +2296,22 @@
       {
         "value": 93,
         "strength": 100
+      },
+      {
+        "value": -23,
+        "strength": 100
+      },
+      {
+        "value": -7,
+        "strength": 100
+      },
+      {
+        "value": 1500,
+        "strength": 100
+      },
+      {
+        "value": 500,
+        "strength": 100
       }
     ],
     [
@@ -2105,6 +2409,22 @@
       },
       {
         "value": 78,
+        "strength": 100
+      },
+      {
+        "value": 10,
+        "strength": 100
+      },
+      {
+        "value": 25,
+        "strength": 100
+      },
+      {
+        "value": 900,
+        "strength": 100
+      },
+      {
+        "value": 200,
         "strength": 100
       }
     ],
@@ -2204,6 +2524,22 @@
       {
         "value": 212,
         "strength": 100
+      },
+      {
+        "value": -19,
+        "strength": 100
+      },
+      {
+        "value": -12,
+        "strength": 100
+      },
+      {
+        "value": 1100,
+        "strength": 100
+      },
+      {
+        "value": 1750,
+        "strength": 100
       }
     ],
     [
@@ -2302,6 +2638,22 @@
       {
         "value": 0,
         "strength": 0
+      },
+      {
+        "value": -25,
+        "strength": 100
+      },
+      {
+        "value": -15,
+        "strength": 100
+      },
+      {
+        "value": 2000,
+        "strength": 100
+      },
+      {
+        "value": 1000,
+        "strength": 100
       }
     ]
   ],
@@ -2315,7 +2667,7 @@
       "keyframes": [
         {
           "time_ms": 0,
-          "override_count": 13,
+          "override_count": 16,
           "overrides": [
             {
               "field": 1,
@@ -2380,6 +2732,21 @@
             {
               "field": 23,
               "targetValue": 120,
+              "strength": 100
+            },
+            {
+              "field": 25,
+              "targetValue": -11,
+              "strength": 100
+            },
+            {
+              "field": 24,
+              "targetValue": -22,
+              "strength": 100
+            },
+            {
+              "field": 27,
+              "targetValue": 0,
               "strength": 100
             }
           ]
@@ -2457,7 +2824,7 @@
       "keyframes": [
         {
           "time_ms": 0,
-          "override_count": 13,
+          "override_count": 17,
           "overrides": [
             {
               "field": 1,
@@ -2523,6 +2890,26 @@
               "field": 23,
               "targetValue": 210,
               "strength": 100
+            },
+            {
+              "field": 24,
+              "targetValue": -20,
+              "strength": 100
+            },
+            {
+              "field": 26,
+              "targetValue": 1800,
+              "strength": 100
+            },
+            {
+              "field": 27,
+              "targetValue": 0,
+              "strength": 100
+            },
+            {
+              "field": 25,
+              "targetValue": -20,
+              "strength": 100
             }
           ]
         },
@@ -2579,7 +2966,7 @@
       "keyframes": [
         {
           "time_ms": 0,
-          "override_count": 24,
+          "override_count": 28,
           "overrides": [
             {
               "field": 0,
@@ -2700,6 +3087,26 @@
               "field": 23,
               "targetValue": 228,
               "strength": 100
+            },
+            {
+              "field": 24,
+              "targetValue": 10,
+              "strength": 100
+            },
+            {
+              "field": 25,
+              "targetValue": 2,
+              "strength": 100
+            },
+            {
+              "field": 26,
+              "targetValue": 500,
+              "strength": 100
+            },
+            {
+              "field": 27,
+              "targetValue": 0,
+              "strength": 100
             }
           ]
         }
@@ -2707,12 +3114,12 @@
     },
     {
       "verb": 8,
-      "loop_duration_ms": 1000,
+      "loop_duration_ms": 3000,
       "keyframe_count": 1,
       "keyframes": [
         {
           "time_ms": 0,
-          "override_count": 24,
+          "override_count": 28,
           "overrides": [
             {
               "field": 0,
@@ -2833,6 +3240,26 @@
               "field": 23,
               "targetValue": 216,
               "strength": 100
+            },
+            {
+              "field": 24,
+              "targetValue": 4,
+              "strength": 100
+            },
+            {
+              "field": 25,
+              "targetValue": -13,
+              "strength": 100
+            },
+            {
+              "field": 26,
+              "targetValue": 800,
+              "strength": 100
+            },
+            {
+              "field": 27,
+              "targetValue": 0,
+              "strength": 100
             }
           ]
         }
@@ -2840,12 +3267,12 @@
     },
     {
       "verb": 9,
-      "loop_duration_ms": 1000,
+      "loop_duration_ms": 1020,
       "keyframe_count": 1,
       "keyframes": [
         {
           "time_ms": 0,
-          "override_count": 24,
+          "override_count": 28,
           "overrides": [
             {
               "field": 0,
@@ -2966,6 +3393,26 @@
               "field": 23,
               "targetValue": 220,
               "strength": 100
+            },
+            {
+              "field": 24,
+              "targetValue": 10,
+              "strength": 100
+            },
+            {
+              "field": 25,
+              "targetValue": -10,
+              "strength": 100
+            },
+            {
+              "field": 26,
+              "targetValue": 850,
+              "strength": 100
+            },
+            {
+              "field": 27,
+              "targetValue": 0,
+              "strength": 100
             }
           ]
         }
@@ -2978,7 +3425,7 @@
       "keyframes": [
         {
           "time_ms": 0,
-          "override_count": 24,
+          "override_count": 26,
           "overrides": [
             {
               "field": 0,
@@ -3099,6 +3546,16 @@
               "field": 23,
               "targetValue": 0,
               "strength": 100
+            },
+            {
+              "field": 24,
+              "targetValue": -27,
+              "strength": 100
+            },
+            {
+              "field": 25,
+              "targetValue": -27,
+              "strength": 100
             }
           ]
         }
@@ -3111,7 +3568,7 @@
       "keyframes": [
         {
           "time_ms": 0,
-          "override_count": 24,
+          "override_count": 26,
           "overrides": [
             {
               "field": 0,
@@ -3232,6 +3689,16 @@
               "field": 23,
               "targetValue": 240,
               "strength": 100
+            },
+            {
+              "field": 25,
+              "targetValue": 23,
+              "strength": 100
+            },
+            {
+              "field": 24,
+              "targetValue": 23,
+              "strength": 100
             }
           ]
         }
@@ -3244,13 +3711,8 @@
       "keyframes": [
         {
           "time_ms": 0,
-          "override_count": 24,
+          "override_count": 16,
           "overrides": [
-            {
-              "field": 0,
-              "targetValue": 3,
-              "strength": 100
-            },
             {
               "field": 1,
               "targetValue": 30,
@@ -3263,26 +3725,6 @@
             },
             {
               "field": 3,
-              "targetValue": 0,
-              "strength": 100
-            },
-            {
-              "field": 4,
-              "targetValue": 3,
-              "strength": 100
-            },
-            {
-              "field": 5,
-              "targetValue": 83,
-              "strength": 100
-            },
-            {
-              "field": 6,
-              "targetValue": 707,
-              "strength": 100
-            },
-            {
-              "field": 7,
               "targetValue": 0,
               "strength": 100
             },
@@ -3302,11 +3744,6 @@
               "strength": 100
             },
             {
-              "field": 11,
-              "targetValue": 0,
-              "strength": 100
-            },
-            {
               "field": 12,
               "targetValue": 17,
               "strength": 100
@@ -3319,36 +3756,6 @@
             {
               "field": 14,
               "targetValue": 26,
-              "strength": 100
-            },
-            {
-              "field": 15,
-              "targetValue": 1,
-              "strength": 100
-            },
-            {
-              "field": 16,
-              "targetValue": 0,
-              "strength": 100
-            },
-            {
-              "field": 17,
-              "targetValue": 48,
-              "strength": 100
-            },
-            {
-              "field": 18,
-              "targetValue": 707,
-              "strength": 100
-            },
-            {
-              "field": 19,
-              "targetValue": 0,
-              "strength": 100
-            },
-            {
-              "field": 20,
-              "targetValue": 0,
               "strength": 100
             },
             {
@@ -3365,6 +3772,26 @@
               "field": 23,
               "targetValue": 40,
               "strength": 100
+            },
+            {
+              "field": 24,
+              "targetValue": 26,
+              "strength": 100
+            },
+            {
+              "field": 25,
+              "targetValue": -5,
+              "strength": 100
+            },
+            {
+              "field": 26,
+              "targetValue": 800,
+              "strength": 100
+            },
+            {
+              "field": 27,
+              "targetValue": 0,
+              "strength": 100
             }
           ]
         }
@@ -3377,7 +3804,7 @@
       "keyframes": [
         {
           "time_ms": 0,
-          "override_count": 12,
+          "override_count": 16,
           "overrides": [
             {
               "field": 1,
@@ -3438,6 +3865,26 @@
               "field": 19,
               "targetValue": 0,
               "strength": 75
+            },
+            {
+              "field": 24,
+              "targetValue": 20,
+              "strength": 100
+            },
+            {
+              "field": 25,
+              "targetValue": 24,
+              "strength": 100
+            },
+            {
+              "field": 26,
+              "targetValue": 750,
+              "strength": 100
+            },
+            {
+              "field": 27,
+              "targetValue": 0,
+              "strength": 100
             }
           ]
         },
@@ -3475,11 +3922,16 @@
         },
         {
           "time_ms": 660,
-          "override_count": 1,
+          "override_count": 2,
           "overrides": [
             {
               "field": 20,
               "targetValue": -24,
+              "strength": 100
+            },
+            {
+              "field": 24,
+              "targetValue": -9,
               "strength": 100
             }
           ]
@@ -3580,318 +4032,6 @@
           ]
         }
       ]
-    }
-  ],
-  "armPresets": [
-    {
-      "min_deg": -25,
-      "max_deg": -15,
-      "period_s": 2,
-      "interval_s": 1
-    },
-    {
-      "min_deg": -23,
-      "max_deg": -7,
-      "period_s": 1.5,
-      "interval_s": 0.5
-    },
-    {
-      "min_deg": -15,
-      "max_deg": -5,
-      "period_s": 1,
-      "interval_s": 0
-    },
-    {
-      "min_deg": 10,
-      "max_deg": 25,
-      "period_s": 0.9,
-      "interval_s": 0.2
-    },
-    {
-      "min_deg": -25,
-      "max_deg": -15,
-      "period_s": 2,
-      "interval_s": 1
-    },
-    {
-      "min_deg": -25,
-      "max_deg": -15,
-      "period_s": 2,
-      "interval_s": 1
-    },
-    {
-      "min_deg": -25,
-      "max_deg": -15,
-      "period_s": 2,
-      "interval_s": 1
-    },
-    {
-      "min_deg": -25,
-      "max_deg": -15,
-      "period_s": 2,
-      "interval_s": 1
-    },
-    {
-      "min_deg": -25,
-      "max_deg": -15,
-      "period_s": 2,
-      "interval_s": 1
-    },
-    {
-      "min_deg": -25,
-      "max_deg": -15,
-      "period_s": 2,
-      "interval_s": 1
-    },
-    {
-      "min_deg": -25,
-      "max_deg": -15,
-      "period_s": 2,
-      "interval_s": 1
-    },
-    {
-      "min_deg": -25,
-      "max_deg": -15,
-      "period_s": 2,
-      "interval_s": 1
-    },
-    {
-      "min_deg": -25,
-      "max_deg": -15,
-      "period_s": 2,
-      "interval_s": 1
-    },
-    {
-      "min_deg": -25,
-      "max_deg": -20,
-      "period_s": 3,
-      "interval_s": 6
-    },
-    {
-      "min_deg": -15,
-      "max_deg": -5,
-      "period_s": 1,
-      "interval_s": 0
-    },
-    {
-      "min_deg": -25,
-      "max_deg": -20,
-      "period_s": 3,
-      "interval_s": 6
-    },
-    {
-      "min_deg": -25,
-      "max_deg": -20,
-      "period_s": 3,
-      "interval_s": 6
-    },
-    {
-      "min_deg": -15,
-      "max_deg": -5,
-      "period_s": 1,
-      "interval_s": 0
-    },
-    {
-      "min_deg": -23,
-      "max_deg": -7,
-      "period_s": 1.5,
-      "interval_s": 0.5
-    },
-    {
-      "min_deg": 10,
-      "max_deg": 25,
-      "period_s": 0.9,
-      "interval_s": 0.2
-    },
-    {
-      "min_deg": -18,
-      "max_deg": -8,
-      "period_s": 1.1,
-      "interval_s": 0.15
-    },
-    {
-      "min_deg": -25,
-      "max_deg": -15,
-      "period_s": 2,
-      "interval_s": 1
-    }
-  ],
-  "motion": [
-    {
-      "mode": 2,
-      "center": -20,
-      "amplitude": 5,
-      "period_ms": 5000,
-      "period_jitter_ms": 5000,
-      "slew_ms": 500
-    },
-    {
-      "mode": 2,
-      "center": -15,
-      "amplitude": 8,
-      "period_ms": 2000,
-      "period_jitter_ms": 1000,
-      "slew_ms": 500
-    },
-    {
-      "mode": 3,
-      "center": -10,
-      "amplitude": 5,
-      "period_ms": 1000,
-      "period_jitter_ms": 0,
-      "slew_ms": 0
-    },
-    {
-      "mode": 4,
-      "center": 0,
-      "amplitude": 15,
-      "period_ms": 900,
-      "period_jitter_ms": 0,
-      "slew_ms": 0
-    },
-    {
-      "mode": 0,
-      "center": 0,
-      "amplitude": 0,
-      "period_ms": 0,
-      "period_jitter_ms": 0,
-      "slew_ms": 0
-    },
-    {
-      "mode": 5,
-      "center": -15,
-      "amplitude": 5,
-      "period_ms": 2000,
-      "period_jitter_ms": 0,
-      "slew_ms": 0
-    },
-    {
-      "mode": 1,
-      "center": -8,
-      "amplitude": 0,
-      "period_ms": 0,
-      "period_jitter_ms": 0,
-      "slew_ms": 0
-    },
-    {
-      "mode": 3,
-      "center": 5,
-      "amplitude": 4,
-      "period_ms": 840,
-      "period_jitter_ms": 0,
-      "slew_ms": 250
-    },
-    {
-      "mode": 3,
-      "center": -5,
-      "amplitude": 5,
-      "period_ms": 1000,
-      "period_jitter_ms": 0,
-      "slew_ms": 0
-    },
-    {
-      "mode": 3,
-      "center": 0,
-      "amplitude": 5,
-      "period_ms": 750,
-      "period_jitter_ms": 0,
-      "slew_ms": 0
-    },
-    {
-      "mode": 3,
-      "center": -20,
-      "amplitude": 5,
-      "period_ms": 8000,
-      "period_jitter_ms": 0,
-      "slew_ms": 0
-    },
-    {
-      "mode": 1,
-      "center": 18,
-      "amplitude": 0,
-      "period_ms": 0,
-      "period_jitter_ms": 0,
-      "slew_ms": 0
-    },
-    {
-      "mode": 4,
-      "center": 0,
-      "amplitude": 15,
-      "period_ms": 900,
-      "period_jitter_ms": 0,
-      "slew_ms": 0
-    },
-    {
-      "mode": 3,
-      "center": -18,
-      "amplitude": 4,
-      "period_ms": 5000,
-      "period_jitter_ms": 0,
-      "slew_ms": 0
-    },
-    {
-      "mode": 3,
-      "center": 0,
-      "amplitude": 6,
-      "period_ms": 900,
-      "period_jitter_ms": 0,
-      "slew_ms": 0
-    },
-    {
-      "mode": 2,
-      "center": -10,
-      "amplitude": 6,
-      "period_ms": 3000,
-      "period_jitter_ms": 1500,
-      "slew_ms": 500
-    },
-    {
-      "mode": 0,
-      "center": 0,
-      "amplitude": 0,
-      "period_ms": 0,
-      "period_jitter_ms": 0,
-      "slew_ms": 0
-    },
-    {
-      "mode": 1,
-      "center": 0,
-      "amplitude": 0,
-      "period_ms": 0,
-      "period_jitter_ms": 0,
-      "slew_ms": 0
-    },
-    {
-      "mode": 0,
-      "center": 0,
-      "amplitude": 0,
-      "period_ms": 0,
-      "period_jitter_ms": 0,
-      "slew_ms": 0
-    },
-    {
-      "mode": 4,
-      "center": 0,
-      "amplitude": 15,
-      "period_ms": 900,
-      "period_jitter_ms": 0,
-      "slew_ms": 0
-    },
-    {
-      "mode": 3,
-      "center": 0,
-      "amplitude": 6,
-      "period_ms": 820,
-      "period_jitter_ms": 0,
-      "slew_ms": 0
-    },
-    {
-      "mode": 5,
-      "center": -15,
-      "amplitude": 5,
-      "period_ms": 2000,
-      "period_jitter_ms": 0,
-      "slew_ms": 0
     }
   ],
   "bobAmpFollowEmotionArm": -32768,
@@ -4280,10 +4420,6 @@
   "verbSim": {
     "strain_delay_ms": 5000,
     "default_overlay_duration_ms": 1500
-  },
-  "motionRuntime": {
-    "default_static_slew_ms": 250,
-    "default_drift_slew_ms": 500
   },
   "verbTransitionDurMs": 500
 }

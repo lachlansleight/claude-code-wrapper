@@ -12,6 +12,11 @@ what the UI can change today, and what is save-only / hand-edited.
 **Save path:** **Save Face Config Data** → `POST /api/saveData` → regenerates
 `.ts`, `.h`, `EmotionTriangulation.h`, and `.snapshot.json`.
 
+**Schema v3:** each `kBaseTargets` row is **28** `ParamI16` cells — face geometry,
+mood ring, and four **arm** fields (`arm_min_deg`, `arm_max_deg`,
+`arm_period_ms`, `arm_interval_ms`). Legacy `kArmPresets`, `kMotion`, and
+`kMotionRuntime` tables were removed; arm timing is always milliseconds.
+
 ---
 
 ## 1. High-level map of `FaceConfigState`
@@ -21,12 +26,10 @@ what the UI can change today, and what is save-only / hand-edited.
 | **Expression schema**   | Fixed list of 22 `Face::Expression` values, which are “emotions” vs verbs/overlays        |
 | **Named emotions (14)** | V/A anchors, pick order, mapping to expression indices                                    |
 | **Triangulation**       | Delaunay mesh over emotion anchors (computed at load/save, not stored as source of truth) |
-| **`kBaseTargets`**      | 22 × 24 `ParamI16` face geometry rows (value + strength per field)                        |
-| **`kVerbTimelines`**    | Per-verb keyframed override tracks (time → partial field overrides)                       |
-| **`kArmPresets`**       | Per-expression arm waggle ranges (for blended emotion arm motion)                         |
-| **`kMotion`**           | Per-expression body/arm motion mode (oscillate, waggle, thinking, etc.)                   |
-| **`kIdleAnim`**         | Per-expression blink, gaze, and face-bob policy                                           |
-| **Sim tunables**        | `kEmotionSim`, `kFrameAnim`, `kVerbSim`, `kMotionRuntime`, `kVerbTransitionDurMs`         |
+| **`kBaseTargets`**      | 22 × 28 `ParamI16` rows (face + ring + arm; value + strength per field)                   |
+| **`kVerbTimelines`**    | Per-verb keyframed override tracks (time → partial field overrides, including arm)        |
+| **`kIdleAnim`**         | Per-expression blink, gaze, and face-bob **amplitude** policy (not arm period)          |
+| **Sim tunables**        | `kEmotionSim`, `kFrameAnim`, `kVerbSim`, `kVerbTransitionDurMs`                         |
 
 Types and helpers live in [`faceConfigTypes.ts`](src/app/_lib/face-engine/faceConfigTypes.ts)
 (enums, `P()`, `expressionIndexFromName`, etc.). Generated files are **data only**.
@@ -50,30 +53,38 @@ Types and helpers live in [`faceConfigTypes.ts`](src/app/_lib/face-engine/faceCo
 
 ---
 
-### Emotion face geometry — `kBaseTargets` (14 emotion rows only)
+### Emotion face + arm geometry — `kBaseTargets` (14 emotion rows)
 
 | What                                                     | UI location                                                                                                                                                      |
 | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Per-field **value** and **strength** for a named emotion | **Emotions** mode → click anchor on blend diagram → [`EmotionPointInspector.tsx`](src/app/_components/face-editor/EmotionPointInspector.tsx) (`ParamSliderGrid`) |
+| Arm min/max (°), period/interval (ms)                    | Same inspector — **Arm** section at bottom of `ParamSliderGrid`                                                                                                  |
 | Valence / arousal readout                                | Top of `EmotionPointInspector` (from live anchor)                                                                                                                |
 
 Rows addressed by **PascalCase** emotion name (`Neutral`, `Happy`, …) matching
 triangulation anchors — not by expression index dropdown.
 
+Arm fields barycentric-blend with the rest of the face when V/A moves between
+anchors ([`emotionBlend.ts`](src/app/_lib/face-engine/emotionBlend.ts)).
+
 **Not in UI:** direct editor for verb/overlay rows in `kBaseTargets` (see §3).
 
 ---
 
-### Verb face animation — `kVerbTimelines`
+### Verb face + arm animation — `kVerbTimelines`
 
 | What                                             | UI location                                                                                                                                                                          |
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Keyframe times, override fields/values/strengths | **Verbs** mode → [`VerbTimelinePanel.tsx`](src/app/_components/face-editor/VerbTimelinePanel.tsx) + [`KeyframeInspector.tsx`](src/app/_components/face-editor/KeyframeInspector.tsx) |
+| Arm overrides (same four fields as emotions)     | Keyframe inspector — add `arm_*` fields like any other param                                                                                                                         |
 | Loop duration                                    | Verb timeline panel                                                                                                                                                                  |
 | Preview playhead / speed                         | Verb timeline panel + [`FaceStage`](src/app/_components/face-editor/FaceStage.tsx) canvas                                                                                            |
 
 Applies to expressions that use verb timelines: `VerbThinking`, `VerbReading`,
 `VerbWriting`, `VerbExecuting`, `VerbStraining`, `VerbSleeping`.
+
+Shipped verb rows in `FACE_CONFIG_DATA` use `FACE_ROW_EMPTY` (all zeros including
+arm); tune arm per verb in the timeline or by editing generated data.
 
 ---
 
@@ -99,7 +110,7 @@ unless you edit the generated files by hand.
 -   `expressionIsEmotion` (emotion vs verb/overlay flags)
 -   `emotionNames` (14 slugs — positions editable, names not)
 -   `verbKeyframeOverridesMax`, `verbKeyframesMax`
--   `bobAmpFollowEmotionArm` (sentinel `0x8000` for “follow arm” bob)
+-   `bobAmpFollowEmotionArm` (sentinel `0x8000` for “follow arm” bob amplitude)
 
 ### Emotion metadata
 
@@ -108,49 +119,36 @@ unless you edit the generated files by hand.
 
 ### `kBaseTargets` for verbs and overlays
 
-**Still used at runtime**, but **not exposed in the editor UI**.
+**Still used at runtime**, but **not exposed in the editor UI** (except via verb
+timelines for verbs).
 
 Firmware comment ([`FACE_CONFIG_DATA.h`](../robot_v3/src/face/FACE_CONFIG_DATA.h)):
 
-> Verb / overlay rows duplicate the same tuned geometry as `kVerbTimelines` keyframe 0.
+> Verb / overlay rows are zero-filled; geometry and arm come from `kVerbTimelines`.
 
-Runtime behaviour ([`frameController.ts`](src/app/_lib/face-engine/frameController.ts)):
+Runtime behaviour (firmware [`FrameEffective.cpp`](../robot_v3/src/face/FrameEffective.cpp),
+editor [`frameController.ts`](src/app/_lib/face-engine/frameController.ts)):
 
-1. Start from `baseTargets[expression]` for the active expression.
-2. Optionally replace with **blended emotion** geometry when in verb-timeline preview with a V/A base.
-3. Smooth toward that row.
-4. Layer **`kVerbTimelines`** via `sampleEffectiveVerb` + `combineEmotionVerbFace`.
+1. Resolve expression → `baseTargets[expression]` (or blended emotion base during verb preview).
+2. **`tickEffectiveParams`**: smooth toward base, sample verb timeline, **`combineEmotionVerbFace`** → one `FaceParams` row (28 fields, including arm).
+3. **`MotionBehaviors::tick`**: drive servo from effective `arm_*` fields.
+4. **`FrameController`**: body bob maps **live arm angle** (`Motion::currentOffsetDeg()`) across min→max deg to ±`bob_amplitude_px` (from idle row).
 
-So for active verbs, the **timeline is the practical source of truth** for the
-animated face; verb `kBaseTargets` rows are still the default base layer (and match
-keyframe 0 in practice). The editor does not provide a “edit VerbThinking base
-row” screen — only keyframes.
+Loop order on device: `SceneContextFill` → `tickEffectiveParams` → `MotionBehaviors` → `Motion::tick` → `Face::tick`.
 
-**Overlays** (`OverlayWaking`, `OverlayAttention`) have timeline-less behaviour;
-their `kBaseTargets` rows matter more and are also **not** editable in UI.
-
-### Arm motion — `kArmPresets`
-
-Per-expression arm waggle parameters used when blending emotion arm motion
-([`emotionBlend.ts`](src/app/_lib/face-engine/emotionBlend.ts)).
-
-**Planned:** dedicated arm-motion editor UI.
-
-### Body motion — `kMotion`
-
-Per-expression motion mode (`RandomDrift`, `Oscillate`, `Waggle`, `Thinking`, …),
-period, amplitude, slew.
-
-Drives arm period / body behaviour in [`frameController.ts`](src/app/_lib/face-engine/frameController.ts).
-
-**Planned:** editor UI (likely alongside arm presets).
+**Overlays** (`OverlayWaking`, `OverlayAttention`) have no verb timelines; their
+`kBaseTargets` rows matter more and are also **not** editable in UI.
 
 ### Idle / blink / gaze / bob — `kIdleAnim`
 
 Per-expression blink intervals, gaze style (`Off`, `IdleRandom`, `Orbit`, `ScanX`),
-scan/amplitude fields, `bob_amplitude_px` (or `BOB_AMP_FOLLOW_EMOTION_ARM`).
+scan/amplitude fields, `bob_amplitude_px` (or `BOB_AMP_FOLLOW_EMOTION_ARM` to use
+the effective arm sweep span as bob amplitude).
 
-**Planned:** editor UI.
+Body bob **position** follows commanded arm angle, not a separate phase clock tied
+to `arm_period_ms`. See [`docs/firmware2/MOTION.md`](../docs/firmware2/MOTION.md).
+
+**Planned:** dedicated `kIdleAnim` editor UI.
 
 ### Simulation tunables
 
@@ -159,10 +157,9 @@ scan/amplitude fields, `bob_amplitude_px` (or `BOB_AMP_FOLLOW_EMOTION_ARM`).
 | `kEmotionSim`          | Emotion activation / valence smoothing, snap hysteresis                               |
 | `kFrameAnim`           | Tick rate, geometry smooth tau, breath, thinking flip timing, mood ring tau, defaults |
 | `kVerbSim`             | Strain delay, default overlay duration                                                |
-| `kMotionRuntime`       | Default slew times for motion modes                                                   |
 | `kVerbTransitionDurMs` | Cross-fade when switching verb timelines                                              |
 
-**Planned:** single large “simulation / tuning” panel in the editor.
+**Planned:** single “simulation / tuning” panel in the editor.
 
 ### Derived data (not hand-edited)
 
@@ -174,10 +171,12 @@ scan/amplitude fields, `bob_amplitude_px` (or `BOB_AMP_FOLLOW_EMOTION_ARM`).
 ## 4. Planned editor directions (from product notes)
 
 1. **Schema updates** — custom emotion names/counts; pick order and expression mapping UI.
-2. **Verbs** — treat timelines as primary; consider whether verb `kBaseTargets` rows stay as duplicates of keyframe 0 or are generated-only.
-3. **Arm / motion** — `kArmPresets` + `kMotion` editors.
-4. **Idle** — `kIdleAnim` editor (blink, gaze, bob).
-5. **Sim panel** — all `kEmotionSim` / `kFrameAnim` / `kVerbSim` / `kMotionRuntime` / transition ms in one place.
+2. **Verbs** — timelines remain primary; optional UI for verb `kBaseTargets` base rows.
+3. **Idle** — `kIdleAnim` editor (blink, gaze, bob amplitude policy).
+4. **Sim panel** — `kEmotionSim` / `kFrameAnim` / `kVerbSim` / transition ms in one place.
+
+Arm tuning is **in scope today** via emotion inspector and verb keyframes — no
+separate `kArmPresets` / `kMotion` tables.
 
 ---
 
@@ -192,10 +191,11 @@ scan/amplitude fields, `bob_amplitude_px` (or `BOB_AMP_FOLLOW_EMOTION_ARM`).
 │  EMOTIONS MODE                                               │
 │    BlendPanel: V/A sliders, blend diagram (anchor drag)        │
 │    EmotionButtons: bridge only                               │
-│    → EmotionPointInspector: kBaseTargets[emotion]            │
+│    → EmotionPointInspector: kBaseTargets[emotion] (28 fields) │
 │                                                              │
 │  VERBS MODE                                                  │
 │    VerbTimelinePanel + KeyframeInspector: kVerbTimelines     │
+│    (arm_* overrides optional per keyframe)                    │
 │    (optional StaticModePanel when inspector closed)           │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -212,4 +212,5 @@ scan/amplitude fields, `bob_amplitude_px` (or `BOB_AMP_FOLLOW_EMOTION_ARM`).
 | Reload snapshot        | `face-editor/src/app/_lib/face-engine/FACE_CONFIG_DATA.snapshot.json` |
 
 Codegen: [`src/app/_lib/face-config-codegen/`](src/app/_lib/face-config-codegen/) (Node,
-`delaunator`, no Python).
+`delaunator`, no Python). Snapshot v2 configs migrate to v3 on load
+([`migrateSchemaV3.ts`](src/app/_lib/face-config-codegen/migrateSchemaV3.ts)).

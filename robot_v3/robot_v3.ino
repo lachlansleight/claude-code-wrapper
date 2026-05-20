@@ -3,6 +3,7 @@
 #include "src/app/SceneContextFill.h"
 #include "src/bridge/BridgeClient.h"
 #include "src/face/FrameController.h"
+#include "src/face/FrameEffective.h"
 #include "src/face/SceneTypes.h"
 #include "src/hal/Display.h"
 #include "src/hal/Motion.h"
@@ -92,6 +93,8 @@ void loop() {
 
   Face::SceneContext ctx;
   SceneContextFill::fill(ctx);
+  const uint32_t now = millis();
+  Face::tickEffectiveParams(ctx, now);
   MotionBehaviors::tick(ctx);
   Motion::tick();
   Face::tick(ctx);

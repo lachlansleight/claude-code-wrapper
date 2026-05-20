@@ -12,12 +12,6 @@
 
 namespace FaceConfig {
 
-inline ArmPreset armPresetFor(Face::Expression e) {
-  const uint8_t i = (uint8_t)e;
-  if (i >= (uint8_t)Face::Expression::Count) return kArmPresets[0];
-  return kArmPresets[i];
-}
-
 // ─── NamedEmotion → Face::Expression (1:1) ───────────────────────────────
 
 inline Face::Expression expressionForNamedEmotion(EmotionSystem::NamedEmotion e) {

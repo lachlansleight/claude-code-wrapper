@@ -135,29 +135,29 @@ static constexpr Face::Expression
   {                                                                                            \
     FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, \
         FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ,     \
-        FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ                                            \
+        FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ, FACE_PZ        \
   }
 #endif
 static const Face::FaceParams kBaseTargets[(uint8_t)Face::Expression::Count] = {
     /* Neutral */          { FACE_P(3), FACE_P(30), FACE_P(26), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(3), FACE_P(15),
                               FACE_P(2), FACE_P(15), FACE_P(1), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0),
-                              FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0) },
+                              FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(-15), FACE_P(-15), FACE_P(2000), FACE_P(1000) },
 
     /* Happy */            { FACE_P(7), FACE_P(30), FACE_P(23), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(5), FACE_P(16),
                               FACE_P(2), FACE_P(24), FACE_P(2), FACE_P(+20), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0),
-                              FACE_P(0), FACE_P(7), FACE_P(0), FACE_P(0), FACE_P(0) },
+                              FACE_P(0), FACE_P(7), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(-23), FACE_P(-7), FACE_P(1500), FACE_P(500) },
 
     /* Excited */          { FACE_P(-1), FACE_P(29), FACE_P(28), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(17),
                               FACE_P(3), FACE_P(27), FACE_P(2), FACE_P(+48), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0),
-                              FACE_P(0), FACE_P(3), FACE_P(40), FACE_P(252), FACE_P(79) },
+                              FACE_P(0), FACE_P(3), FACE_P(40), FACE_P(252), FACE_P(79), FACE_P(-15), FACE_P(-5), FACE_P(1000), FACE_P(0) },
 
     /* Joyful */           { FACE_P(-11), FACE_P(20), FACE_P(2), FACE_P(-64), FACE_P(4), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(14),
                               FACE_P(2), FACE_P(37), FACE_P(14), FACE_P(+69), FACE_P(4), FACE_P(0), FACE_P(0), FACE_P(0),
-                              FACE_P(0), FACE_P(-13), FACE_P(255), FACE_P(228), FACE_P(38) },
+                              FACE_P(0), FACE_P(-13), FACE_P(255), FACE_P(228), FACE_P(38), FACE_P(10), FACE_P(25), FACE_P(900), FACE_P(200) },
 
     /* Sad */              { FACE_P(7), FACE_P(28), FACE_P(15), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(3), FACE_P(11),
                               FACE_P(-6), FACE_P(20), FACE_P(1), FACE_P(-14), FACE_P(3), FACE_P(0), FACE_P(1), FACE_P(3),
-                              FACE_P(0), FACE_P(6), FACE_P(4), FACE_P(1), FACE_P(3) },
+                              FACE_P(0), FACE_P(6), FACE_P(4), FACE_P(1), FACE_P(3), FACE_P(-25), FACE_P(-15), FACE_P(2000), FACE_P(1000) },
 
     /* VerbThinking */ FACE_ROW_EMPTY,
     /* VerbReading */ FACE_ROW_EMPTY,
@@ -169,35 +169,35 @@ static const Face::FaceParams kBaseTargets[(uint8_t)Face::Expression::Count] = {
     /* VerbAttractingAttention */ FACE_ROW_EMPTY,
     /* Sleepy */           { FACE_P(15), FACE_P(28), FACE_P(17), FACE_P(+24), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(-13), FACE_P(15),
                               FACE_P(2), FACE_P(13), FACE_P(2), FACE_P(+8), FACE_P(3), FACE_P(0), FACE_P(17), FACE_P(90),
-                              FACE_P(0), FACE_P(13), FACE_P(0), FACE_P(0), FACE_P(0) },
+                              FACE_P(0), FACE_P(13), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(-25), FACE_P(-20), FACE_P(3000), FACE_P(6000) },
 
     /* Distressed */       { FACE_P(5), FACE_P(30), FACE_P(30), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(7), FACE_P(10),
                               FACE_P(-5), FACE_P(24), FACE_P(5), FACE_P(-46), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0),
-                              FACE_P(0), FACE_P(-17), FACE_P(255), FACE_P(48), FACE_P(24) },
+                              FACE_P(0), FACE_P(-17), FACE_P(255), FACE_P(48), FACE_P(24), FACE_P(-15), FACE_P(-5), FACE_P(1000), FACE_P(0) },
 
     /* Blissed */          { FACE_P(4), FACE_P(20), FACE_P(0), FACE_P(+24), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(15),
                               FACE_P(8), FACE_P(26), FACE_P(6), FACE_P(+29), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0),
-                              FACE_P(0), FACE_P(7), FACE_P(0), FACE_P(0), FACE_P(0) },
+                              FACE_P(0), FACE_P(7), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(-25), FACE_P(-20), FACE_P(3000), FACE_P(6000) },
 
     /* Depressed */        { FACE_P(23), FACE_P(30), FACE_P(8), FACE_P(+74), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(-2), FACE_P(6),
                               FACE_P(4), FACE_P(13), FACE_P(0), FACE_P(-11), FACE_P(3), FACE_P(0), FACE_P(17), FACE_P(90),
-                              FACE_P(0), FACE_P(9), FACE_P(0), FACE_P(0), FACE_P(0) },
+                              FACE_P(0), FACE_P(9), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(-25), FACE_P(-20), FACE_P(3000), FACE_P(6000) },
 
     /* Shocked */          { FACE_P(2), FACE_P(30), FACE_P(37), FACE_P(0), FACE_P(3), FACE_P(1), FACE_P(85), FACE_P(720), FACE_P(0), FACE_P(3), FACE_P(9),
                               FACE_P(15), FACE_P(17), FACE_P(13), FACE_P(0), FACE_P(1), FACE_P(2), FACE_P(49), FACE_P(720),
-                              FACE_P(0), FACE_P(0), FACE_P(255), FACE_P(255), FACE_P(255) },
+                              FACE_P(0), FACE_P(0), FACE_P(255), FACE_P(255), FACE_P(255), FACE_P(21), FACE_P(30), FACE_P(600), FACE_P(0) },
 
     /* Disappointed */     { FACE_P(5), FACE_P(21), FACE_P(0), FACE_P(+27), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(0), FACE_P(3), FACE_P(8),
                               FACE_P(-15), FACE_P(25), FACE_P(2), FACE_P(-21), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(2),
-                              FACE_P(0), FACE_P(0), FACE_P(225), FACE_P(53), FACE_P(93) },
+                              FACE_P(0), FACE_P(0), FACE_P(225), FACE_P(53), FACE_P(93), FACE_P(-23), FACE_P(-7), FACE_P(1500), FACE_P(500) },
 
     /* Gleeful */          { FACE_P(-10), FACE_P(27), FACE_P(13), FACE_P(-137), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(1), FACE_P(0), FACE_P(1), FACE_P(14),
                               FACE_P(-17), FACE_P(27), FACE_P(7), FACE_P(+61), FACE_P(3), FACE_P(0), FACE_P(0), FACE_P(1),
-                              FACE_P(0), FACE_P(2), FACE_P(39), FACE_P(248), FACE_P(78) },
+                              FACE_P(0), FACE_P(2), FACE_P(39), FACE_P(248), FACE_P(78), FACE_P(10), FACE_P(25), FACE_P(900), FACE_P(200) },
 
     /* Frustrated */       { FACE_P(1), FACE_P(30), FACE_P(22), FACE_P(0), FACE_P(3), FACE_P(0), FACE_P(1), FACE_P(5), FACE_P(0), FACE_P(-3), FACE_P(10),
                               FACE_P(0), FACE_P(18), FACE_P(0), FACE_P(0), FACE_P(3), FACE_P(4), FACE_P(96), FACE_P(348),
-                              FACE_P(0), FACE_P(1), FACE_P(212), FACE_P(75), FACE_P(212) },
+                              FACE_P(0), FACE_P(1), FACE_P(212), FACE_P(75), FACE_P(212), FACE_P(-19), FACE_P(-12), FACE_P(1100), FACE_P(1750) },
 
     /* VerbCelebrating */ FACE_ROW_EMPTY,
 };
@@ -233,7 +233,7 @@ static constexpr VerbTimeline kVerbTimelines[] = {
      {
          {
              0u,
-             13u,
+             16u,
              {
              KO(Face::FieldIndex::EyeRx, 28),
              KO(Face::FieldIndex::EyeOpenAmt, 26),
@@ -248,6 +248,9 @@ static constexpr VerbTimeline kVerbTimelines[] = {
              KO(Face::FieldIndex::RingR, 36),
              KO(Face::FieldIndex::RingG, 56),
              KO(Face::FieldIndex::RingB, 120),
+             KO(Face::FieldIndex::ArmMaxDeg, -11),
+             KO(Face::FieldIndex::ArmMinDeg, -22),
+             KO(Face::FieldIndex::ArmIntervalMs, 0),
              },
          },
          {
@@ -289,7 +292,7 @@ static constexpr VerbTimeline kVerbTimelines[] = {
      {
          {
              0u,
-             13u,
+             17u,
              {
              KO(Face::FieldIndex::EyeRx, 27),
              KO(Face::FieldIndex::EyeOpenAmt, 24),
@@ -304,6 +307,10 @@ static constexpr VerbTimeline kVerbTimelines[] = {
              KO(Face::FieldIndex::RingR, 78),
              KO(Face::FieldIndex::RingG, 146),
              KO(Face::FieldIndex::RingB, 210),
+             KO(Face::FieldIndex::ArmMinDeg, -20),
+             KO(Face::FieldIndex::ArmPeriodMs, 1800),
+             KO(Face::FieldIndex::ArmIntervalMs, 0),
+             KO(Face::FieldIndex::ArmMaxDeg, -20),
              },
          },
          {
@@ -341,7 +348,7 @@ static constexpr VerbTimeline kVerbTimelines[] = {
      {
          {
              0u,
-             24u,
+             28u,
              {
              KO(Face::FieldIndex::EyeDy, 0),
              KO(Face::FieldIndex::EyeRx, 28),
@@ -367,16 +374,20 @@ static constexpr VerbTimeline kVerbTimelines[] = {
              KO(Face::FieldIndex::RingR, 104),
              KO(Face::FieldIndex::RingG, 118),
              KO(Face::FieldIndex::RingB, 228),
+             KO(Face::FieldIndex::ArmMinDeg, 10),
+             KO(Face::FieldIndex::ArmMaxDeg, 2),
+             KO(Face::FieldIndex::ArmPeriodMs, 500),
+             KO(Face::FieldIndex::ArmIntervalMs, 0),
              },
          },
      }},
     {Face::Expression::VerbExecuting,
-     1000u,
+     3000u,
      1u,
      {
          {
              0u,
-             24u,
+             28u,
              {
              KO(Face::FieldIndex::EyeDy, 0),
              KO(Face::FieldIndex::EyeRx, 30),
@@ -402,16 +413,20 @@ static constexpr VerbTimeline kVerbTimelines[] = {
              KO(Face::FieldIndex::RingR, 156),
              KO(Face::FieldIndex::RingG, 64),
              KO(Face::FieldIndex::RingB, 216),
+             KO(Face::FieldIndex::ArmMinDeg, 4),
+             KO(Face::FieldIndex::ArmMaxDeg, -13),
+             KO(Face::FieldIndex::ArmPeriodMs, 800),
+             KO(Face::FieldIndex::ArmIntervalMs, 0),
              },
          },
      }},
     {Face::Expression::VerbStraining,
-     1000u,
+     1020u,
      1u,
      {
          {
              0u,
-             24u,
+             28u,
              {
              KO(Face::FieldIndex::EyeDy, 1),
              KO(Face::FieldIndex::EyeRx, 30),
@@ -437,6 +452,10 @@ static constexpr VerbTimeline kVerbTimelines[] = {
              KO(Face::FieldIndex::RingR, 210),
              KO(Face::FieldIndex::RingG, 75),
              KO(Face::FieldIndex::RingB, 220),
+             KO(Face::FieldIndex::ArmMinDeg, 10),
+             KO(Face::FieldIndex::ArmMaxDeg, -10),
+             KO(Face::FieldIndex::ArmPeriodMs, 850),
+             KO(Face::FieldIndex::ArmIntervalMs, 0),
              },
          },
      }},
@@ -446,7 +465,7 @@ static constexpr VerbTimeline kVerbTimelines[] = {
      {
          {
              0u,
-             24u,
+             26u,
              {
              KO(Face::FieldIndex::EyeDy, 2),
              KO(Face::FieldIndex::EyeRx, 30),
@@ -472,6 +491,8 @@ static constexpr VerbTimeline kVerbTimelines[] = {
              KO(Face::FieldIndex::RingR, 0),
              KO(Face::FieldIndex::RingG, 0),
              KO(Face::FieldIndex::RingB, 0),
+             KO(Face::FieldIndex::ArmMinDeg, -27),
+             KO(Face::FieldIndex::ArmMaxDeg, -27),
              },
          },
      }},
@@ -481,7 +502,7 @@ static constexpr VerbTimeline kVerbTimelines[] = {
      {
          {
              0u,
-             24u,
+             26u,
              {
              KO(Face::FieldIndex::EyeDy, 2),
              KO(Face::FieldIndex::EyeRx, 31),
@@ -507,6 +528,8 @@ static constexpr VerbTimeline kVerbTimelines[] = {
              KO(Face::FieldIndex::RingR, 170),
              KO(Face::FieldIndex::RingG, 210),
              KO(Face::FieldIndex::RingB, 240),
+             KO(Face::FieldIndex::ArmMaxDeg, 23),
+             KO(Face::FieldIndex::ArmMinDeg, 23),
              },
          },
      }},
@@ -516,32 +539,24 @@ static constexpr VerbTimeline kVerbTimelines[] = {
      {
          {
              0u,
-             24u,
+             16u,
              {
-             KO(Face::FieldIndex::EyeDy, 3),
              KO(Face::FieldIndex::EyeRx, 30),
              KO(Face::FieldIndex::EyeOpenAmt, 31),
              KO(Face::FieldIndex::EyeArcAmt, 0),
-             KO(Face::FieldIndex::EyeThick, 3),
-             KO(Face::FieldIndex::EyeWaveAmp, 83),
-             KO(Face::FieldIndex::EyeWaveFreq, 707),
-             KO(Face::FieldIndex::EyeWaveSpeed, 0),
              KO(Face::FieldIndex::PupilDx, 0),
              KO(Face::FieldIndex::PupilDy, 3),
              KO(Face::FieldIndex::PupilR, 12),
-             KO(Face::FieldIndex::MouthDy, 0),
              KO(Face::FieldIndex::MouthRx, 17),
              KO(Face::FieldIndex::MouthOpenAmt, 13),
              KO(Face::FieldIndex::MouthArcAmt, 26),
-             KO(Face::FieldIndex::MouthThick, 1),
-             KO(Face::FieldIndex::MouthWaveAmp, 0),
-             KO(Face::FieldIndex::MouthWaveFreq, 48),
-             KO(Face::FieldIndex::MouthWaveSpeed, 707),
-             KO(Face::FieldIndex::FaceRot, 0),
-             KO(Face::FieldIndex::FaceY, 0),
              KO(Face::FieldIndex::RingR, 255),
              KO(Face::FieldIndex::RingG, 20),
              KO(Face::FieldIndex::RingB, 40),
+             KO(Face::FieldIndex::ArmMinDeg, 26),
+             KO(Face::FieldIndex::ArmMaxDeg, -5),
+             KO(Face::FieldIndex::ArmPeriodMs, 800),
+             KO(Face::FieldIndex::ArmIntervalMs, 0),
              },
          },
      }},
@@ -551,7 +566,7 @@ static constexpr VerbTimeline kVerbTimelines[] = {
      {
          {
              0u,
-             12u,
+             16u,
              {
              KO(Face::FieldIndex::EyeRx, 20),
              KO(Face::FieldIndex::EyeOpenAmt, 0),
@@ -565,6 +580,10 @@ static constexpr VerbTimeline kVerbTimelines[] = {
              KO(Face::FieldIndex::RingG, 228),
              KO(Face::FieldIndex::RingB, 38),
              KO(Face::FieldIndex::FaceRot, 0),
+             KO(Face::FieldIndex::ArmMinDeg, 20),
+             KO(Face::FieldIndex::ArmMaxDeg, 24),
+             KO(Face::FieldIndex::ArmPeriodMs, 750),
+             KO(Face::FieldIndex::ArmIntervalMs, 0),
              },
          },
          {
@@ -585,9 +604,10 @@ static constexpr VerbTimeline kVerbTimelines[] = {
          },
          {
              660u,
-             1u,
+             2u,
              {
              KO(Face::FieldIndex::FaceY, -24),
+             KO(Face::FieldIndex::ArmMinDeg, -9),
              },
          },
          {
@@ -639,81 +659,6 @@ static constexpr VerbTimeline kVerbTimelines[] = {
 
 static constexpr size_t kVerbTimelineCount =
     sizeof(kVerbTimelines) / sizeof(kVerbTimelines[0]);
-
-struct ArmPreset {
-  int8_t min_deg;
-  int8_t max_deg;
-  float period_s;
-  float interval_s;
-};
-
-static constexpr ArmPreset kArmPresets[(uint8_t)Face::Expression::Count] = {
-    {-25, -15, 2.0f, 1.0f},   // Neutral
-    {-23, -7, 1.5f, 0.5f},   // Happy
-    {-15, -5, 1.0f, 0.0f},   // Excited
-    {10, 25, 0.9f, 0.2f},   // Joyful
-    {-25, -15, 2.0f, 1.0f},   // Sad
-    {-25, -15, 2.0f, 1.0f},   // VerbThinking
-    {-25, -15, 2.0f, 1.0f},   // VerbReading
-    {-25, -15, 2.0f, 1.0f},   // VerbWriting
-    {-25, -15, 2.0f, 1.0f},   // VerbExecuting
-    {-25, -15, 2.0f, 1.0f},   // VerbStraining
-    {-25, -15, 2.0f, 1.0f},   // VerbSleeping
-    {-25, -15, 2.0f, 1.0f},   // VerbWaking
-    {-25, -15, 2.0f, 1.0f},   // VerbAttractingAttention
-    {-25, -20, 3.0f, 6.0f},   // Sleepy
-    {-15, -5, 1.0f, 0.0f},   // Distressed
-    {-25, -20, 3.0f, 6.0f},   // Blissed
-    {-25, -20, 3.0f, 6.0f},   // Depressed
-    {-15, -5, 1.0f, 0.0f},   // Shocked
-    {-23, -7, 1.5f, 0.5f},   // Disappointed
-    {10, 25, 0.9f, 0.2f},   // Gleeful
-    {-18, -8, 1.1f, 0.15f},   // Frustrated
-    {-25, -15, 2.0f, 1.0f},   // VerbCelebrating
-};
-
-enum class MotionMode : uint8_t {
-  None = 0,
-  Static,
-  RandomDrift,
-  Oscillate,
-  Waggle,
-  Thinking,
-};
-
-struct ExprMotionRow {
-  MotionMode mode;
-  int8_t center;
-  uint8_t amplitude;
-  uint16_t period_ms;
-  uint16_t period_jitter_ms;
-  uint16_t slew_ms;
-};
-
-static constexpr ExprMotionRow kMotion[(uint8_t)Face::Expression::Count] = {
-    /* Neutral */ {MotionMode::RandomDrift, -20, 5, 5000, 5000, 500},
-    /* Happy */ {MotionMode::RandomDrift, -15, 8, 2000, 1000, 500},
-    /* Excited */ {MotionMode::Oscillate, -10, 5, 1000, 0, 0},
-    /* Joyful */ {MotionMode::Waggle, 0, 15, 900, 0, 0},
-    /* Sad */ {MotionMode::None, 0, 0, 0, 0, 0},
-    /* VerbThinking */ {MotionMode::Thinking, -15, 5, 2000, 0, 0},
-    /* VerbReading */ {MotionMode::Static, -8, 0, 0, 0, 0},
-    /* VerbWriting */ {MotionMode::Oscillate, 5, 4, 840, 0, 250},
-    /* VerbExecuting */ {MotionMode::Oscillate, -5, 5, 1000, 0, 0},
-    /* VerbStraining */ {MotionMode::Oscillate, 0, 5, 750, 0, 0},
-    /* VerbSleeping */ {MotionMode::Oscillate, -20, 5, 8000, 0, 0},
-    /* VerbWaking */ {MotionMode::Static, 18, 0, 0, 0, 0},
-    /* VerbAttractingAttention */ {MotionMode::Waggle, 0, 15, 900, 0, 0},
-    /* Sleepy */ {MotionMode::Oscillate, -18, 4, 5000, 0, 0},
-    /* Distressed */ {MotionMode::Oscillate, 0, 6, 900, 0, 0},
-    /* Blissed */ {MotionMode::RandomDrift, -10, 6, 3000, 1500, 500},
-    /* Depressed */ {MotionMode::None, 0, 0, 0, 0, 0},
-    /* Shocked */ {MotionMode::Static, 0, 0, 0, 0, 0},
-    /* Disappointed */ {MotionMode::None, 0, 0, 0, 0, 0},
-    /* Gleeful */ {MotionMode::Waggle, 0, 15, 900, 0, 0},
-    /* Frustrated */ {MotionMode::Oscillate, 0, 6, 820, 0, 0},
-    /* VerbCelebrating */ {MotionMode::Thinking, -15, 5, 2000, 0, 0},
-};
 
 inline constexpr int16_t kBobAmpFollowEmotionArm = (int16_t)(0x8000);
 
@@ -831,23 +776,11 @@ struct VerbSimConfig {
   uint32_t default_overlay_duration_ms;
 };
 
-struct MotionRuntimeConfig {
-  uint16_t default_static_slew_ms;
-  uint16_t default_drift_slew_ms;
-};
-
 static constexpr VerbSimConfig kVerbSim = {
     5000, // strain_delay_ms
     1500, // default_overlay_duration_ms
 };
 
-static constexpr MotionRuntimeConfig kMotionRuntime = {
-    250, // default_static_slew_ms
-    500, // default_drift_slew_ms
-};
-
-static_assert(sizeof(kMotion) / sizeof(kMotion[0]) == (uint8_t)Face::Expression::Count,
-              "kMotion rows must match Face::Expression::Count");
 static_assert(sizeof(kIdleAnim) / sizeof(kIdleAnim[0]) == (uint8_t)Face::Expression::Count,
               "kIdleAnim rows must match Face::Expression::Count");
 

@@ -156,22 +156,21 @@ the eyes and mouth stay inside the round display when the face bobs down.
 
 ## Body bob
 
-Body bob is the vertical motion that keeps the face in time with the arm
-swing. Two things make it correct:
+Body bob is vertical motion tied to **arm position**, not a separate sine
+phase integrated from arm period.
 
-1. **Phase is integrated, not sampled.** `sBodyBobPhaseRad` advances by
-   `2π * dt / periodMs`. If the period changes mid-cycle (e.g. the
-   active emotion blends to one with a different arm period) the phase
-   is continuous and you don't get a jump.
+1. **Position source is the servo.** After `MotionBehaviors::tick` and
+   `Motion::tick`, `Motion::currentOffsetDeg()` is the commanded offset
+   from centre. `bodyBobFor()` linearly maps that angle between effective
+   `arm_min_deg` and `arm_max_deg` to ±`bob_amplitude_px`.
 
-2. **Period source is the arm.** `MotionBehaviors::periodMsForContext(ctx)`
-   tells the face exactly what period the arm is using right now —
-   either from `kMotion[expression]` for verbs/overlays, or from the
-   blended `ctx.base_emotion_arm` for emotion mode. If you change a
-   state's `period_ms` in `FACE_CONFIG_DATA.h`, the face auto-resyncs
-   on the next frame.
+2. **Amplitude source is idle config.** `kIdleAnim[expression].bob_amplitude_px`,
+   or `BOB_AMP_FOLLOW_EMOTION_ARM` to use the effective arm sweep span as
+   amplitude. Changing `arm_period_ms` changes how fast the arm (and thus
+   bob) moves; there is no `sBodyBobPhaseRad` clock tied to period.
 
-The bob's amplitude is read from the same source.
+Effective arm min/max come from `Face::effectiveFaceParams()` (same row as
+face geometry, including verb overrides). See [`MOTION.md`](MOTION.md).
 
 ## Mood ring color
 

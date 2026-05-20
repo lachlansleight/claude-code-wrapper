@@ -28,7 +28,11 @@ export enum FieldIndex {
     RingR,
     RingG,
     RingB,
-    Count = 24,
+    ArmMinDeg,
+    ArmMaxDeg,
+    ArmPeriodMs,
+    ArmIntervalMs,
+    Count = 28,
 }
 
 export interface ParamI16 {
@@ -64,31 +68,6 @@ export interface VerbTimeline {
     loop_duration_ms: number;
     keyframe_count: number;
     keyframes: readonly VerbKeyframe[];
-}
-
-export interface ArmPreset {
-    min_deg: number;
-    max_deg: number;
-    period_s: number;
-    interval_s: number;
-}
-
-export enum MotionMode {
-    None = 0,
-    Static,
-    RandomDrift,
-    Oscillate,
-    Waggle,
-    Thinking,
-}
-
-export interface ExprMotionRow {
-    mode: MotionMode;
-    center: number;
-    amplitude: number;
-    period_ms: number;
-    period_jitter_ms: number;
-    slew_ms: number;
 }
 
 /** Same sentinel as firmware `FaceConfig::kBobAmpFollowEmotionArm` (int16 0x8000). */
