@@ -8,6 +8,7 @@ import {
     applySliderToVerbTimeline,
     applyStrengthSliderToVerbTimeline,
     keyframeStrengthFaceParams,
+    keyframeValueFaceParams,
     removeOverrideFromKeyframe,
     resolveVerbSliderKeyframeIndex,
 } from "../../_lib/face-engine/verbTimelineEdit";
@@ -25,7 +26,9 @@ export function KeyframeInspector({
     tab,
     /** Bumps when `tab` is mutated in place so derived memo (strength rows) recomputes. */
     timelineRev,
-    params,
+    /** Rendered face at playhead — live while playing, snapshotted when paused. */
+    renderedParams,
+    isPlaying,
     playheadMs,
     selectedKeyframeIndex,
     highlightFields,
@@ -34,7 +37,8 @@ export function KeyframeInspector({
     verbName: string;
     tab: MutableVerbTimeline | undefined;
     timelineRev: number;
-    params: FaceParams;
+    renderedParams: FaceParams;
+    isPlaying: boolean;
     playheadMs: number;
     selectedKeyframeIndex: number | null;
     highlightFields: ReadonlySet<ParamField>;
@@ -47,6 +51,11 @@ export function KeyframeInspector({
         [tab, playheadMs, selectedKeyframeIndex, timelineRev]
     );
 
+    const valueParams = useMemo(() => {
+        if (isPlaying || !tab) return renderedParams;
+        return keyframeValueFaceParams(tab, editKeyframeIdx, renderedParams);
+    }, [isPlaying, tab, editKeyframeIdx, renderedParams, timelineRev]);
+
     const strengthParams = useMemo(
         () => (tab ? keyframeStrengthFaceParams(tab, editKeyframeIdx) : zeroFaceParams()),
         [tab, editKeyframeIdx, timelineRev]
@@ -58,35 +67,39 @@ export function KeyframeInspector({
                 {verbName} · keyframes
             </h3>
             <p className="mb-1.5 text-[0.78em] text-face-muted">
-                Sliders reflect the rendered face at the playhead. Green rows match overrides on the
-                selected keyframe. Drag to edit at the playhead, add on the selection, or create a
-                keyframe at the playhead. Strength mode edits per-field override weight (0–100) on
-                the same resolved keyframe.
+                {isPlaying
+                    ? "Playing: sliders follow the rendered face at the playhead."
+                    : "Paused: drag to edit keyframe target values (green rows) or strengths. Other rows show the face at the playhead until you override them."}
             </p>
             <Panel>
                 <ParamSliderGrid
                     sliderMode={sliderMode}
                     onSliderModeChange={setSliderMode}
-                    params={sliderMode === "value" ? params : strengthParams}
+                    params={sliderMode === "value" ? valueParams : strengthParams}
                     highlightFields={highlightFields}
-                    removeColumn={{
-                        removeableFields:
-                            tab !== undefined && selectedKeyframeIndex !== null
-                                ? highlightFields
-                                : new Set(),
-                        onRemove: field => {
-                            if (!tab) return;
-                            if (selectedKeyframeIndex === null) return;
-                            removeOverrideFromKeyframe(
-                                tab,
-                                selectedKeyframeIndex,
-                                fieldIndexFromParamField(field)
-                            );
-                            onTimelineMutated();
-                        },
-                    }}
+                    disabled={isPlaying}
+                    removeColumn={
+                        isPlaying
+                            ? undefined
+                            : {
+                                  removeableFields:
+                                      tab !== undefined && selectedKeyframeIndex !== null
+                                          ? highlightFields
+                                          : new Set(),
+                                  onRemove: field => {
+                                      if (!tab) return;
+                                      if (selectedKeyframeIndex === null) return;
+                                      removeOverrideFromKeyframe(
+                                          tab,
+                                          selectedKeyframeIndex,
+                                          fieldIndexFromParamField(field)
+                                      );
+                                      onTimelineMutated();
+                                  },
+                              }
+                    }
                     onFieldChange={(field, v) => {
-                        if (!tab) return;
+                        if (!tab || isPlaying) return;
                         const fi = fieldIndexFromParamField(field);
                         if (sliderMode === "value") {
                             applySliderToVerbTimeline(tab, {
@@ -101,7 +114,7 @@ export function KeyframeInspector({
                                 selectedKeyframeIndex,
                                 field: fi,
                                 strength: v,
-                                fallbackTargetValue: params[field] ?? 0,
+                                fallbackTargetValue: renderedParams[field] ?? 0,
                             });
                         }
                         onTimelineMutated();

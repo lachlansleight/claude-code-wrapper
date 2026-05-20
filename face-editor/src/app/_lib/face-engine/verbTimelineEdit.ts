@@ -105,6 +105,30 @@ export function keyframeStrengthFaceParams(
     return out;
 }
 
+/**
+ * Paused inspector values: `fallback` for fields without an active override on the
+ * keyframe, `targetValue` for fields that have one (strength &gt; 0).
+ */
+export function keyframeValueFaceParams(
+    tab: MutableVerbTimeline,
+    keyframeIndex: number | null,
+    fallback: FaceParams
+): FaceParams {
+    const out = { ...fallback };
+    if (keyframeIndex === null) return out;
+    const kf = tab.keyframes[keyframeIndex];
+    if (!kf) return out;
+    const n = Math.min(kf.override_count, kf.overrides.length);
+    for (let i = 0; i < n; i++) {
+        const o = kf.overrides[i]!;
+        if (o.strength <= 0) continue;
+        const pf = paramFieldFromFieldIndex(o.field);
+        if (!pf) continue;
+        out[pf] = o.targetValue;
+    }
+    return out;
+}
+
 function sortKeyframes(tab: MutableVerbTimeline): void {
     tab.keyframes.sort((a, b) => a.time_ms - b.time_ms);
     tab.keyframe_count = tab.keyframes.length;

@@ -131,6 +131,7 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
     }));
 
     const verbTimelineMode = simulatorMode === "verbTimeline";
+    const verbTimelinePlaying = verbPlaySpeed !== 0;
 
     const verbEnum = useMemo(
         () => fc.expressionIndex(verbTimelineName) as Expression,
@@ -342,8 +343,22 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
         setVerbSelectedKeyframe(found);
     }, [verbTimelineMode, verbTab, verbPlayheadMs, timelineRev]);
 
+    /** Paused: snapshot rendered face when playhead / selection / timeline changes. */
     useEffect(() => {
-        if (!verbTimelineMode) return;
+        if (!verbTimelineMode || verbTimelinePlaying) return;
+        setVerbLiveParams({ ...fc.params() });
+    }, [
+        verbTimelineMode,
+        verbTimelinePlaying,
+        verbPlayheadMs,
+        verbSelectedKeyframe,
+        timelineRev,
+        fc,
+    ]);
+
+    /** Playing: sliders follow rendered face every frame. */
+    useEffect(() => {
+        if (!verbTimelineMode || !verbTimelinePlaying) return;
         let raf = 0;
         const tick = () => {
             setVerbLiveParams({ ...fc.params() });
@@ -351,7 +366,7 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
         };
         raf = requestAnimationFrame(tick);
         return () => cancelAnimationFrame(raf);
-    }, [verbTimelineMode, fc, timelineRev, verbPlayheadMs]);
+    }, [verbTimelineMode, verbTimelinePlaying, fc, timelineRev]);
 
     useEffect(() => {
         const id = window.setInterval(() => {
@@ -610,7 +625,8 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
                             verbName={verbTimelineName}
                             tab={verbTab}
                             timelineRev={timelineRev}
-                            params={verbLiveParams}
+                            renderedParams={verbLiveParams}
+                            isPlaying={verbTimelinePlaying}
                             playheadMs={verbPlayheadMs}
                             selectedKeyframeIndex={verbSelectedKeyframe}
                             highlightFields={keyframeHighlightFields}

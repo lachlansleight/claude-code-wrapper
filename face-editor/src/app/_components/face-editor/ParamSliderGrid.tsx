@@ -14,6 +14,7 @@ export function ParamSliderGrid({
     onSliderModeChange,
     highlightFields,
     removeColumn,
+    disabled = false,
 }: {
     params: FaceParams;
     onFieldChange: (field: ParamField, value: number) => void;
@@ -25,6 +26,8 @@ export function ParamSliderGrid({
         removeableFields: ReadonlySet<ParamField>;
         onRemove: (field: ParamField) => void;
     };
+    /** When true, sliders are read-only (e.g. follow playhead while timeline is playing). */
+    disabled?: boolean;
 }) {
     const gridCols = removeColumn
         ? "grid-cols-[9rem_1fr_4rem_1.5rem]"
@@ -107,11 +110,12 @@ export function ParamSliderGrid({
                                         </label>
                                         <input
                                             type="range"
-                                            className={`w-full border-0 bg-transparent p-0 ${reversed && !strengthMode ? "[direction:rtl]" : ""}`}
+                                            className={`w-full border-0 bg-transparent p-0 ${reversed && !strengthMode ? "[direction:rtl]" : ""} ${disabled ? "opacity-60" : ""}`}
                                             min={min}
                                             max={max}
                                             step={step}
                                             value={params[fk] ?? 0}
+                                            disabled={disabled}
                                             onChange={e => {
                                                 const v =
                                                     step < 1
@@ -125,8 +129,9 @@ export function ParamSliderGrid({
                                             min={min}
                                             max={max}
                                             step={step}
-                                            className="w-full rounded border border-face-border bg-face-panel px-1.5 py-0.5 text-right text-[0.85em] font-inherit text-face-text"
+                                            className="w-full rounded border border-face-border bg-face-panel px-1.5 py-0.5 text-right text-[0.85em] font-inherit text-face-text disabled:opacity-60"
                                             value={params[fk] ?? 0}
+                                            disabled={disabled}
                                             onChange={e => {
                                                 const v =
                                                     step < 1
