@@ -54,8 +54,12 @@ function fmtParamValue(n: number, i: number): string {
     return String(n);
 }
 
+function fmtFaceP(c: ParamI16, i: number): string {
+    const s = Math.max(0, Math.min(100, c.strength | 0));
+    return `FACE_P(${fmtParamValue(c.value | 0, i)}, ${s})`;
+}
+
 export function emitFacePRowCpp(exprName: string, row: readonly ParamI16[]): string {
-    const vals = row.map(c => c.value | 0);
     const head = `    /* ${exprName} */`;
     const headPad = Math.max(1, 27 - head.length);
     const headPart = head + " ".repeat(headPad);
@@ -63,22 +67,12 @@ export function emitFacePRowCpp(exprName: string, row: readonly ParamI16[]): str
     const l1 =
         headPart +
         "{ " +
-        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-            .map(i => `FACE_P(${fmtParamValue(vals[i]!, i)})`)
-            .join(", ") +
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => fmtFaceP(row[i]!, i)).join(", ") +
         ",\n";
     const l2 =
-        ind +
-        [11, 12, 13, 14, 15, 16, 17, 18]
-            .map(i => `FACE_P(${fmtParamValue(vals[i]!, i)})`)
-            .join(", ") +
-        ",\n";
+        ind + [11, 12, 13, 14, 15, 16, 17, 18].map(i => fmtFaceP(row[i]!, i)).join(", ") + ",\n";
     const l3 =
-        ind +
-        [19, 20, 21, 22, 23, 24, 25, 26, 27]
-            .map(i => `FACE_P(${fmtParamValue(vals[i]!, i)})`)
-            .join(", ") +
-        " },\n";
+        ind + [19, 20, 21, 22, 23, 24, 25, 26, 27].map(i => fmtFaceP(row[i]!, i)).join(", ") + " },\n";
     return l1 + l2 + l3;
 }
 

@@ -80,7 +80,7 @@ void onAgentEvent(const AgentEvents::Event& e) {
   }
   if (strcmp(e.kind, "turn.ended") == 0) {
     EmotionSystem::impulse(+0.7f, +0.9f);
-    VerbSystem::fireOverlay(VerbSystem::Verb::Celebrating, 1500, VerbSystem::Verb::None);
+    VerbSystem::fireOverlay(VerbSystem::Verb::Celebrating, 3000, VerbSystem::Verb::None);
     return;
   }
   if (strcmp(e.kind, "notification") == 0) {

@@ -4,7 +4,6 @@
 
 #include "FACE_CONFIG.h"
 #include "VerbTimeline.h"
-#include "../hal/Motion.h"
 
 namespace Face {
 
@@ -13,7 +12,6 @@ namespace {
 static FaceParams sSmoothedEmotion;
 static FaceParams sEffective;
 static uint32_t sLastSmoothMs = 0;
-static Expression sLastEffectiveExpr = Expression::Count;
 
 static const FaceConfig::FrameAnimConfig& animCfg() { return FaceConfig::kFrameAnim; }
 
@@ -24,7 +22,6 @@ void effectiveParamsBegin() {
   sSmoothedEmotion = FaceConfig::kBaseTargets[0];
   sEffective = sSmoothedEmotion;
   sLastSmoothMs = 0;
-  sLastEffectiveExpr = Expression::Count;
 }
 
 void invalidateEffectiveParams() { sLastSmoothMs = 0; }
@@ -39,10 +36,6 @@ void tickEffectiveParams(const SceneContext& ctx, uint32_t now) {
   smoothFaceValuesToward(sSmoothedEmotion, ctx.base_face_params, emoAlpha);
 
   const Expression expr = ctx.effective_expression;
-  if (expr != sLastEffectiveExpr) {
-    sLastEffectiveExpr = expr;
-    Motion::resetEmotionArmPhase();
-  }
 
   constexpr uint8_t kFieldCount = (uint8_t)FieldIndex::Count;
   bool verbHas[kFieldCount];

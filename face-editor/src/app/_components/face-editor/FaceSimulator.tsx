@@ -35,7 +35,9 @@ import { VerbTimelinePanel } from "./VerbTimelinePanel";
 import { EmotionSchemaPanel } from "./EmotionSchemaPanel";
 import { VerbSchemaPanel } from "./VerbSchemaPanel";
 import { VerbButtons } from "./VerbButtons";
-import PanelModeSwitcher from "./PanelModeSwitcher";
+import PanelModeSwitcher, { type SimulatorPanelMode } from "./PanelModeSwitcher";
+import { LogEntryInspector, LogReplayPanel } from "./LogReplayPanel";
+import type { TurnLogEntry } from "../../_lib/face-editor/logReplay";
 import { SaveFaceConfigButton } from "./SaveFaceConfigButton";
 import { StreamEffectPanel } from "./StreamEffectPanel";
 
@@ -122,7 +124,9 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
     const [inspectorSendLive, setInspectorSendLive] = useState(false);
     const [streamEffect, setStreamEffect] = useState<StreamEffectPreview>("none");
 
-    const [simulatorMode, setSimulatorMode] = useState<"blend" | "verbTimeline">("blend");
+    const [simulatorMode, setSimulatorMode] = useState<SimulatorPanelMode>("blend");
+    const [logSelectedIndex, setLogSelectedIndex] = useState<number | null>(null);
+    const [logEntries, setLogEntries] = useState<TurnLogEntry[]>([]);
     const [verbTimelineName, setVerbTimelineName] = useState("VerbThinking");
     const [schemaRev, setSchemaRev] = useState(0);
     const [verbPlayheadMs, setVerbPlayheadMs] = useState(0);
@@ -134,6 +138,7 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
     }));
 
     const verbTimelineMode = simulatorMode === "verbTimeline";
+    const logReplayMode = simulatorMode === "logReplay";
     const verbTimelinePlaying = verbPlaySpeed !== 0;
 
     const verbEnum = useMemo(
@@ -209,6 +214,14 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
         setInspectorSendLive(false);
         setSimulatorMode("verbTimeline");
         setVerbPlaySpeed(0);
+    }, [fc]);
+
+    const setModeLogReplay = useCallback(() => {
+        verbDropdownAwaitingEngineRef.current = false;
+        fc.setBlendVerbPreview(null);
+        setVerbPlaySpeed(0);
+        fc.setVerbTimelinePreview(null);
+        setSimulatorMode("logReplay");
     }, [fc]);
 
     useEffect(() => {
@@ -536,12 +549,9 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
                     <PanelModeSwitcher
                         mode={simulatorMode}
                         setMode={m => {
-                            if (m === "blend") {
-                                setModeBlend();
-                            }
-                            if (m === "verbTimeline") {
-                                setModeVerbTimeline();
-                            }
+                            if (m === "blend") setModeBlend();
+                            if (m === "verbTimeline") setModeVerbTimeline();
+                            if (m === "logReplay") setModeLogReplay();
                         }}
                     />
 
@@ -552,7 +562,7 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
                         fps={fps}
                     />
 
-                    {verbTimelineMode ? (
+                    {logReplayMode ? null : verbTimelineMode ? (
                         <>
                             <VerbSchemaPanel
                                 fc={fc}
@@ -580,11 +590,19 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
                         </>
                     )}
 
-                    <StreamEffectPanel value={streamEffect} onChange={setStreamEffect} />
+                    {logReplayMode ? null : (
+                        <StreamEffectPanel value={streamEffect} onChange={setStreamEffect} />
+                    )}
                 </div>
 
                 <div className="col-span-6">
-                    {verbTimelineMode ? (
+                    {logReplayMode ? (
+                        <LogReplayPanel
+                            selectedIndex={logSelectedIndex}
+                            onSelectIndex={setLogSelectedIndex}
+                            onEntriesChange={setLogEntries}
+                        />
+                    ) : verbTimelineMode ? (
                         <>
                             <VerbTimelinePanel
                                 key={schemaRev}
@@ -634,7 +652,15 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
                     )}
                 </div>
                 <div className="col-span-3">
-                    {verbTimelineMode ? (
+                    {logReplayMode ? (
+                        <LogEntryInspector
+                            entry={
+                                logSelectedIndex !== null && logEntries[logSelectedIndex]
+                                    ? logEntries[logSelectedIndex]!
+                                    : null
+                            }
+                        />
+                    ) : verbTimelineMode ? (
                         <KeyframeInspector
                             verbName={verbTimelineName}
                             tab={verbTab}

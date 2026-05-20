@@ -75,10 +75,10 @@ function emitVerbTimelines(config: FaceConfigState): string {
         const kfBlocks: string[] = [];
         for (const kf of tab.keyframes) {
             const ko = kf.overrides
-                .map(
-                    o =>
-                        `             KO(Face::FieldIndex::${fieldIndexEnumName(o.field)}, ${o.targetValue})`
-                )
+                .map(o => {
+                    const s = Math.max(0, Math.min(100, o.strength | 0));
+                    return `             KO(Face::FieldIndex::${fieldIndexEnumName(o.field)}, ${o.targetValue}, ${s})`;
+                })
                 .join(",\n");
             kfBlocks.push(`         {
              ${kf.time_ms}u,
@@ -95,7 +95,7 @@ ${ko},
 ${kfBlocks.join(",\n")},
      }}`);
     }
-    return `#define KO(F, V) KeyframeOverride{(uint8_t)(F), (int16_t)(V), 100}
+    return `#define KO(F, V, S) KeyframeOverride{(uint8_t)(F), (int16_t)(V), (uint8_t)(S)}
 static constexpr VerbTimeline kVerbTimelines[] = {
 ${blocks.join(",\n")},
 };
@@ -207,7 +207,7 @@ ${emitPickOrder(config)}
 ${emitNamedEmotionToExpression(config)}
 
 #ifndef FACE_P
-#define FACE_P(V) ::Face::ParamI16{ (int16_t)(V), 100 }
+#define FACE_P(V, S) ::Face::ParamI16{ (int16_t)(V), (uint8_t)(S) }
 #endif
 #ifndef FACE_PZ
 #define FACE_PZ ::Face::ParamI16{ 0, 0 }

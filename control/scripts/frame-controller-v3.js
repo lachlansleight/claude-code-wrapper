@@ -477,15 +477,6 @@
   let sArmEmotionInOsc = true;
   let sArmEmotionOsc01 = 0;
   let sArmEmotionDwellS = 0;
-  let sPrevArmDriverEmotion = false;
-
-  function resetEmotionArmPhase() {
-    sArmEmotionInOsc = true;
-    sArmEmotionOsc01 = 0;
-    sArmEmotionDwellS = 0;
-    sArmLogicLastMs = 0;
-  }
-
   function tickEmotionArm(dt, arm) {
     let lo = arm.min_offset_deg;
     let hi = arm.max_offset_deg;
@@ -537,12 +528,6 @@
     const dt = sArmLogicLastMs === 0 ? 0 : Math.min(0.5, (t - sArmLogicLastMs) / 1000);
     sArmLogicLastMs = t;
 
-    const armDriverEmotion = sBlendMode || isEmotion(expr);
-    if (armDriverEmotion && !sPrevArmDriverEmotion) {
-      resetEmotionArmPhase();
-    }
-    sPrevArmDriverEmotion = armDriverEmotion;
-
     if (sBlendMode && EB && EB.ready()) {
       const arm = EB.blendedEmotionArmMotion(sBlendV, sBlendA);
       return arm ? tickEmotionArm(dt, arm) : 0;
@@ -554,7 +539,6 @@
       return arm ? tickEmotionArm(dt, arm) : 0;
     }
 
-    resetEmotionArmPhase();
     return verbArmOffset(expr, t);
   }
 
@@ -958,13 +942,15 @@
     sTweenStartMs = 0;
     sLastSettingsVersion = window.RobotSettings.version();
     resetVerbTransition();
-    resetEmotionArmPhase();
+    sArmEmotionInOsc = true;
+    sArmEmotionOsc01 = 0;
+    sArmEmotionDwellS = 0;
+    sArmLogicLastMs = 0;
     sEyeWavePhaseRad = 0;
     sMouthWavePhaseRad = 0;
     sWavePhaseLastMs = 0;
     sGazePhaseRad = 0;
     sGazePhaseLastMs = 0;
-    sPrevArmDriverEmotion = false;
     sCurrentArmDeg = 0;
     rafHandle = requestAnimationFrame(tick);
   }

@@ -39,7 +39,6 @@ import { createRobotSettings } from "./robotSettings";
 import {
     armOffsetDegFromElapsed,
     createEmotionArmPhaseState,
-    resetEmotionArmPhaseState,
     tickEmotionArmPhase,
     type EmotionArmPhaseState,
 } from "./emotionArmSim";
@@ -527,18 +526,11 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
         if (isVerbExpression(newExprIdx as Expression)) {
             sVerbEnteredMs = t;
         }
-        resetEmotionArmPhase();
-    }
-
-    function resetEmotionArmPhase(): void {
-        resetEmotionArmPhaseState(sArmPhase);
-        sArmLogicLastMs = 0;
-        sLastArmDriveVerbMs = undefined;
     }
 
     /**
      * Drive simulated arm angle from effective arm_* fields.
-     * Verb timelines use playhead time (deterministic scrub + loop at t=0).
+     * Verb timelines use playhead time (deterministic scrub + loop).
      * Emotions use real-time integration like firmware `Motion::tick`.
      */
     function updateArmOffset(
@@ -547,9 +539,6 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
         verbTimeMs?: number
     ): void {
         if (verbTimeMs !== undefined) {
-            if (sLastArmDriveVerbMs !== undefined && verbTimeMs + 50 < sLastArmDriveVerbMs) {
-                resetEmotionArmPhaseState(sArmPhase);
-            }
             sLastArmDriveVerbMs = verbTimeMs;
             sArmLogicLastMs = t;
             sCurrentArmDeg = armOffsetDegFromElapsed(verbTimeMs / 1000, effective);
@@ -983,7 +972,9 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
             sMoodG = flat.ring_g;
             sMoodB = flat.ring_b;
             sLastMoodMs = 0;
-            resetEmotionArmPhase();
+            sArmPhase = createEmotionArmPhaseState();
+            sArmLogicLastMs = 0;
+            sLastArmDriveVerbMs = undefined;
             sCurrentArmDeg = 0;
             rafHandle = requestAnimationFrame(tickDispatch);
         },
@@ -1117,10 +1108,8 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
             sBlendMode = !!on;
             if (sBlendMode) {
                 sStaticMode = false;
-                resetEmotionArmPhase();
                 sLastTickMs = 0;
             } else {
-                resetEmotionArmPhase();
                 sLastExprIdx = -1;
                 sLastTickMs = 0;
             }

@@ -250,15 +250,15 @@
         "strength": 100
       },
       {
-        "value": -15,
+        "value": -13,
         "strength": 100
       },
       {
-        "value": 2000,
+        "value": 1650,
         "strength": 100
       },
       {
-        "value": 1000,
+        "value": 8700,
         "strength": 100
       }
     ],
@@ -3243,7 +3243,7 @@
             },
             {
               "field": 24,
-              "targetValue": 4,
+              "targetValue": -6,
               "strength": 100
             },
             {
@@ -3253,7 +3253,7 @@
             },
             {
               "field": 26,
-              "targetValue": 800,
+              "targetValue": 1150,
               "strength": 100
             },
             {

@@ -96,9 +96,6 @@ void setThinkingMode(bool on, int8_t centerOffset = 0, uint8_t amplitude = 5,
 void syncEmotionArmLayer(bool enable, int16_t minDeg, int16_t maxDeg, float periodS,
                          float intervalS);
 
-/** Restart the emotion sine+dwell cycle at min (e.g. after verb→emotion). */
-void resetEmotionArmPhase();
-
 /**
  * Slew to `offsetDeg` over a 250 ms eased jog and lock the servo there
  * for `durationMs`. While the hold is active, only the jog continues;

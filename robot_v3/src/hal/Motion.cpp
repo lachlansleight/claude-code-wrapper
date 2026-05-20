@@ -282,13 +282,6 @@ void syncEmotionArmLayer(bool enable, int16_t minDeg, int16_t maxDeg, float peri
   emotionIntervalS = intervalS < 0.0f ? 0.0f : intervalS;
 }
 
-void resetEmotionArmPhase() {
-  emotionInOsc = true;
-  emotionOscAccum01 = 0.0f;
-  emotionDwellRemainS = 0.0f;
-  emotionLastAdvanceMs = 0;
-}
-
 void playJog(int8_t offsetDeg, uint16_t durationMs) {
   if (!attached) return;
   if (!motionEnabled) return;

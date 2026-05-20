@@ -56,12 +56,6 @@ export function createEmotionArmPhaseState(): EmotionArmPhaseState {
     return { inOsc: true, osc01: 0, dwellS: 0 };
 }
 
-export function resetEmotionArmPhaseState(s: EmotionArmPhaseState): void {
-    s.inOsc = true;
-    s.osc01 = 0;
-    s.dwellS = 0;
-}
-
 /** Advance real-time phase by `dt` seconds (firmware `Motion::tick` emotion path). */
 export function tickEmotionArmPhase(
     s: EmotionArmPhaseState,
