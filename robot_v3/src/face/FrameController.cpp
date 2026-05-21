@@ -85,15 +85,27 @@ static float breathPhase(uint32_t now) {
   return sinf(t * 2.0f * (float)PI);
 }
 
+static constexpr int16_t kBobArmGapMinDeg = 6;
+
 static int16_t bodyBobAmpFor(const FaceConfig::IdleAnimRow& idle,
                              const FaceParams& effective) {
+  (void)effective;
   if (idle.bob_amplitude_px == FaceConfig::kBobAmpFollowEmotionArm) {
-    if (effective.arm_min_deg.value != effective.arm_max_deg.value) {
-      return animCfg().emotion_bob_amp_follow_arm;
-    }
-    return 0;
+    return animCfg().emotion_bob_amp_follow_arm;
   }
   return idle.bob_amplitude_px;
+}
+
+static void bobArmMappingRange(int16_t lo, int16_t hi, float& bobLo, float& bobHi) {
+  const int16_t gap = (int16_t)(hi - lo);
+  if (gap >= kBobArmGapMinDeg) {
+    bobLo = (float)lo;
+    bobHi = (float)hi;
+    return;
+  }
+  const float pad = ((float)kBobArmGapMinDeg - (float)gap) * 0.5f;
+  bobLo = (float)lo - pad;
+  bobHi = (float)hi + pad;
 }
 
 /** Map live servo offset (deg) to vertical face bob (px), scaled by idle row. */
@@ -109,13 +121,22 @@ static int16_t bodyBobFor(const FaceConfig::IdleAnimRow& idle, const FaceParams&
     lo = hi;
     hi = t;
   }
-  if (lo == hi) return 0;
 
-  const int8_t armDeg = Motion::currentOffsetDeg();
-  float t = (float)(armDeg - lo) / (float)(hi - lo);
-  if (t < 0.0f) t = 0.0f;
-  if (t > 1.0f) t = 1.0f;
-  return (int16_t)lroundf((float)amp * (2.0f * t - 1.0f));
+  float bobLo = 0.0f;
+  float bobHi = 0.0f;
+  bobArmMappingRange(lo, hi, bobLo, bobHi);
+  const float span = bobHi - bobLo;
+  if (span <= 0.0f) return 0;
+
+  float u = 0.0f;
+  if (lo == hi) {
+    u = Motion::emotionArmOscSinU();
+  } else {
+    u = ((float)Motion::currentOffsetDeg() - bobLo) / span;
+    if (u < 0.0f) u = 0.0f;
+    if (u > 1.0f) u = 1.0f;
+  }
+  return (int16_t)lroundf((float)amp * (2.0f * u - 1.0f));
 }
 
 static void gazeFor(const FaceConfig::IdleAnimRow& idle, uint32_t now, int16_t& gdx,

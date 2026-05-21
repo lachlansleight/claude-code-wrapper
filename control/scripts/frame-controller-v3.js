@@ -322,17 +322,10 @@
   // sFromBobAmp at verb change so the cross-fade can ramp it.
   function bodyBobAmpFor(expr, blendMode, blendV, blendA) {
     if (blendMode && window.EmotionBlendV3 && window.EmotionBlendV3.ready()) {
-      const m = window.EmotionBlendV3.blendedEmotionArmMotion(blendV, blendA);
-      return (m && m.min_offset_deg !== m.max_offset_deg)
-        ? frameAnim.emotion_bob_amp_follow_arm
-        : 0;
+      return frameAnim.emotion_bob_amp_follow_arm;
     }
     if (isEmotion(expr) && window.EmotionBlendV3 && window.EmotionBlendV3.ready()) {
-      const va = vaForEmotion(expr);
-      const m = window.EmotionBlendV3.blendedEmotionArmMotion(va.v, va.a);
-      return (m && m.min_offset_deg !== m.max_offset_deg)
-        ? frameAnim.emotion_bob_amp_follow_arm
-        : 0;
+      return frameAnim.emotion_bob_amp_follow_arm;
     }
     switch (expr) {
       case "VerbSleeping": return 10;
@@ -485,7 +478,6 @@
       lo = hi;
       hi = tmp;
     }
-    if (lo === hi) return lo;
     const period = Math.max(0.05, arm.waggle_period_s);
     if (sArmEmotionInOsc) {
       sArmEmotionOsc01 += dt / period;
@@ -499,8 +491,11 @@
           sArmEmotionDwellS = arm.waggle_interval_s;
         }
       }
-      const u = Math.sin(Math.PI * oscDraw);
-      return lo + (hi - lo) * u;
+      if (lo !== hi) {
+        const u = Math.sin(Math.PI * oscDraw);
+        return lo + (hi - lo) * u;
+      }
+      return lo;
     }
     sArmEmotionDwellS -= dt;
     if (sArmEmotionDwellS <= 0) {

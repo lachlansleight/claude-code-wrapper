@@ -3868,7 +3868,7 @@
             },
             {
               "field": 24,
-              "targetValue": 10,
+              "targetValue": -19,
               "strength": 100
             },
             {
@@ -3878,7 +3878,7 @@
             },
             {
               "field": 26,
-              "targetValue": 500,
+              "targetValue": 400,
               "strength": 100
             },
             {

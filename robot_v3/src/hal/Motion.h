@@ -129,4 +129,10 @@ bool enabled();
 /** Current arm offset from centre in degrees (after last `tick()` write). */
 int8_t currentOffsetDeg();
 
+/**
+ * sin(π·oscDraw) for the active emotion-arm arch (0 during dwell or when the
+ * layer is off). Used by face bob when min equals max.
+ */
+float emotionArmOscSinU();
+
 }  // namespace Motion

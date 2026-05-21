@@ -36,6 +36,7 @@ import {
 import { createFaceRenderer } from "./faceRenderer";
 import { paramFieldsList } from "./presets";
 import { createRobotSettings } from "./robotSettings";
+import { bodyBobPxFromArm } from "./emotionArmBob";
 import {
     armOffsetDegFromElapsed,
     createEmotionArmPhaseState,
@@ -112,30 +113,9 @@ function idleFor(
     return { ...idleAnim[exprIdx]! };
 }
 
-function bodyBobAmpFor(idle: IdleAnimRow, effective: readonly ParamI16[], followSentinel: number, followPx: number): number {
-    if (idle.bob_amplitude_px === followSentinel) {
-        const lo = effective[FieldIndex.ArmMinDeg]!.value;
-        const hi = effective[FieldIndex.ArmMaxDeg]!.value;
-        if (lo !== hi) return followPx;
-        return 0;
-    }
+function bodyBobAmpFor(idle: IdleAnimRow, followSentinel: number, followPx: number): number {
+    if (idle.bob_amplitude_px === followSentinel) return followPx;
     return idle.bob_amplitude_px;
-}
-
-function bodyBobPxFromArmDeg(armDeg: number, effective: readonly ParamI16[], amp: number): number {
-    if (amp === 0) return 0;
-    let lo = effective[FieldIndex.ArmMinDeg]!.value;
-    let hi = effective[FieldIndex.ArmMaxDeg]!.value;
-    if (lo > hi) {
-        const t = lo;
-        lo = hi;
-        hi = t;
-    }
-    if (lo === hi) return 0;
-    let u = (armDeg - lo) / (hi - lo);
-    if (u < 0) u = 0;
-    if (u > 1) u = 1;
-    return Math.round(amp * (2 * u - 1));
 }
 
 /** Simulator-only backdrop for `EffectsRenderer` (not tied to verb state). */
@@ -485,12 +465,13 @@ export function createFrameController(opts: CreateFrameControllerOptions): Frame
     function bodyBobFor(idle: IdleAnimRow, effective: readonly ParamI16[]): number {
         const amp = bodyBobAmpFor(
             idle,
-            effective,
             faceConfig.bobAmpFollowEmotionArm,
             faceConfig.frameAnim.emotion_bob_amp_follow_arm
         );
         sLastBobAmp = amp;
-        return bodyBobPxFromArmDeg(sCurrentArmDeg, effective, amp);
+        const verbElapsedS =
+            sLastArmDriveVerbMs !== undefined ? sLastArmDriveVerbMs / 1000 : undefined;
+        return bodyBobPxFromArm(sCurrentArmDeg, effective, amp, sArmPhase, verbElapsedS);
     }
 
     function onExpressionChange(newExprIdx: number, t: number): void {

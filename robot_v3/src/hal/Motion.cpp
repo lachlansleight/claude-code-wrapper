@@ -188,11 +188,6 @@ void tick() {
     }
     const float period = emotionPeriodS < 0.05f ? 0.05f : emotionPeriodS;
 
-    if (lo == hi) {
-      writeAngle(offsetToAngle((int8_t)lo));
-      return;
-    }
-
     if (emotionInOsc) {
       emotionOscAccum01 += dt_s / period;
       const float oscDraw = emotionOscAccum01 >= 1.0f ? 1.0f : emotionOscAccum01;
@@ -205,9 +200,13 @@ void tick() {
           emotionDwellRemainS = emotionIntervalS;
         }
       }
-      const float u = sinf((float)PI * oscDraw);
-      const float off = (float)lo + (float)(hi - lo) * u;
-      writeAngle(offsetToAngle((int8_t)lroundf(off)));
+      if (lo != hi) {
+        const float u = sinf((float)PI * oscDraw);
+        const float off = (float)lo + (float)(hi - lo) * u;
+        writeAngle(offsetToAngle((int8_t)lroundf(off)));
+      } else {
+        writeAngle(offsetToAngle((int8_t)lo));
+      }
       return;
     }
 
@@ -353,5 +352,11 @@ void setEnabled(bool enabled) {
 bool enabled() { return motionEnabled; }
 
 int8_t currentOffsetDeg() { return (int8_t)((int)commandedAngle - (int)kCentre); }
+
+float emotionArmOscSinU() {
+  if (!emotionArmEnabled || !emotionInOsc) return 0.0f;
+  const float oscDraw = emotionOscAccum01 >= 1.0f ? 1.0f : emotionOscAccum01;
+  return sinf((float)PI * oscDraw);
+}
 
 }  // namespace Motion

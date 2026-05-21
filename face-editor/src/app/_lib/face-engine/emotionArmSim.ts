@@ -28,6 +28,20 @@ export function armSweepParams(effective: readonly ParamI16[]): ArmSweepParams {
     return { lo, hi, periodS, intervalS };
 }
 
+/** sin(π·oscDraw) for the emotion arch at `elapsedS` (0 during dwell). */
+export function armOscSinUFromElapsed(elapsedS: number, effective: readonly ParamI16[]): number {
+    const { periodS, intervalS } = armSweepParams(effective);
+    const dwellS = intervalS < 0.02 ? 0 : intervalS;
+    const cycleLen = periodS + dwellS;
+    let cycleT = elapsedS % cycleLen;
+    if (cycleT < 0) cycleT += cycleLen;
+    if (cycleT < periodS) {
+        const oscDraw = cycleT / periodS;
+        return Math.sin(Math.PI * oscDraw);
+    }
+    return 0;
+}
+
 /** Servo offset (deg) at `elapsedS` along repeating arch + dwell cycles. */
 export function armOffsetDegFromElapsed(elapsedS: number, effective: readonly ParamI16[]): number {
     const { lo, hi, periodS, intervalS } = armSweepParams(effective);
@@ -56,6 +70,13 @@ export function createEmotionArmPhaseState(): EmotionArmPhaseState {
     return { inOsc: true, osc01: 0, dwellS: 0 };
 }
 
+/** sin(π·oscDraw) from integrated emotion-arm phase (0 during dwell). */
+export function emotionArmOscSinU(s: EmotionArmPhaseState): number {
+    if (!s.inOsc) return 0;
+    const oscDraw = s.osc01 >= 1 ? 1 : s.osc01;
+    return Math.sin(Math.PI * oscDraw);
+}
+
 /** Advance real-time phase by `dt` seconds (firmware `Motion::tick` emotion path). */
 export function tickEmotionArmPhase(
     s: EmotionArmPhaseState,
@@ -63,7 +84,6 @@ export function tickEmotionArmPhase(
     effective: readonly ParamI16[]
 ): number {
     const { lo, hi, periodS, intervalS } = armSweepParams(effective);
-    if (lo === hi) return lo;
 
     if (s.inOsc) {
         s.osc01 += dt / periodS;
@@ -77,8 +97,11 @@ export function tickEmotionArmPhase(
                 s.dwellS = intervalS;
             }
         }
-        const u = Math.sin(Math.PI * oscDraw);
-        return lo + (hi - lo) * u;
+        if (lo !== hi) {
+            const u = Math.sin(Math.PI * oscDraw);
+            return lo + (hi - lo) * u;
+        }
+        return lo;
     }
 
     s.dwellS -= dt;
