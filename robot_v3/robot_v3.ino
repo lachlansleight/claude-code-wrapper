@@ -22,7 +22,9 @@ uint32_t sLastSceneContextLogMs = 0;
 
 void setup() {
   Serial.begin(115200);
-  delay(100);
+  delay(500);
+  SerialDebugging::displayStartMessage();
+  delay(1000);
 
   Settings::begin();
   Display::begin();

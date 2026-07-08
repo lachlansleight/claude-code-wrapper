@@ -296,6 +296,28 @@ void clear() {
   LOG_INFO("provisioning: cleared");
 }
 
+void setBridgeAddress(const String& host, uint16_t port) {
+  NetEntry entries[kMaxKnownNetworks];
+  size_t count = loadNetworks(entries, kMaxKnownNetworks);
+
+  // Only re-point the most-recent network (head of the list); other
+  // remembered networks keep their own bridge endpoints.
+  if (count > 0) {
+    entries[0].bridge_host = host;
+    entries[0].bridge_port = port;
+  }
+
+  Preferences p;
+  p.begin(kNamespace, false);
+  if (count > 0) p.putString(kKeyNets, packNetworks(entries, count));
+  p.putString(kKeyHost, host);
+  p.putUShort(kKeyPort, port);
+  p.end();
+  LOG_INFO("provisioning: bridge address set to %s:%u (network \"%s\")",
+           host.c_str(), (unsigned)port,
+           count > 0 ? entries[0].ssid.c_str() : "<legacy>");
+}
+
 void requestOneTimePortal() {
   Preferences p;
   p.begin(kNamespace, false);

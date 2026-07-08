@@ -98,6 +98,17 @@ void rememberNetwork(const NetEntry& entry);
 void clear();
 
 /**
+ * Overwrite the bridge endpoint (host + port) of the most-recent
+ * network (head of the remembered list) and the legacy single-set keys,
+ * leaving the SSID, password and token — and every other remembered
+ * network — untouched. Used by the `set-provisioning-address` serial
+ * command to re-point the robot at a moved bridge server without
+ * re-entering the portal. A reboot is required for the change to take
+ * effect (the bridge connection is established at boot).
+ */
+void setBridgeAddress(const String& host, uint16_t port);
+
+/**
  * Set a one-shot flag in NVS that causes the next boot to enter the
  * portal regardless of the BOOT-button hold. Used by the
  * `provision-once` serial command.
