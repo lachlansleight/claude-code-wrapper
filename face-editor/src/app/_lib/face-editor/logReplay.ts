@@ -74,6 +74,8 @@ export function resolveReplayContext(entries: TurnLogEntry[]): {
 export interface LogReplayOptions {
     speed?: number;
     leadMs?: number;
+    /** Shown in the initial status line only (loop restart is handled by the caller). */
+    loop?: boolean;
     onStatus?: (msg: string) => void;
     onEntryIndex?: (index: number) => void;
     onFinished?: () => void;
@@ -99,8 +101,9 @@ export function scheduleLogReplay(
         void postRaw(`/hooksRaw/${encodeURIComponent(agent)}`, { events });
     };
 
+    const loopNote = options.loop ? " · loop on" : "";
     options.onStatus?.(
-        `Replaying ${entries.length} entries at ${speed}× (session.started now, hooks after +${leadMs}ms) …`
+        `Replaying ${entries.length} entries at ${speed}× (session.started now, hooks after +${leadMs}ms)${loopNote} …`
     );
 
     emit([
@@ -120,7 +123,9 @@ export function scheduleLogReplay(
             }
             options.onEntryIndex?.(i);
             if (i === entries.length - 1) {
-                options.onStatus?.("Replay finished.");
+                options.onStatus?.(
+                    options.loop ? "Replay pass complete — restarting…" : "Replay finished."
+                );
                 options.onFinished?.();
             }
         }, offset);

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Panel from "./atoms/Panel";
-import { bridgeBase } from "../../_lib/face-editor/bridge";
+import { bridgeBase, postDisplayMode, type BridgeDisplayMode } from "../../_lib/face-editor/bridge";
 import type { BridgeLogFileInfo } from "../../api/bridgeLogs/route";
 import {
     formatEntrySummary,
@@ -43,9 +43,13 @@ export function LogReplayPanel({
     const [loadedName, setLoadedName] = useState<string | null>(null);
     const [entries, setEntries] = useState<TurnLogEntry[]>([]);
     const [speed, setSpeed] = useState(1);
+    const [loop, setLoop] = useState(false);
+    const loopRef = useRef(false);
+    loopRef.current = loop;
     const [replaying, setReplaying] = useState(false);
     const [status, setStatus] = useState<string | null>(null);
     const [replayHighlight, setReplayHighlight] = useState<number | null>(null);
+    const [displayModeStatus, setDisplayModeStatus] = useState<string | null>(null);
     const cancelReplayRef = useRef<(() => void) | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -124,16 +128,37 @@ export function LogReplayPanel({
         setStatus("Replay stopped.");
     }, []);
 
-    const startReplay = useCallback(() => {
+    const sendDisplayMode = useCallback(async (mode: BridgeDisplayMode) => {
+        setDisplayModeStatus(null);
+        const res = await postDisplayMode(mode);
+        if (!res) {
+            setDisplayModeStatus(`Failed to reach bridge at ${bridgeBase()}`);
+            return;
+        }
+        if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            setDisplayModeStatus(`display-mode ${mode} → HTTP ${res.status}${text ? `: ${text}` : ""}`);
+            return;
+        }
+        setDisplayModeStatus(`Display mode → ${mode}`);
+    }, []);
+
+    const beginReplay = useCallback(() => {
         if (entries.length === 0) return;
         cancelReplayRef.current?.();
         setReplaying(true);
         setReplayHighlight(null);
         const { cancel } = scheduleLogReplay(entries, {
             speed,
+            loop: loopRef.current,
             onStatus: setStatus,
             onEntryIndex: setReplayHighlight,
             onFinished: () => {
+                if (loopRef.current) {
+                    setReplayHighlight(null);
+                    beginReplay();
+                    return;
+                }
                 setReplaying(false);
                 cancelReplayRef.current = null;
             },
@@ -200,6 +225,43 @@ export function LogReplayPanel({
                 {listError ? <p className="m-0 text-[0.72em] text-red-400">{listError}</p> : null}
             </Panel>
 
+            <Panel className="flex flex-col gap-2">
+                <h4 className="m-0 text-[0.72em] font-bold uppercase tracking-wide text-face-muted">
+                    Robot display mode
+                </h4>
+                <p className="m-0 text-[0.72em] leading-snug text-face-muted">
+                    Switches firmware scene via{" "}
+                    <span className="font-mono">POST /api/raw/config/display-mode</span> (
+                    {bridgeBase()}).
+                </p>
+                <div className="flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        className="rounded border border-face-accent bg-face-panel px-3 py-1 text-[0.72em] font-inherit text-face-accent hover:bg-face-panel-2"
+                        onClick={() => void sendDisplayMode("face")}
+                    >
+                        Face mode
+                    </button>
+                    <button
+                        type="button"
+                        className="rounded border border-amber-500/70 bg-face-panel px-3 py-1 text-[0.72em] font-inherit text-amber-200 hover:bg-face-panel-2"
+                        onClick={() => void sendDisplayMode("text")}
+                    >
+                        Text mode
+                    </button>
+                    <button
+                        type="button"
+                        className="rounded border border-amber-500/70 bg-face-panel px-3 py-1 text-[0.72em] font-inherit text-amber-200 hover:bg-face-panel-2"
+                        onClick={() => void sendDisplayMode("debug")}
+                    >
+                        Debug mode
+                    </button>
+                </div>
+                {displayModeStatus ? (
+                    <p className="m-0 text-[0.72em] leading-snug text-face-muted">{displayModeStatus}</p>
+                ) : null}
+            </Panel>
+
             <Panel className="flex max-h-[220px] min-h-0 flex-col gap-1 overflow-hidden p-0">
                 <div className="border-b border-face-border px-2 py-1 text-[0.68em] font-semibold uppercase tracking-wide text-face-muted">
                     Server logs {loadingFile ? "(loading…)" : ""}
@@ -244,7 +306,7 @@ export function LogReplayPanel({
                     type="button"
                     className="rounded border border-face-accent bg-face-panel-2 px-3 py-1 text-[0.72em] font-inherit text-face-accent hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
                     disabled={entries.length === 0 || replaying}
-                    onClick={startReplay}
+                    onClick={beginReplay}
                 >
                     Play
                 </button>
@@ -255,6 +317,18 @@ export function LogReplayPanel({
                     onClick={stopReplay}
                 >
                     Stop
+                </button>
+                <button
+                    type="button"
+                    title="When on, replay restarts automatically after each run"
+                    className={
+                        loop
+                            ? "rounded border border-face-accent bg-face-panel-2 px-3 py-1 text-[0.72em] font-inherit text-face-accent hover:opacity-90"
+                            : "rounded border border-face-border bg-face-panel px-3 py-1 text-[0.72em] font-inherit text-face-text hover:bg-face-panel-2"
+                    }
+                    onClick={() => setLoop(v => !v)}
+                >
+                    Loop
                 </button>
                 {loadedName ? (
                     <span className="text-[0.72em] text-face-muted">

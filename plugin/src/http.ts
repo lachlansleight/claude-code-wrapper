@@ -184,7 +184,11 @@ function rawCapabilitiesCatalog(): Record<string, unknown> {
       { path: '/api/raw/emotion/set-arousal', body: { a: 0.0 } },
       { path: '/api/raw/emotion/held-target', body: { driver_id: 1, target_v: -0.6 } },
       { path: '/api/raw/emotion/release-held', body: { driver_id: 1 } },
-      { path: '/api/raw/config/display-mode', body: { display_mode: 'face' } },
+      {
+        path: '/api/raw/config/display-mode',
+        body: { display_mode: 'face' },
+        note: 'display_mode: face | text | debug',
+      },
       { path: '/api/raw/config/set-color', body: { color: 0, r: 0, g: 0, b: 0 }, note: 'color = NamedColor index on device' },
       { path: '/api/raw/servo/hold', body: { angle: 0, duration_ms: 3000 } },
     ],
@@ -689,8 +693,12 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
 
   if (method === 'POST' && path === '/api/raw/config/display-mode') {
     const body = (await readJsonBody(req)) as { display_mode?: unknown }
-    if (body.display_mode !== 'face' && body.display_mode !== 'text') {
-      json(res, 400, { error: 'display_mode_must_be_face_or_text' })
+    if (
+      body.display_mode !== 'face' &&
+      body.display_mode !== 'text' &&
+      body.display_mode !== 'debug'
+    ) {
+      json(res, 400, { error: 'display_mode_must_be_face_text_or_debug' })
       return
     }
     emitRawToClients({ type: 'config_change', display_mode: body.display_mode })

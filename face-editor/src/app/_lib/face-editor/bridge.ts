@@ -17,6 +17,13 @@ export function bridgeToken(): string {
     return process.env.NEXT_PUBLIC_BRIDGE_TOKEN || "";
 }
 
+export type BridgeDisplayMode = "face" | "text" | "debug";
+
+/** Switch robot scene via `POST /api/raw/config/display-mode` (face / text / debug). */
+export function postDisplayMode(mode: BridgeDisplayMode): Promise<Response | null> {
+    return postRaw("/api/raw/config/display-mode", { display_mode: mode });
+}
+
 export async function postRaw(path: string, body: unknown): Promise<Response | null> {
     const url = bridgeBase() + path;
     const token = bridgeToken();
