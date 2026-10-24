@@ -36,6 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self, self.preferences.robotWindowVisible != visible else { return }
             self.preferences.robotWindowVisible = visible
         }
+        robotWindow.view.menuProvider = { [weak self] in self?.robotContextMenu() }
         preferences.$dockFramesPerSecond
             .sink { [weak self] fps in self?.dockTile.framesPerSecond = fps }
             .store(in: &cancellables)
@@ -110,6 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             withTitle: "Keep Robot on Top", action: #selector(toggleRobotOnTop(_:)), keyEquivalent: "")
         onTop.target = self
         onTop.state = preferences.robotWindowOnTop ? .on : .off
+        menu.addItem(robotSizeItem(title: "Robot Size"))
         menu.addItem(.separator())
         if replay.isPlaying {
             menu.addItem(withTitle: "Stop Replay", action: #selector(stopReplay(_:)), keyEquivalent: "").target = self
@@ -157,6 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         dockTile.pushIfDue(latestFrame)
 
+        robotWindow.updateMousePassThrough()
         if robotWindow.needsUpdates {
             if robotFrameChangeCount != engine.changeCount, let frame = latestFrame {
                 robotWindow.view.show(frame: frame)
@@ -261,6 +264,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func toggleRobotOnTop(_ sender: Any?) {
         preferences.robotWindowOnTop.toggle()
+    }
+
+    /// Size presets; the menu item's tag is the width in points.
+    @objc func setRobotSize(_ sender: NSMenuItem) {
+        robotWindow.setSide(CGFloat(sender.tag))
+    }
+
+    /// The robot has no window chrome, so this right-click menu is how it's
+    /// sized, pinned and put away.
+    private func robotContextMenu() -> NSMenu {
+        let menu = NSMenu()
+        let onTop = menu.addItem(withTitle: "Keep on Top", action: #selector(toggleRobotOnTop(_:)), keyEquivalent: "")
+        onTop.target = self
+        onTop.state = preferences.robotWindowOnTop ? .on : .off
+        menu.addItem(robotSizeItem(title: "Size"))
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Hide Robot", action: #selector(toggleRobotWindow(_:)), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Settings…", action: #selector(showSettings(_:)), keyEquivalent: "").target = self
+        return menu
+    }
+
+    fileprivate func robotSizeItem(title: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        let sizes = NSMenu(title: title)
+        for (name, side) in RobotWindowController.sizes {
+            let size = sizes.addItem(withTitle: name, action: #selector(setRobotSize(_:)), keyEquivalent: "")
+            size.target = self
+            size.tag = Int(side)
+            size.state = abs(robotWindow.side - side) < 1 ? .on : .off
+        }
+        sizes.addItem(.separator())
+        let hint = sizes.addItem(withTitle: "Pinch the robot to resize freely", action: nil, keyEquivalent: "")
+        hint.isEnabled = false
+        item.submenu = sizes
+        return item
     }
 
     // MARK: Settings and replay
@@ -370,6 +408,9 @@ extension AppDelegate: NSMenuItemValidation {
         case #selector(toggleRobotOnTop(_:)):
             menuItem.state = preferences.robotWindowOnTop ? .on : .off
             return true
+        case #selector(setRobotSize(_:)):
+            menuItem.state = abs(robotWindow.side - CGFloat(menuItem.tag)) < 1 ? .on : .off
+            return true
         default:
             return true
         }
@@ -422,6 +463,13 @@ enum MainMenu {
             withTitle: "Keep Robot on Top", action: #selector(AppDelegate.toggleRobotOnTop(_:)), keyEquivalent: "t"
         ).keyEquivalentModifierMask = [.command, .option]
         window.items.last?.target = target
+        let sizes = NSMenu(title: "Robot Size")
+        for (name, side) in RobotWindowController.sizes {
+            let size = sizes.addItem(withTitle: name, action: #selector(AppDelegate.setRobotSize(_:)), keyEquivalent: "")
+            size.target = target
+            size.tag = Int(side)
+        }
+        window.addItem(withTitle: "Robot Size", action: nil, keyEquivalent: "").submenu = sizes
         window.addItem(.separator())
         window.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         window.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")

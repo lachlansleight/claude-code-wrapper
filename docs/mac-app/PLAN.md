@@ -381,7 +381,18 @@ request, so the app stores none.
   `collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]`; back to
   `.normal` / default when off.
 - Start with this titlebar style. The borderless "desktop pet" style from
-  `MACOS.md` is a later toggle, not v1.
+  `MACOS.md` is a later toggle, not v1. *(Superseded at Lachlan's request:
+  the robot window is **only** the borderless desktop-pet style. No
+  rectangle, no title bar, no traffic lights; just the robot floating on the
+  desktop. See below.)*
+- *(Built: `[.borderless, .nonactivatingPanel]`, clear and non-opaque, no
+  window shadow; the body and arms cast their own layer shadows, the arms'
+  counter-rotated so the light stays overhead. Drag the robot to move it,
+  pinch or right-click ▸ Size to resize, right-click for Keep on Top / Hide /
+  Settings. Every display tick the app hit-tests the mouse against the
+  robot's shape (body circle and palms at their current angle) and sets
+  `ignoresMouseEvents` accordingly, so clicks outside the robot reach the
+  windows behind regardless of how macOS treats transparent pixels.)*
 - Stop updating layers while `occlusionState` says the window isn't visible.
   Keep ticking the core and the Dock.
 - *(Built as above. Focus: with the window open the app can't hide itself
@@ -521,8 +532,9 @@ bridge's Claude adapter, not a live Claude Code session):
 
 Delivered in `sultana-dock/` (see its `README.md`):
 
-1. `RobotWindowController`: non-activating `NSPanel`, transparent title
-   bar, fixed aspect ratio, minimum size, remembered frame.
+1. `RobotWindowController`: a borderless, transparent, non-activating
+   `NSPanel` (just the robot, no window chrome), shape-based click-through,
+   drag to move, pinch and size presets to resize, remembered frame.
 2. `RobotView`: body, round screen (nearest-neighbour), two mirrored arms on
    the commanded servo angle with a 500°/s lag; skips updates while covered.
 3. Keep on Top (floating level, all Spaces, over full-screen apps); Show /
@@ -539,16 +551,20 @@ Checked:
   and frame count as `sultana-replay --seed 1 --frame-hash`, for both
   fixtures (`claude-turn`: `de9628a6b59d2e17`, 1107 frames;
   `two-sessions`: `4ea59648961b14ef`, 617 frames).
-- **Robot window:** snapshots during a replay show the arms raised for
-  Celebrating and lowered for Thinking, mirrored, at 320 and 360 pt. With
-  the window open, focus stayed in the app you were using.
+- **Robot window:** renders of its layers during a replay show the arms
+  raised for Celebrating and lowered for Thinking, mirrored, with
+  shape-following shadows and fully transparent corners (57% of the window
+  is empty and passes clicks through). Hit-testing was checked on known
+  points with the arms at rest and raised. With the robot shown, focus
+  stayed in the app you were using.
 - **Keep on Top:** the window server reports the panel at layer 0
   normally and layer 3 (floating) with the option on. A saved non-square
   frame is restored square.
 - **Not checked:** a real sleep/wake cycle (it would mean sleeping your
   Mac), registering the login item (it would add one to your system),
-  resizing by dragging, closing with the close button, and watching it
-  float over a full-screen app.
+  dragging, pinching and right-clicking the robot by hand, a real
+  screenshot of the composited window (screen capture isn't permitted
+  here), and watching it float over a full-screen app.
 
 ### Phase 4 — behaviour fixes and docs (bridge + firmware, ~1 day)
 
@@ -607,7 +623,7 @@ window's final look.
 | App name and bundle id | **decided:** Sultana Dock, `com.lachlansleight.sultana.dock` | — |
 | Bounce on `turn.ended` | once (`.informationalRequest`), any session, any cause | `.criticalRequest`; only `cause == completed` |
 | Bounce on attention | on | off |
-| Robot window style | **built:** titlebar-transparent panel | borderless pet window later |
+| Robot window style | **decided:** borderless desktop pet only, no window chrome | — |
 | Error-turn reaction (Phase 4) | no Celebrating; `clearVerb()`; impulse `(−0.3, 0)` | leave as today (Celebrating on every `turn.ended`) |
 | Dock fps cap default | **decided:** 30, after measuring (see `sultana-dock/README.md`) | — |
 | `SERVO_PIN` for the host build | **resolved:** the firmware's own `config.h` (§4.1) | — |

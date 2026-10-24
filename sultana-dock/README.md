@@ -5,7 +5,7 @@ bridge exactly as the robot does, runs the robot_v3 firmware's own
 behaviour and face code in-process (SultanaCore, from
 [`robot_v3/host/`](../robot_v3/host/README.md)), and draws the screen the
 firmware renders into its Dock tile. It bounces the icon when a turn ends,
-and can show the whole robot, arms and all, in a floating window.
+and can put the whole robot, arms and all, on your desktop.
 
 Status: Phases 1–3 of [`docs/mac-app/PLAN.md`](../docs/mac-app/PLAN.md) are
 done. The robot's body and arms are placeholders until the Phase 5 art.
@@ -59,21 +59,28 @@ shows the robot window (or Settings, if the connection needs fixing). The
 Dock menu shows the connection status and has Show Robot, Keep Robot on
 Top, Replay Log and Settings.
 
-## The robot window
+## The robot on your desktop
 
-A resizable panel with the whole robot: body, the round screen (the
-firmware's frame, with crisp panel pixels) and two arms driven by the servo
-angle the firmware commands. The real robot has one servo and a gear that
-mirrors it to both arms, so the arms always move as a mirrored pair, and
-the drawn arms lag the commanded angle at about 500°/s as the SG92R servo
-does.
+Just the robot, floating on the desktop: no window frame, title bar or
+buttons, and a soft shadow that follows its shape. Body, the round screen
+(the firmware's frame, with crisp panel pixels) and two arms driven by the
+servo angle the firmware commands. The real robot has one servo and a gear
+that mirrors it to both arms, so the arms always move as a mirrored pair,
+and the drawn arms lag the commanded angle at about 500°/s as the SG92R
+servo does.
 
-- Clicking or dragging the window never activates the app, so turn-end
-  bounces keep working while it is open.
-- **Keep Robot on Top** (⌥⌘T) floats it above other windows, on every Space
-  and over full-screen apps.
-- Window ▸ Show Robot (⌘1) toggles it. Its size and position are remembered.
-- It stops redrawing while it's covered or closed; the Dock tile carries on.
+- **Move it** by dragging the robot. **Resize it** by pinching on it with a
+  trackpad, or right-click ▸ Size (Small, Medium, Large).
+- **Right-click** it for Keep on Top, Size, Hide Robot and Settings.
+- Only the robot itself catches the mouse. Clicks anywhere else in its
+  (square, invisible) window, shadow included, go to whatever is behind.
+- Touching it never activates the app, so turn-end bounces keep working.
+- **Keep on Top** (⌥⌘T) floats it above other windows, on every Space and
+  over full-screen apps.
+- Show or hide it from the Dock menu, Window ▸ Show Robot (⌘1), Settings,
+  or by clicking the Dock icon. Its size and position are remembered; if
+  its display has gone, it comes back centred.
+- It stops redrawing while it's covered or hidden; the Dock tile carries on.
 
 The geometry lives in `RobotLayout` in `SultanaDock/RobotWindow.swift`:
 screen and body size, each arm's pivot, length and rest angle, which way a
@@ -139,7 +146,7 @@ disabled) or in the shell:
 | `SULTANA_BRIDGE_HOST` / `_PORT` / `_TOKEN` | Override the stored connection settings without changing them. With a token here, the Keychain is never touched. |
 | `SULTANA_REPLAY=/path/log.jsonl` | Replay a recording at launch. |
 | `SULTANA_REPLAY_CLOCK=log` | Replay on the log's clock and report the frame hash (see above). |
-| `SULTANA_DEBUG_DIR=/some/dir` | Once a second, write `dock.png` (the tile as drawn), `robot.png` (the robot window, while open) and `state.json` (connection status, Dock push rate, the firmware's verb/expression/emotion/latch/arm); append connections, bounces, replays and sleep/wake to `events.log`. |
+| `SULTANA_DEBUG_DIR=/some/dir` | Once a second, write `dock.png` (the tile as drawn), `robot.png` (the robot's layers on a transparent background, while shown) and `state.json` (connection status, Dock push rate, the firmware's verb/expression/emotion/latch/arm); append connections, bounces, replays and sleep/wake to `events.log`. |
 
 Logs:
 
