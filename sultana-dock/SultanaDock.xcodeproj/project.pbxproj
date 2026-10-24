@@ -1,0 +1,583 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0B58135EF5135B0149B0B3C2 /* Scene.cpp in Sources */ = {isa = PBXBuildFile; fileRef = ADB36DF195827E7442ED0399 /* Scene.cpp */; };
+		0EA24835E3F757080996280B /* AsciiCopy.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 5FDA7B39ED1614C82AE0DBF8 /* AsciiCopy.cpp */; };
+		352CCDDA3C20FC75E3DDED04 /* FrameController.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 122FB3364128BE931D0C4A6B /* FrameController.cpp */; };
+		360DA1442228222C3D77B21E /* Bridge_host.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 50F9E8BF2F35F9352192B5F4 /* Bridge_host.cpp */; };
+		38CD2119D11B530E5C780D8F /* SceneContextFill.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4738D9DB8617726928908EAB /* SceneContextFill.cpp */; };
+		398D2276C241A5165EFEA902 /* AgentEvents.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 267612F7A7A9A1E78E8CFC07 /* AgentEvents.cpp */; };
+		45F9B997EE369B06BA002FCE /* TextScene.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8C73E5391B34A3E3220B2EB8 /* TextScene.cpp */; };
+		522A9365A1A9E4065E23BF77 /* ActivityDots.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D5BF01B63C781BB13BB6AF14 /* ActivityDots.cpp */; };
+		542591E49220E6B5CF88148D /* VerbSystem.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 505E78B68903EF65A4AACE71 /* VerbSystem.cpp */; };
+		562F3EE0437C400034DDEB85 /* EmotionBlend.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 5594CC64FB16FAB3DD14F686 /* EmotionBlend.cpp */; };
+		56F26F3BD8549C482AD77DC8 /* Motion.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 22AB2DA1750A6A4DBB557C4D /* Motion.cpp */; };
+		694F7BD3105C7D7CA504AE53 /* EmotionSystem.cpp in Sources */ = {isa = PBXBuildFile; fileRef = DA6E5C470DA48B02D07B028C /* EmotionSystem.cpp */; };
+		73646747FB031E2A93D454E6 /* SceneTypes.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7F2A85B02D133CCA6150A6D2 /* SceneTypes.cpp */; };
+		81ACC1710A2A358E81CA4161 /* VerbTimeline.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BD37B6B5635D2C58910CE3D8 /* VerbTimeline.cpp */; };
+		857A70FA82A27584900C4203 /* FaceRenderer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2CA1D476D20D20D2478AFB5F /* FaceRenderer.cpp */; };
+		918AA9FEDF898CB713AB270B /* Display_host.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8F927A45BA17C4260E9F9F11 /* Display_host.cpp */; };
+		9E68493BFE390CB0117F7F78 /* libSultanaCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5C6E2A9EE29FD52546FF51BB /* libSultanaCore.a */; };
+		A19F3FFEF96750EEDE128BB9 /* EffectsRenderer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 32F5D392ED2E3C314EABD5D5 /* EffectsRenderer.cpp */; };
+		A925EFBCA55DD971F1463AD6 /* BridgeControl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EC265670DEDDF8C3A4403736 /* BridgeControl.cpp */; };
+		BFE9E24854145A69BA760C26 /* MoodRingRenderer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 321819823A1E5A0E55D441E2 /* MoodRingRenderer.cpp */; };
+		DF6692326D5F2F78C84F00EE /* MotionBehaviors.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3F8E25CE5657F90A6B7329AA /* MotionBehaviors.cpp */; };
+		E0EE88C1D52CD0F5128ED46F /* EventRouter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = ABBC0DF780142B66A03CC1AF /* EventRouter.cpp */; };
+		E5D82BFD9307E512B5733207 /* sultana_core.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CF32D25277F9CAFD09F2911C /* sultana_core.cpp */; };
+		E8A7DB822519B3DA70E9970C /* FrameEffective.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E132A20338FF0C4CF5CA4835 /* FrameEffective.cpp */; };
+		F2C299DBB576405877E7AF81 /* Settings.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2E7F4634419008A73F06F0E7 /* Settings.cpp */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A1BCD13376DC3CCE541B19E5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 98F54143AB4E86B28C3AFEE0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2277647359DA36C2B02BD155;
+			remoteInfo = SultanaCore;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		122FB3364128BE931D0C4A6B /* FrameController.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = FrameController.cpp; sourceTree = "<group>"; };
+		22AB2DA1750A6A4DBB557C4D /* Motion.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Motion.cpp; sourceTree = "<group>"; };
+		267612F7A7A9A1E78E8CFC07 /* AgentEvents.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = AgentEvents.cpp; sourceTree = "<group>"; };
+		2CA1D476D20D20D2478AFB5F /* FaceRenderer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = FaceRenderer.cpp; sourceTree = "<group>"; };
+		2E7F4634419008A73F06F0E7 /* Settings.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Settings.cpp; sourceTree = "<group>"; };
+		321819823A1E5A0E55D441E2 /* MoodRingRenderer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = MoodRingRenderer.cpp; sourceTree = "<group>"; };
+		32F5D392ED2E3C314EABD5D5 /* EffectsRenderer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = EffectsRenderer.cpp; sourceTree = "<group>"; };
+		3F8E25CE5657F90A6B7329AA /* MotionBehaviors.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = MotionBehaviors.cpp; sourceTree = "<group>"; };
+		4738D9DB8617726928908EAB /* SceneContextFill.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = SceneContextFill.cpp; sourceTree = "<group>"; };
+		505E78B68903EF65A4AACE71 /* VerbSystem.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VerbSystem.cpp; sourceTree = "<group>"; };
+		50F9E8BF2F35F9352192B5F4 /* Bridge_host.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Bridge_host.cpp; sourceTree = "<group>"; };
+		5594CC64FB16FAB3DD14F686 /* EmotionBlend.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = EmotionBlend.cpp; sourceTree = "<group>"; };
+		5B49F89871AA443231953209 /* sultana_core.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = sultana_core.h; sourceTree = "<group>"; };
+		5C6E2A9EE29FD52546FF51BB /* libSultanaCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libSultanaCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		5FDA7B39ED1614C82AE0DBF8 /* AsciiCopy.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = AsciiCopy.cpp; sourceTree = "<group>"; };
+		7F2A85B02D133CCA6150A6D2 /* SceneTypes.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = SceneTypes.cpp; sourceTree = "<group>"; };
+		8C73E5391B34A3E3220B2EB8 /* TextScene.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = TextScene.cpp; sourceTree = "<group>"; };
+		8F927A45BA17C4260E9F9F11 /* Display_host.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Display_host.cpp; sourceTree = "<group>"; };
+		A6B7B186852EE76D45B78D47 /* host_internal.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = host_internal.h; sourceTree = "<group>"; };
+		ABBC0DF780142B66A03CC1AF /* EventRouter.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = EventRouter.cpp; sourceTree = "<group>"; };
+		ADB36DF195827E7442ED0399 /* Scene.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Scene.cpp; sourceTree = "<group>"; };
+		B6CDB6E5D160E013280D3C68 /* Sultana Dock.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Sultana Dock.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		BD37B6B5635D2C58910CE3D8 /* VerbTimeline.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VerbTimeline.cpp; sourceTree = "<group>"; };
+		CF32D25277F9CAFD09F2911C /* sultana_core.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = sultana_core.cpp; sourceTree = "<group>"; };
+		D5BF01B63C781BB13BB6AF14 /* ActivityDots.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ActivityDots.cpp; sourceTree = "<group>"; };
+		DA6E5C470DA48B02D07B028C /* EmotionSystem.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = EmotionSystem.cpp; sourceTree = "<group>"; };
+		E132A20338FF0C4CF5CA4835 /* FrameEffective.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = FrameEffective.cpp; sourceTree = "<group>"; };
+		EC265670DEDDF8C3A4403736 /* BridgeControl.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = BridgeControl.cpp; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		EB0CE7302E7798328E40C840 /* Exceptions for "SultanaDock" folder in "Sultana Dock" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 29C7B681C8D62CBAC94D51C0 /* Sultana Dock */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		79E2A7A7BFBF6FB3A08FDC09 /* SultanaDock */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				EB0CE7302E7798328E40C840 /* Exceptions for "SultanaDock" folder in "Sultana Dock" target */,
+			);
+			path = SultanaDock;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		00902D9DB823B3227B76DC9A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9E68493BFE390CB0117F7F78 /* libSultanaCore.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D90ECA3C5FB841970C96DCD7 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		00C45FD35CB0F9C5F764F070 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B6CDB6E5D160E013280D3C68 /* Sultana Dock.app */,
+				5C6E2A9EE29FD52546FF51BB /* libSultanaCore.a */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		2545EBC9A7954405B3E875C2 /* hal */ = {
+			isa = PBXGroup;
+			children = (
+				50F9E8BF2F35F9352192B5F4 /* Bridge_host.cpp */,
+				8F927A45BA17C4260E9F9F11 /* Display_host.cpp */,
+				A6B7B186852EE76D45B78D47 /* host_internal.h */,
+			);
+			path = hal;
+			sourceTree = "<group>";
+		};
+		2745367E0B50BAF400E643DE /* Host (robot_v3/host) */ = {
+			isa = PBXGroup;
+			children = (
+				6BEDB6C967C11157172E24E1 /* core */,
+				2545EBC9A7954405B3E875C2 /* hal */,
+			);
+			name = "Host (robot_v3/host)";
+			path = ../robot_v3/host;
+			sourceTree = "<group>";
+		};
+		2B2AD026ADE32DC74EBE5E1B /* core */ = {
+			isa = PBXGroup;
+			children = (
+				5FDA7B39ED1614C82AE0DBF8 /* AsciiCopy.cpp */,
+			);
+			path = core;
+			sourceTree = "<group>";
+		};
+		2D6BF8B595D53DB79CAEC4CE /* hal */ = {
+			isa = PBXGroup;
+			children = (
+				22AB2DA1750A6A4DBB557C4D /* Motion.cpp */,
+				3F8E25CE5657F90A6B7329AA /* MotionBehaviors.cpp */,
+				2E7F4634419008A73F06F0E7 /* Settings.cpp */,
+			);
+			path = hal;
+			sourceTree = "<group>";
+		};
+		52E4974892871E753FA7AB9B /* behaviour */ = {
+			isa = PBXGroup;
+			children = (
+				5594CC64FB16FAB3DD14F686 /* EmotionBlend.cpp */,
+				DA6E5C470DA48B02D07B028C /* EmotionSystem.cpp */,
+				505E78B68903EF65A4AACE71 /* VerbSystem.cpp */,
+			);
+			path = behaviour;
+			sourceTree = "<group>";
+		};
+		5404A0FE567A1223B1ECC875 /* face */ = {
+			isa = PBXGroup;
+			children = (
+				D5BF01B63C781BB13BB6AF14 /* ActivityDots.cpp */,
+				32F5D392ED2E3C314EABD5D5 /* EffectsRenderer.cpp */,
+				2CA1D476D20D20D2478AFB5F /* FaceRenderer.cpp */,
+				122FB3364128BE931D0C4A6B /* FrameController.cpp */,
+				E132A20338FF0C4CF5CA4835 /* FrameEffective.cpp */,
+				321819823A1E5A0E55D441E2 /* MoodRingRenderer.cpp */,
+				ADB36DF195827E7442ED0399 /* Scene.cpp */,
+				7F2A85B02D133CCA6150A6D2 /* SceneTypes.cpp */,
+				8C73E5391B34A3E3220B2EB8 /* TextScene.cpp */,
+				BD37B6B5635D2C58910CE3D8 /* VerbTimeline.cpp */,
+			);
+			path = face;
+			sourceTree = "<group>";
+		};
+		6BEDB6C967C11157172E24E1 /* core */ = {
+			isa = PBXGroup;
+			children = (
+				CF32D25277F9CAFD09F2911C /* sultana_core.cpp */,
+				5B49F89871AA443231953209 /* sultana_core.h */,
+			);
+			path = core;
+			sourceTree = "<group>";
+		};
+		7E931F454ECBFCC3B8304C2B /* agents */ = {
+			isa = PBXGroup;
+			children = (
+				267612F7A7A9A1E78E8CFC07 /* AgentEvents.cpp */,
+				EC265670DEDDF8C3A4403736 /* BridgeControl.cpp */,
+			);
+			path = agents;
+			sourceTree = "<group>";
+		};
+		ADCF10F76EBF2A74473E9DC4 = {
+			isa = PBXGroup;
+			children = (
+				79E2A7A7BFBF6FB3A08FDC09 /* SultanaDock */,
+				E850E67438E2C797E24E30E9 /* Firmware (robot_v3/src) */,
+				2745367E0B50BAF400E643DE /* Host (robot_v3/host) */,
+				00C45FD35CB0F9C5F764F070 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		E850E67438E2C797E24E30E9 /* Firmware (robot_v3/src) */ = {
+			isa = PBXGroup;
+			children = (
+				7E931F454ECBFCC3B8304C2B /* agents */,
+				EB6F45655E64118EC9C97420 /* app */,
+				52E4974892871E753FA7AB9B /* behaviour */,
+				2B2AD026ADE32DC74EBE5E1B /* core */,
+				5404A0FE567A1223B1ECC875 /* face */,
+				2D6BF8B595D53DB79CAEC4CE /* hal */,
+			);
+			name = "Firmware (robot_v3/src)";
+			path = ../robot_v3/src;
+			sourceTree = "<group>";
+		};
+		EB6F45655E64118EC9C97420 /* app */ = {
+			isa = PBXGroup;
+			children = (
+				ABBC0DF780142B66A03CC1AF /* EventRouter.cpp */,
+				4738D9DB8617726928908EAB /* SceneContextFill.cpp */,
+			);
+			path = app;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		2277647359DA36C2B02BD155 /* SultanaCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4599096A574CB2B8DDC5249B /* Build configuration list for PBXNativeTarget "SultanaCore" */;
+			buildPhases = (
+				891C691E193C227D1A2BF229 /* Sources */,
+				D90ECA3C5FB841970C96DCD7 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SultanaCore;
+			packageProductDependencies = (
+			);
+			productName = SultanaCore;
+			productReference = 5C6E2A9EE29FD52546FF51BB /* libSultanaCore.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		29C7B681C8D62CBAC94D51C0 /* Sultana Dock */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AE00E44D1CF6E2E3FA93958F /* Build configuration list for PBXNativeTarget "Sultana Dock" */;
+			buildPhases = (
+				7EC6D9E6268A1DE72A5C6080 /* Sources */,
+				00902D9DB823B3227B76DC9A /* Frameworks */,
+				3AF33F3745E98800474FFF1C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1EA7B5603A3B14423C36309A /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				79E2A7A7BFBF6FB3A08FDC09 /* SultanaDock */,
+			);
+			name = "Sultana Dock";
+			packageProductDependencies = (
+			);
+			productName = "Sultana Dock";
+			productReference = B6CDB6E5D160E013280D3C68 /* Sultana Dock.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		98F54143AB4E86B28C3AFEE0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					29C7B681C8D62CBAC94D51C0 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					2277647359DA36C2B02BD155 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+				};
+			};
+			buildConfigurationList = EA14EA6A43D4399E6D2CE974 /* Build configuration list for PBXProject "SultanaDock" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = ADCF10F76EBF2A74473E9DC4;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 00C45FD35CB0F9C5F764F070 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				29C7B681C8D62CBAC94D51C0 /* Sultana Dock */,
+				2277647359DA36C2B02BD155 /* SultanaCore */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		3AF33F3745E98800474FFF1C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		7EC6D9E6268A1DE72A5C6080 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		891C691E193C227D1A2BF229 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				398D2276C241A5165EFEA902 /* AgentEvents.cpp in Sources */,
+				A925EFBCA55DD971F1463AD6 /* BridgeControl.cpp in Sources */,
+				E0EE88C1D52CD0F5128ED46F /* EventRouter.cpp in Sources */,
+				38CD2119D11B530E5C780D8F /* SceneContextFill.cpp in Sources */,
+				562F3EE0437C400034DDEB85 /* EmotionBlend.cpp in Sources */,
+				694F7BD3105C7D7CA504AE53 /* EmotionSystem.cpp in Sources */,
+				542591E49220E6B5CF88148D /* VerbSystem.cpp in Sources */,
+				0EA24835E3F757080996280B /* AsciiCopy.cpp in Sources */,
+				522A9365A1A9E4065E23BF77 /* ActivityDots.cpp in Sources */,
+				A19F3FFEF96750EEDE128BB9 /* EffectsRenderer.cpp in Sources */,
+				857A70FA82A27584900C4203 /* FaceRenderer.cpp in Sources */,
+				352CCDDA3C20FC75E3DDED04 /* FrameController.cpp in Sources */,
+				E8A7DB822519B3DA70E9970C /* FrameEffective.cpp in Sources */,
+				BFE9E24854145A69BA760C26 /* MoodRingRenderer.cpp in Sources */,
+				0B58135EF5135B0149B0B3C2 /* Scene.cpp in Sources */,
+				73646747FB031E2A93D454E6 /* SceneTypes.cpp in Sources */,
+				45F9B997EE369B06BA002FCE /* TextScene.cpp in Sources */,
+				81ACC1710A2A358E81CA4161 /* VerbTimeline.cpp in Sources */,
+				56F26F3BD8549C482AD77DC8 /* Motion.cpp in Sources */,
+				DF6692326D5F2F78C84F00EE /* MotionBehaviors.cpp in Sources */,
+				F2C299DBB576405877E7AF81 /* Settings.cpp in Sources */,
+				918AA9FEDF898CB713AB270B /* Display_host.cpp in Sources */,
+				360DA1442228222C3D77B21E /* Bridge_host.cpp in Sources */,
+				E5D82BFD9307E512B5733207 /* sultana_core.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1EA7B5603A3B14423C36309A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2277647359DA36C2B02BD155 /* SultanaCore */;
+			targetProxy = A1BCD13376DC3CCE541B19E5 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		01172647D9872636A9E33D38 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		16AE29DA9AEFB03AC72F5287 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GCC_OPTIMIZATION_LEVEL = 2;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					_USE_MATH_DEFINES,
+					"$(inherited)",
+				);
+				GCC_WARN_INHIBIT_ALL_WARNINGS = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../robot_v3/host/stubs",
+					"$(SRCROOT)/../robot_v3/host/hal",
+					"$(SRCROOT)/../robot_v3/host/core",
+					"$(SRCROOT)/../robot_v3/host/third_party/ArduinoJson",
+					"$(SRCROOT)/../robot_v3/src",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				USE_HEADERMAP = NO;
+			};
+			name = Debug;
+		};
+		6965B8DCA52C65E84989AD55 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GCC_OPTIMIZATION_LEVEL = 2;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					_USE_MATH_DEFINES,
+					"$(inherited)",
+				);
+				GCC_WARN_INHIBIT_ALL_WARNINGS = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../robot_v3/host/stubs",
+					"$(SRCROOT)/../robot_v3/host/hal",
+					"$(SRCROOT)/../robot_v3/host/core",
+					"$(SRCROOT)/../robot_v3/host/third_party/ArduinoJson",
+					"$(SRCROOT)/../robot_v3/src",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				USE_HEADERMAP = NO;
+			};
+			name = Release;
+		};
+		6A7A9C00E9D82F8B527AF6B5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		70A5F3AAC43D0790B57ED51A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_PREVIEWS = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../robot_v3/host/core",
+				);
+				INFOPLIST_FILE = SultanaDock/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				OTHER_LDFLAGS = (
+					"-lc++",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lachlansleight.sultana.dock;
+				PRODUCT_MODULE_NAME = SultanaDock;
+				PRODUCT_NAME = "Sultana Dock";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "SultanaDock/SultanaDock-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		967DE5DAE8F9C3546488D3FD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_PREVIEWS = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../robot_v3/host/core",
+				);
+				INFOPLIST_FILE = SultanaDock/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				OTHER_LDFLAGS = (
+					"-lc++",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lachlansleight.sultana.dock;
+				PRODUCT_MODULE_NAME = SultanaDock;
+				PRODUCT_NAME = "Sultana Dock";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "SultanaDock/SultanaDock-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		4599096A574CB2B8DDC5249B /* Build configuration list for PBXNativeTarget "SultanaCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				16AE29DA9AEFB03AC72F5287 /* Debug */,
+				6965B8DCA52C65E84989AD55 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AE00E44D1CF6E2E3FA93958F /* Build configuration list for PBXNativeTarget "Sultana Dock" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				967DE5DAE8F9C3546488D3FD /* Debug */,
+				70A5F3AAC43D0790B57ED51A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		EA14EA6A43D4399E6D2CE974 /* Build configuration list for PBXProject "SultanaDock" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6A7A9C00E9D82F8B527AF6B5 /* Debug */,
+				01172647D9872636A9E33D38 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = 98F54143AB4E86B28C3AFEE0 /* Project object */;
+}

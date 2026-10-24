@@ -53,6 +53,8 @@ quickstart; the rest lives here.
 - [../robot_v3/host/README.md](../robot_v3/host/README.md) — SultanaCore,
   the firmware core built for a desktop: C API, the `sultana-replay` CLI,
   recorded fixtures and golden-trace regression tests (`make test`).
+- [../sultana-dock/README.md](../sultana-dock/README.md) — the Sultana Dock
+  app: building, settings, replay, developer aids, measured cost.
 - [mac-app/PLAN.md](mac-app/PLAN.md) — the finalised plan: architecture,
   host build of the firmware (`robot_v3/host/`), C API, app design,
   phases, open decisions.

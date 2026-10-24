@@ -1,7 +1,7 @@
 # Mac app: finalised plan
 
-**Status:** Phase 1 done (`robot_v3/host/`). Phase 2 in progress
-(`sultana-dock/`).
+**Status:** Phase 1 done (`robot_v3/host/`). Phase 2 done (`sultana-dock/`,
+see its `README.md`). Phase 3 next.
 **Written:** 2026-10-24 against `main` at `0baabc3`.
 **Names:** the robot and project are called Sultana. The Mac app is
 **Sultana Dock**, the host build of the firmware core is **SultanaCore**
@@ -315,9 +315,12 @@ Swift, AppKit, **minimum macOS 14** (`NSScreen.displayLink`,
   Each callback: `sultana_core_tick(now)`; if it returns true and the 565
   buffer differs from the last consumed one, convert to RGBA, build a
   `CGImage` over the buffer (`CGDataProvider`, no extra copy), and hand it to
-  the Dock tile and the robot window.
+  the Dock tile and the robot window. *(Built: the RGBA buffer belongs to a
+  reused `CGContext` and `makeImage()` snapshots it. The display link is
+  recreated when the screen configuration changes.)*
 - Hold a `ProcessInfo.beginActivity(.userInitiatedAllowingIdleSystemSleep)`
-  token while connected so App Nap doesn't stall the timer.
+  token while connected so App Nap doesn't stall the timer. *(Built in
+  Phase 2: held while connected or replaying.)*
 - On `NSWorkspace.willSleepNotification` stop ticking; on `didWake` resume
   and let the socket reconnect. The firmware copes with a large `dt`
   (exponential smoothing, absolute-time comparisons, `Motion` clamps `dt` at
@@ -326,13 +329,20 @@ Swift, AppKit, **minimum macOS 14** (`NSScreen.displayLink`,
 ### 5.3 Dock tile
 
 - `NSApp.dockTile.contentView` = a view holding the latest `CGImage`,
-  drawn with `interpolationQuality = .none` and clipped to a circle. Corners
-  outside the circle are transparent. Call `dockTile.display()` only when a
-  new image arrived, and no more often than the **Dock fps cap** preference
-  (default 30; offer 15 and 10). Measure Dock + app CPU in Instruments at
-  each setting before shipping a default.
+  clipped to a circle. Corners outside the circle are transparent. Call
+  `dockTile.display()` only when a new image arrived, and no more often than
+  the **Dock fps cap** preference (default 30; offer 15 and 10).
+  *(Built: the screen fills 80% of the tile inside a thin graphite bezel
+  (86%), matching Apple's icon grid so it sits at the same size as other
+  Dock icons. The Dock shows tiles smaller than 240 px, so the face is
+  smoothed when downscaled and nearest-neighbour only when upscaled. CPU
+  was measured at each cap; see `sultana-dock/README.md`. 30 fps stays the
+  default.)*
 - The static bundle icon (shown when the app isn't running) is a still of
   the sleeping face, made with Icon Composer so Tahoe doesn't squircle it.
+  *(Phase 2 ships a plain asset-catalog icon rendered from a firmware frame
+  by `sultana-dock/tools/make_app_icon.py`; the Icon Composer version waits
+  for the Phase 5 design.)*
 - `applicationShouldHandleReopen` (click on the icon) shows the robot window.
 - Dock menu (`applicationDockMenu`): Show Robot, Always on Top ✓, Replay
   Log…, Preferences…, Quit.
@@ -348,10 +358,18 @@ bounce.
 |---|---|---|
 | `agent_event` / `turn.ended` | `NSApp.requestUserAttention(.informationalRequest)` | style: informational (default) / critical; off |
 | `agent_event` / `notification` with `text` starting `"Claude needs"`, or `permission.requested` | same | on by default; off |
-| app becomes active | `cancelUserAttentionRequest` | — |
+| app becomes active | nothing: macOS ends critical requests itself | — |
 
-Bounce is a no-op while the app is frontmost; the robot window is a
-non-activating panel so that rarely happens. Badge counts are Phase 6 (§7).
+Bounce is a no-op while the app is frontmost. macOS activates a freshly
+launched app, so with no window to show (Phase 2) the app hides itself
+right after launch and after a Dock click, which hands focus back to the
+previous app. The Phase 3 robot window is a non-activating panel for the
+same reason. Badge counts are later work (§7).
+
+Found while building: `requestUserAttention` returns 0-based ids that are
+reused, so **0 is a valid id, not a failure**. Informational requests
+return 0 too. Cancelling stored ids risks cancelling a different, newer
+request, so the app stores none.
 
 ### 5.5 Robot window
 
@@ -393,6 +411,10 @@ Layer tree per `MACOS.md`: body, `armLeft`, `armRight`, round `screen`.
   .env…" (reads `BRIDGE_TOKEN` / `BRIDGE_PORT` from a chosen file), bounce
   options, Dock fps cap, launch at login (`SMAppService.mainApp`).
 - Add `NSLocalNetworkUsageDescription` for bridges on other machines.
+- *(Built: `SULTANA_BRIDGE_HOST` / `_PORT` / `_TOKEN` environment variables
+  override the stored settings without changing them. Ad hoc signed builds
+  get a Keychain prompt after every rebuild; an env token skips the
+  Keychain entirely.)*
 
 ### 5.8 Replay mode (developer feature, built early)
 
@@ -405,6 +427,10 @@ core without a bridge. Two clocks:
   the frame-exact check in §8.
 
 This is also how most of Phase 2–3 gets developed: no agent, no bridge.
+*(Built in Phase 2: the wall-clock variant, from the menus or with
+`SULTANA_REPLAY=/path/log.jsonl` at launch. `SULTANA_DEBUG_DIR` makes the
+app write the tile as drawn, a state snapshot and an event log, which is
+how the app was verified without watching the screen.)*
 
 ### 5.9 Distribution
 
@@ -444,30 +470,48 @@ firmware build was possible on any branch. Phase 1 changes no firmware
 source, and Arduino compiles only the sketch root and `src/`, so
 `robot_v3/host/` is copied into the build folder but never compiled.
 
-### Phase 2 — app shell and Dock tile (Mac, ~2 days)
+### Phase 2 — app shell and Dock tile — **done**
 
-1. Xcode project: `SultanaCore` static library target over the Phase 1
-   sources; `Sultana Dock` app target; bridging header for `sultana_core.h`.
-2. `BridgeSocket` with the robot's ping / reconnect policy and the send
-   callback for `request_sessions`.
+Delivered in `sultana-dock/` (see its `README.md`):
+
+1. `SultanaDock.xcodeproj`: a `SultanaCore` static library target over the
+   Phase 1 sources, and the `Sultana Dock` app target with a bridging header
+   for `sultana_core.h`. The app's Swift lives in a synchronized folder.
+2. `BridgeSocket` with the robot's ping / pong / reconnect policy, a
+   distinct state for a rejected token, and the core's `request_sessions`
+   forwarded.
 3. Display-link tick loop, change detection, RGBA conversion, `CGImage`.
-4. Dock tile with circular clip and fps cap; bounce on `turn.ended` from
-   any session; attention bounce.
-5. Preferences window, Keychain token, `.env` import.
-6. Replay mode, wall-clock variant.
+4. Dock tile with circular clip, bezel and fps cap; bounce on `turn.ended`
+   from any session; attention bounce. The app hides itself when it has no
+   window, so bounces aren't swallowed.
+5. Settings window (SwiftUI), Keychain token, `.env` import.
+6. Replay mode, wall-clock variant. Also, from Phase 3: the App Nap
+   activity token.
 
-**Done when:** with the bridge running and a Claude Code session using the
-plugin, the Dock icon shows the face, follows the session through a turn,
-and bounces once when the turn ends. Killing and restarting the bridge
-reconnects within a few seconds and the latch recovers via
-`request_sessions`.
+Checked against a real bridge (scripted Claude Code hooks through the
+bridge's Claude adapter, not a live Claude Code session):
+
+- The tile followed `claude-turn` through every state and latched and
+  unlatched as the firmware does; `two-sessions` bounced for both turn ends,
+  including the one the face's latch dropped.
+- A frozen bridge (SIGSTOP) was dropped after two missed pongs at 33 s and
+  reconnected within a second of resuming. A killed and restarted bridge
+  was back within the 2 s retry, and a new session latched.
+- Replaying `claude-turn.jsonl` produced the same states and bounced at the
+  recorded times, then reconnected live.
+- The Settings view renders correctly offscreen, and `.env` parsing works.
+  The window, the open panels and the Keychain write were **not**
+  click-tested.
+- Not checked: a live Claude Code session end to end, and watching the
+  bounce happen (the request ids are consistent with it working; see §5.4).
 
 ### Phase 3 — robot window and polish (Mac, ~2 days)
 
 1. `NSPanel` per §5.5 with placeholder body and arm art.
 2. Layer tree, round screen, arm rotation, servo-lag rate limit.
 3. Always-on-top and all-Spaces toggle; Dock menu; reopen-on-click.
-4. Launch at login; App Nap activity token; sleep / wake handling.
+4. Launch at login; sleep / wake handling (the App Nap token landed in
+   Phase 2).
 5. Replay mode, log-clock variant; frame-exact check against the CLI.
 
 **Done when:** the window can be resized, floated over a full-screen app,
@@ -533,7 +577,7 @@ window's final look.
 | Bounce on attention | on | off |
 | Robot window style | titlebar-transparent panel first | borderless pet window |
 | Error-turn reaction (Phase 4) | no Celebrating; `clearVerb()`; impulse `(−0.3, 0)` | leave as today (Celebrating on every `turn.ended`) |
-| Dock fps cap default | 30, after measuring | 15 |
+| Dock fps cap default | **decided:** 30, after measuring (see `sultana-dock/README.md`) | — |
 | `SERVO_PIN` for the host build | **resolved:** the firmware's own `config.h` (§4.1) | — |
 | Committed `robot_v3/src/config.h` with credentials | out of scope here; untrack it and rotate the token | leave as is |
 | Palette persistence on the Mac | none in v1 | `UserDefaults`-backed `Preferences` stub |
