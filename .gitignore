@@ -6,3 +6,5 @@ dist/
 .DS_Store
 TFT_eSPI/
 robot_v3/docs/api/html/
+# Host build of the firmware core
+robot_v3/host/build/

@@ -1,0 +1,22 @@
+{"t":0,"frame":{"type":"hello","client_id":"ws_656d65de-5581-4171-8d78-5c613ba9656f","server_version":"0.3.0"}}
+{"t":1,"frame":{"type":"active_sessions","session_ids":[]}}
+{"t":529,"frame":{"type":"agent_event","agent":"claude","ts":1792807786140,"session_id":"fixture-a","event":{"kind":"session.started","cause":"startup"}}}
+{"t":530,"frame":{"type":"active_sessions","session_ids":["fixture-a"]}}
+{"t":2538,"frame":{"type":"agent_event","agent":"claude","ts":1792807788149,"session_id":"fixture-a","event":{"kind":"turn.started","prompt":"Fix the failing test in src/index.ts"}}}
+{"t":2538,"frame":{"type":"agent_event","agent":"claude","ts":1792807788149,"session_id":"fixture-a","event":{"kind":"message.user","text":"Fix the failing test in src/index.ts"}}}
+{"t":4044,"frame":{"type":"agent_event","agent":"claude","ts":1792807789655,"session_id":"fixture-a","event":{"kind":"activity.started","activity":{"id":"tu_99ak4t","kind":"file.read","tool":"Read","summary":"index.ts"}}}}
+{"t":4853,"frame":{"type":"agent_event","agent":"claude","ts":1792807790463,"session_id":"fixture-a","event":{"kind":"activity.finished","activity":{"id":"act_21767dd0-d5d7-4519-aa9e-4e0320af6e85","kind":"file.read","tool":"Read","summary":"index.ts"}}}}
+{"t":5161,"frame":{"type":"agent_event","agent":"claude","ts":1792807790772,"session_id":"fixture-a","event":{"kind":"activity.started","activity":{"id":"tu_68hv2a","kind":"search.code","tool":"Grep","summary":"TODO"}}}}
+{"t":5568,"frame":{"type":"agent_event","agent":"claude","ts":1792807791179,"session_id":"fixture-a","event":{"kind":"activity.finished","activity":{"id":"act_f39dedea-66be-4e5c-ab14-2de8aa634489","kind":"search.code","tool":"Grep","summary":"TODO"}}}}
+{"t":7074,"frame":{"type":"agent_event","agent":"claude","ts":1792807792685,"session_id":"fixture-a","event":{"kind":"activity.started","activity":{"id":"tu_o9ve44","kind":"file.write","tool":"Edit","summary":"index.ts"}}}}
+{"t":7681,"frame":{"type":"agent_event","agent":"claude","ts":1792807793292,"session_id":"fixture-a","event":{"kind":"activity.finished","activity":{"id":"act_de2fc2c8-6326-49bb-b8c6-e8255a5425b3","kind":"file.write","tool":"Edit","summary":"index.ts"}}}}
+{"t":9193,"frame":{"type":"agent_event","agent":"claude","ts":1792807794804,"session_id":"fixture-a","event":{"kind":"activity.started","activity":{"id":"tu_lk7etl","kind":"shell.exec","tool":"Bash","summary":"npm test"}}}}
+{"t":15700,"frame":{"type":"agent_event","agent":"claude","ts":1792807801311,"session_id":"fixture-a","event":{"kind":"activity.finished","activity":{"id":"act_a631a08f-8c78-4f12-b2e0-fffc8bc5ac0f","kind":"shell.exec","tool":"Bash","summary":"npm test"}}}}
+{"t":17209,"frame":{"type":"agent_event","agent":"claude","ts":1792807802819,"session_id":"fixture-a","event":{"kind":"notification","text":"Claude needs your permission to use Bash"}}}
+{"t":19214,"frame":{"type":"agent_event","agent":"claude","ts":1792807804825,"session_id":"fixture-a","event":{"kind":"activity.started","activity":{"id":"tu_sp58df","kind":"shell.exec","tool":"Bash","summary":"git status"}}}}
+{"t":19717,"frame":{"type":"agent_event","agent":"claude","ts":1792807805328,"session_id":"fixture-a","event":{"kind":"activity.finished","activity":{"id":"act_df7b6fdd-7ae4-4f99-a276-b5e7ecd8c66f","kind":"shell.exec","tool":"Bash","summary":"git status"}}}}
+{"t":21222,"frame":{"type":"agent_event","agent":"claude","ts":1792807806833,"session_id":"fixture-a","event":{"kind":"message.assistant","text":"Fixed the test; npm test passes now.","final":true}}}
+{"t":21222,"frame":{"type":"agent_event","agent":"claude","ts":1792807806833,"session_id":"fixture-a","event":{"kind":"turn.ended","cause":"completed","last_assistant_text":"Fixed the test; npm test passes now."}}}
+{"t":26229,"frame":{"type":"agent_event","agent":"claude","ts":1792807811840,"session_id":"fixture-a","event":{"kind":"session.ended","cause":"unknown"}}}
+{"t":26230,"frame":{"type":"active_sessions","session_ids":[]}}
+{"t":27258,"connected":false}

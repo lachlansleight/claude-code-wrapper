@@ -45,11 +45,14 @@ quickstart; the rest lives here.
   checklist for adding a `Face::Expression` / `kBaseTargets` row and
   keeping emotion tables, blend, palette, motion, and simulator in sync.
 
-## Mac app (planned)
+## Sultana Dock (Mac app) and the host build
 
-- [mac-app/README.md](mac-app/README.md) — goals and design brief for a
-  macOS Dock app that shows the robot's face, built by compiling the
-  firmware's behaviour and face C++ into the app.
+- [mac-app/README.md](mac-app/README.md) — goals and design brief for
+  Sultana Dock, a macOS Dock app that shows the robot's face, built by
+  compiling the firmware's behaviour and face C++ into the app.
+- [../robot_v3/host/README.md](../robot_v3/host/README.md) — SultanaCore,
+  the firmware core built for a desktop: C API, the `sultana-replay` CLI,
+  recorded fixtures and golden-trace regression tests (`make test`).
 - [mac-app/PLAN.md](mac-app/PLAN.md) — the finalised plan: architecture,
   host build of the firmware (`robot_v3/host/`), C API, app design,
   phases, open decisions.

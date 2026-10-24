@@ -1,6 +1,8 @@
-# Mac Dock app
+# Sultana Dock (Mac app)
 
-**Status:** plan agreed, nothing built yet. The finalised plan is
+**Status:** Phase 1 (the host build of the firmware core,
+[`robot_v3/host/`](../../robot_v3/host/README.md)) is done; Phase 2 (the app
+in `sultana-dock/`) is in progress. The finalised plan is
 [`PLAN.md`](PLAN.md); start there.
 **History:** the technical discovery was written 2026-10-24 against commit
 `1094a48`. It recommended porting the behaviour layer to TypeScript and
@@ -38,7 +40,7 @@ This folder contains:
 
 ## How it's built, in one paragraph
 
-A Swift/AppKit app links a static library built from the firmware's own
+Sultana Dock is a Swift/AppKit app. It links SultanaCore, a static library built from the firmware's own
 `app/`, `behaviour/`, `agents/`, `face/` and `core/` sources plus
 `Motion.cpp`, `MotionBehaviors.cpp` and `Settings.cpp`, compiled unmodified
 against ~150 lines of stub headers (`Arduino.h`, `TFT_eSPI.h`,

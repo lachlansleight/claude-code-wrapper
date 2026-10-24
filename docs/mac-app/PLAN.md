@@ -1,8 +1,11 @@
 # Mac app: finalised plan
 
-**Status:** agreed plan, nothing built yet.
-**Written:** 2026-10-24 against `main` at `0baabc3`. This branch is two
-commits behind that; merge `main` before starting Phase 1.
+**Status:** Phase 1 done (`robot_v3/host/`). Phase 2 in progress
+(`sultana-dock/`).
+**Written:** 2026-10-24 against `main` at `0baabc3`.
+**Names:** the robot and project are called Sultana. The Mac app is
+**Sultana Dock**, the host build of the firmware core is **SultanaCore**
+(C API prefix `sultana_core_`), and its CLI is **`sultana-replay`**.
 **Supersedes:** the "Recommended architecture", "Alternatives considered"
 and "Work plan" sections of [`README.md`](README.md), and the TypeScript /
 JavaScriptCore material in [`ENGINE.md`](ENGINE.md) and
@@ -60,13 +63,13 @@ Swift app (AppKit, main thread)
    ├─ BridgeSocket        URLSessionWebSocketTask; robot's ping/reconnect policy
    │     │  text frame
    │     ├──────────────► Signals        bounce / badge from raw frames, BEFORE the latch
-   │     └──────────────► RobotCore      C API over the firmware (libRobotCore.a)
+   │     └──────────────► SultanaCore      C API over the firmware (libSultanaCore.a)
    │                        ├─ EventRouter → AgentEvents latch → VerbSystem / EmotionSystem
    │                        ├─ SceneContextFill → FrameEffective → FrameController → Scene
    │                        ├─ MotionBehaviors → Motion  (servo write = store the angle)
    │                        └─ Display_host: 240×240 RGB565 sprite; pushFrame() = copy out
    │     ◄──────────────── send callback: {"type":"request_sessions"} every 5 s while unlatched
-   ├─ display link (60 Hz) → robot_core_tick(now) → frame changed? → RGBA → CGImage
+   ├─ display link (60 Hz) → sultana_core_tick(now) → frame changed? → RGBA → CGImage
    ├─ DockTileView        NSDockTile.contentView; pushed only when pixels changed, ≤ 30 Hz
    ├─ RobotPanel          NSPanel: body art + two arm layers (±θ, rate-limited) + round screen
    └─ Preferences         host/port in UserDefaults, token in Keychain, bounce + fps options
@@ -87,23 +90,23 @@ robot_v3/
     stubs/                    Arduino.h, TFT_eSPI.h, ESP32Servo.h, Preferences.h, esp_random.h
     hal/                      Display_host.cpp, Bridge_host.cpp  (host impls of src/hal/Display.h,
                               src/bridge/BridgeClient.h)
-    core/                     robot_core.h, robot_core.cpp         (C API, §4.3)
-    cli/                      robot_host.cpp                        (replay → trace + frames, §4.8)
-    third_party/              ArduinoJson single header (pin to the Arduino library's version,
-                              7.4.3 today, MIT); stb_image_write.h (PNG out, public domain)
-    fixtures/                 recorded WS logs for the CLI and the app's replay mode
-    CMakeLists.txt            builds libRobotCore.a + robot_host on macOS / Windows / Linux
-mac-app/
-  RobotDock.xcodeproj         working name; see §8
-  RobotDock/                  Swift sources
-  RobotCore/                  Xcode static-library target referencing robot_v3/src + robot_v3/host
+    core/                     sultana_core.h, sultana_core.cpp     (C API, §4.3)
+    cli/                      sultana_replay.cpp, png.cpp           (replay → trace + frames, §4.8)
+    third_party/              ArduinoJson 7.4.3 single header (MIT, generated from the installed
+                              Arduino library); TFT_eSPI licence for the ported primitives
+    fixtures/                 recorded WS logs, golden traces, scenarios.mjs that drove them
+    Makefile                  builds build/libSultanaCore.a + build/sultana-replay; make test
+sultana-dock/
+  SultanaDock.xcodeproj       targets: SultanaCore (static library), Sultana Dock (app)
+  SultanaDock/                Swift sources, Info.plist, assets
 scripts/
   record-ws.mjs               NEW: subscribe to the bridge, append frames to a JSONL log
 ```
 
-The Xcode `RobotCore` target compiles the same source list as
-`CMakeLists.txt`, by file reference into `robot_v3/`. `CMakeLists.txt` is the
-canonical list; keep the two in sync.
+The Xcode `SultanaCore` target compiles the same firmware file list as
+`FIRMWARE_SRCS` in the `Makefile`, by file reference into `robot_v3/`. The
+Makefile is the canonical list; keep the two in sync. (CMake was the
+original plan; it isn't installed here and plain make covers the need.)
 
 ---
 
@@ -126,9 +129,11 @@ dependencies (`ESP32Servo.h`, `Preferences.h`) are stubbed at the header
 level. `Motion.cpp` also includes `src/config.h` for `SERVO_PIN`. That file is
 per-machine (there is a `config.example.h` beside it) and today it is
 committed with WiFi credentials and a bridge token in it, which should be
-fixed independently of this plan. The host build must not depend on it:
-ship a `host/config.h` on the include path ahead of `src/` (or a
-`-DSERVO_PIN=8` define). Decide at Phase 1; the probe used the real file.
+fixed independently of this plan. **Resolved in Phase 1:** the host build
+uses that same `config.h`. `Motion.cpp` includes it as `"../config.h"`,
+relative to itself, which the compiler resolves before any include path, so
+it can't be shadowed without editing firmware. The firmware needs the file
+anyway; the Makefile stops with a clear message if it's missing.
 
 ### 4.2 Stubs
 
@@ -160,39 +165,42 @@ does.
 **RNG.** A seedable xorshift behind `random()` / `esp_random()` so the CLI is
 deterministic with `--seed`. The app seeds from time.
 
-### 4.3 C API (`host/core/robot_core.h`)
+### 4.3 C API (`host/core/sultana_core.h`)
 
 ```c
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef void (*robot_core_send_fn)(const char* json, void* user);  /* outbound WS text */
-typedef void (*robot_core_log_fn)(const char* line, void* user);   /* firmware LOG_* lines */
+typedef void (*sultana_send_fn)(const char* json, void* user);    /* outbound WS text */
+typedef void (*sultana_log_fn)(const char* line, void* user);     /* firmware LOG_* lines */
 
-void   robot_core_init(uint32_t now_ms, uint32_t rng_seed);        /* = setup() minus WiFi/provisioning */
-void   robot_core_set_send_callback(robot_core_send_fn, void* user);
-void   robot_core_set_log_callback(robot_core_log_fn, void* user);
-void   robot_core_set_connected(bool connected, uint32_t now_ms);  /* → EventRouter::onBridgeConnection */
-void   robot_core_inject(const char* json, size_t len, uint32_t now_ms); /* one WS text frame */
-bool   robot_core_tick(uint32_t now_ms);                           /* one loop() iteration; true if a frame was pushed */
-const uint16_t* robot_core_frame565(void);                         /* 240×240, valid until the next tick */
-void   robot_core_frame_rgba(uint8_t* out);                        /* 240×240×4, 5/6-bit channels expanded */
-int8_t robot_core_arm_offset_deg(void);                            /* Motion::currentOffsetDeg(), already ±45-clamped and rounded */
-void   robot_core_state_json(char* out, size_t cap);               /* debug snapshot: verb, effective verb, expression, v/a, latch, pending, read/write counts */
+void   sultana_core_init(uint32_t now_ms, uint32_t rng_seed);        /* = setup() minus WiFi/provisioning */
+void   sultana_core_set_send_callback(sultana_send_fn, void* user);
+void   sultana_core_set_log_callback(sultana_log_fn, void* user);    /* NULL = stderr */
+void   sultana_core_set_connected(bool connected, uint32_t now_ms);  /* → EventRouter::onBridgeConnection */
+bool   sultana_core_inject(const char* json, size_t len, uint32_t now_ms); /* one WS text frame; false if not JSON */
+bool   sultana_core_tick(uint32_t now_ms);                           /* one loop() iteration; true if a frame was pushed */
+const uint16_t* sultana_core_frame565(void);                         /* 240×240, valid until the next tick */
+uint32_t sultana_core_frame_count(void);                             /* frames pushed since init */
+void   sultana_core_frame_rgba(uint8_t* out);                        /* 240×240×4, 5/6-bit channels expanded */
+int8_t sultana_core_arm_offset_deg(void);                            /* Motion::currentOffsetDeg(), already ±45-clamped and rounded */
+size_t sultana_core_state_json(char* out, size_t cap);               /* debug snapshot: verb, effective verb, expression, v/a, latch, pending, read/write counts, arm */
 #ifdef __cplusplus
 }
 #endif
 ```
 
-- `robot_core_init` runs `Settings::begin`, `Display::begin`, `Motion::begin`,
+- `now_ms` is the host's monotonic clock from any epoch; the core adds the
+  +10 000 ms offset itself, so a host can start at 0.
+- `sultana_core_init` runs `Settings::begin`, `Display::begin`, `Motion::begin`,
   `MotionBehaviors::begin`, `Face::begin`, `EventRouter::begin`, then wires
   `Bridge::onMessage(&EventRouter::onBridgeMessage)` and
   `Bridge::onConnection(&EventRouter::onBridgeConnection)`. It never calls
   `Bridge::begin`.
-- `robot_core_inject` parses with ArduinoJson (`JsonDocument`, same as
+- `sultana_core_inject` parses with ArduinoJson (`JsonDocument`, same as
   `BridgeClient::handleText`) and calls the registered message handler. A
   parse failure logs and drops the frame, as the device does.
-- `robot_core_tick` is `loop()` without WiFi and serial:
+- `sultana_core_tick` is `loop()` without WiFi and serial:
   `Bridge::tick` (no-op) → `EventRouter::tick` → `SceneContextFill::fill` →
   `Face::tickEffectiveParams` → `MotionBehaviors::tick` → `Motion::tick` →
   `Face::tick`. Returns whether `Display::pushFrame` ran. The face throttles
@@ -212,7 +220,7 @@ void   robot_core_state_json(char* out, size_t cap);               /* debug snap
 
 ### 4.4 Frame output
 
-- The sprite is RGB565, as on the device. `robot_core_frame_rgba` expands
+- The sprite is RGB565, as on the device. `sultana_core_frame_rgba` expands
   each channel the way a panel does (`r8 = (r5 << 3) | (r5 >> 2)`, etc.).
 - The host decides whether anything changed by `memcmp` of the 115 KB 565
   buffer against the last one it consumed. `Face::tick` renders on its
@@ -246,34 +254,43 @@ routes through the log callback; the CLI prints to stderr, the app to
 | Body bob (tracks the commanded angle on the device too) | Panel colour response and brightness |
 | | Text / debug render modes (blank on host) |
 
-### 4.8 CLI harness (`robot_host`)
+### 4.8 CLI harness (`sultana-replay`)
 
 ```
-robot_host --replay fixtures/claude-turn.jsonl [--seed 1] [--trace] [--frames out/ --frame-every 100] [--realtime]
+sultana-replay fixtures/claude-turn.jsonl [--seed 1] [--trace] [--frames out/ --frame-every 250]
+               [--step 1] [--tail 4000] [--frame-hash] [--final-state] [--logs]
 ```
 
 - **Input:** JSONL, one line per WebSocket text frame as the robot would
   receive it, wrapped with a receive time:
-  `{"t": <ms since recording start>, "frame": {…}}`. `scripts/record-ws.mjs`
-  writes this from a live bridge. The app's replay mode (§5.8) reads the same
-  file, so one recording drives both.
-- **Clock:** by default the log's `t` drives `now_ms` in fixed 16 ms steps,
-  so a run is deterministic given `--seed`. `--realtime` uses the wall clock.
-- `--trace` prints a line whenever the effective verb, expression or latch
-  changes, with valence, activation and arm angle. This is what the probe
-  printed (§10).
-- `--frames` writes PNGs via `stb_image_write` (or PPM with no dependency).
-- Starter fixture: record `scripts/simulate-hooks.js` running against a
-  local bridge. Add a second fixture with two interleaved sessions to cover
-  the latch.
+  `{"t": <ms since recording start>, "frame": {…}}`. Also accepted:
+  `{"t", "text": "<raw frame>"}` and `{"t", "connected": true|false}` for
+  socket drops. `scripts/record-ws.mjs` writes this from a live bridge. The
+  app's replay mode (§5.8) reads the same file, so one recording drives both.
+- **Clock:** the log's `t` drives `now_ms` in `--step` increments, default
+  1 ms (16 ms, the original plan, made the 33 ms face throttle fire every
+  48 ms). Output depends only on the log and `--seed`.
+- `--trace` prints every received frame (`<<`), every frame the core sends
+  (`>>`), and a line whenever the effective verb, expression, latch or
+  pending permission changes, with valence, activation and arm angle.
+- `--frames` writes PNGs with a built-in writer (no stb dependency).
+  `--frame-hash` hashes every pushed frame, to check whether anything on
+  screen changed.
+- **Golden traces:** `fixtures/NAME.trace.txt` is the `--trace --seed 1`
+  output for `NAME.jsonl`. `make test` diffs them; `make golden` rewrites
+  them after an intended behaviour change. This is the firmware's first
+  regression test.
+- **Fixtures** come from `fixtures/scenarios.mjs`, which posts scripted
+  Claude Code hooks through a real bridge while `record-ws.mjs` records.
+  `scripts/simulate-hooks.js` was not used: it is randomised and never
+  produces Executing, Straining or AttractingAttention.
 
-Build: `cmake -S robot_v3/host -B build && cmake --build build`. Clang on
-every platform; on Windows prefer clang-cl over MSVC (`##__VA_ARGS__` in
-`DebugLog.h`, `M_PI` in `FrameController.cpp`).
+Build: `make` in `robot_v3/host`. Clang or gcc; on Windows, MSYS2 (untried).
+`##__VA_ARGS__` in `DebugLog.h` rules out plain MSVC.
 
 ---
 
-## 5. The Mac app (`mac-app/`)
+## 5. The Mac app (`sultana-dock/`)
 
 Swift, AppKit, **minimum macOS 14** (`NSScreen.displayLink`,
 `SMAppService`). Not sandboxed in v1. No App Store.
@@ -284,10 +301,10 @@ Swift, AppKit, **minimum macOS 14** (`NSScreen.displayLink`,
 - Mirror the robot: ping every 15 s, 3 s timeout, two consecutive failures
   → close → reconnect after 2 s. A 401 at the handshake is a bad token;
   surface it in the UI rather than retrying silently.
-- `didOpen` → `robot_core_set_connected(true)`; close or error →
+- `didOpen` → `sultana_core_set_connected(true)`; close or error →
   `set_connected(false)`. This is the device's `WStype_CONNECTED` /
   `WStype_DISCONNECTED` timing, not the `hello` frame.
-- Every text frame goes to **both** `Signals` and `robot_core_inject`, on the
+- Every text frame goes to **both** `Signals` and `sultana_core_inject`, on the
   main thread, in arrival order.
 - Outbound: the core's send callback writes to the socket. Only
   `request_sessions` is ever sent.
@@ -295,7 +312,7 @@ Swift, AppKit, **minimum macOS 14** (`NSScreen.displayLink`,
 ### 5.2 Tick loop
 
 - `NSScreen.main.displayLink(target:selector:)` at the display's rate.
-  Each callback: `robot_core_tick(now)`; if it returns true and the 565
+  Each callback: `sultana_core_tick(now)`; if it returns true and the 565
   buffer differs from the last consumed one, convert to RGBA, build a
   `CGImage` over the buffer (`CGDataProvider`, no extra copy), and hand it to
   the Dock tile and the robot window.
@@ -357,7 +374,7 @@ Layer tree per `MACOS.md`: body, `armLeft`, `armRight`, round `screen`.
 - `screen.contents` = the frame `CGImage`, `magnificationFilter = .nearest`,
   `cornerRadius = w/2`, `masksToBounds = true`. Optionally snap the screen
   layer to a whole multiple of 240 px so every panel pixel is the same size.
-- Arms: `θ_cmd = robot_core_arm_offset_deg()`. The gear mirrors one servo
+- Arms: `θ_cmd = sultana_core_arm_offset_deg()`. The gear mirrors one servo
   to both arms, so `armRight` rotates by `+θ` and `armLeft` by `−θ` about
   their pivots; which sign is "up" is set by the art (Phase 5).
 - **Servo lag:** rate-limit the *drawn* angle toward `θ_cmd` at about
@@ -384,7 +401,7 @@ core without a bridge. Two clocks:
 
 - **wall clock**: frames injected at their `t` offsets; normal ticking.
 - **log clock**: `now_ms` comes from the log in 16 ms steps, same seed as
-  the CLI. Frames are then byte-identical to `robot_host --frames`, which is
+  the CLI. Frames are then byte-identical to `sultana-replay --frames`, which is
   the frame-exact check in §8.
 
 This is also how most of Phase 2–3 gets developed: no agent, no bridge.
@@ -401,26 +418,36 @@ better with a signed build, so sign early if either misbehaves.
 
 Estimates are rough and assume one person.
 
-### Phase 1 — host core and CLI (any OS, ~1–2 days)
+### Phase 1 — host core and CLI — **done**
 
-1. `robot_v3/host/` as in §3: stubs, host HAL, `robot_core` C API, CMake.
-2. Port TFT_eSPI's `fillSmoothCircle` exactly; verify `drawLine`,
-   `drawCircle`, `fillCircle` against the library's algorithms.
-3. `robot_host` CLI with `--replay`, `--seed`, `--trace`, `--frames`.
-4. `scripts/record-ws.mjs`; record `fixtures/claude-turn.jsonl` from
-   `scripts/simulate-hooks.js` and a two-session fixture by hand.
-5. Deterministic RNG; the +10 000 ms clock offset; forced face mode.
+Delivered in `robot_v3/host/` (see its `README.md`):
 
-**Done when:** `robot_host --replay fixtures/claude-turn.jsonl --trace`
-prints the Sleeping → Waking → Thinking → Reading → Thinking → Executing →
-Straining → AttractingAttention → Celebrating → Neutral sequence with the
-timings in `ENGINE.md` §2, and `--frames` produces frames with anti-aliased
-pupils. Running it twice with the same seed gives identical PNGs.
+1. Stubs, host HAL, `sultana_core` C API, Makefile.
+2. TFT_eSPI's sprite primitives ported line for line, including the
+   anti-aliased `fillSmoothCircle`; text calls are no-ops.
+3. `sultana-replay` with `--trace`, `--frames`, `--seed`, `--frame-hash`.
+4. `scripts/record-ws.mjs`, `fixtures/scenarios.mjs`, and two recorded
+   fixtures (`claude-turn`, `two-sessions`) with golden traces.
+5. Seeded xorshift RNG, +10 000 ms clock offset, forced face mode.
+
+Checked: the `claude-turn` trace goes Sleeping → Waking → Thinking →
+Reading (bridged across a two-tool burst by the linger) → Thinking →
+Writing → Thinking → Executing → Straining at exactly +5 s → Thinking →
+AttractingAttention → Thinking → Celebrating → Neutral → Sleeping, with the
+timings in `ENGINE.md` §2. Pupils carry TFT_eSPI's anti-aliased edge. Same
+log and seed give byte-identical PNGs; different seeds change idle blinks
+and glances. `make test` passes and fails on a corrupted golden.
+
+Not checked: the ESP32 build. `arduino-cli` can't run on this Mac at the
+moment (its x86-only `ctags` needs Rosetta, which isn't installed), so no
+firmware build was possible on any branch. Phase 1 changes no firmware
+source, and Arduino compiles only the sketch root and `src/`, so
+`robot_v3/host/` is copied into the build folder but never compiled.
 
 ### Phase 2 — app shell and Dock tile (Mac, ~2 days)
 
-1. Xcode project: `RobotCore` static library target over the Phase 1
-   sources; `RobotDock` app target; bridging header for `robot_core.h`.
+1. Xcode project: `SultanaCore` static library target over the Phase 1
+   sources; `Sultana Dock` app target; bridging header for `sultana_core.h`.
 2. `BridgeSocket` with the robot's ping / reconnect policy and the send
    callback for `request_sessions`.
 3. Display-link tick loop, change detection, RGBA conversion, `CGImage`.
@@ -501,13 +528,13 @@ window's final look.
 
 | Decision | Plan's default | Alternatives |
 |---|---|---|
-| App name and bundle id | `RobotDock`, `city.liquid.robotdock` | anything; rename before Phase 2 |
+| App name and bundle id | **decided:** Sultana Dock, `com.lachlansleight.sultana.dock` | — |
 | Bounce on `turn.ended` | once (`.informationalRequest`), any session, any cause | `.criticalRequest`; only `cause == completed` |
 | Bounce on attention | on | off |
 | Robot window style | titlebar-transparent panel first | borderless pet window |
 | Error-turn reaction (Phase 4) | no Celebrating; `clearVerb()`; impulse `(−0.3, 0)` | leave as today (Celebrating on every `turn.ended`) |
 | Dock fps cap default | 30, after measuring | 15 |
-| `SERVO_PIN` for the host build | `host/config.h` on the include path | `-D` define in CMake and Xcode |
+| `SERVO_PIN` for the host build | **resolved:** the firmware's own `config.h` (§4.1) | — |
 | Committed `robot_v3/src/config.h` with credentials | out of scope here; untrack it and rotate the token | leave as is |
 | Palette persistence on the Mac | none in v1 | `UserDefaults`-backed `Preferences` stub |
 
@@ -515,7 +542,7 @@ window's final look.
 
 ## 9. Verification
 
-1. **Behaviour, headless:** `robot_host --replay … --trace` against the
+1. **Behaviour, headless:** `sultana-replay … --trace` against the
    tables in `ENGINE.md` §2. Cheap enough to run on every firmware change.
 2. **Side by side with the robot:** both on one bridge, run
    `scripts/simulate-hooks.js` (see `BRIDGE.md`). Same verbs at the same

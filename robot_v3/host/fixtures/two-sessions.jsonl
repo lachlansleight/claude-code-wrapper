@@ -1,0 +1,24 @@
+{"t":0,"frame":{"type":"hello","client_id":"ws_67d5fe08-9302-4e21-962a-a227847e4582","server_version":"0.3.0"}}
+{"t":0,"frame":{"type":"active_sessions","session_ids":[]}}
+{"t":523,"frame":{"type":"agent_event","agent":"claude","ts":1792807813599,"session_id":"fixture-a","event":{"kind":"session.started","cause":"startup"}}}
+{"t":524,"frame":{"type":"active_sessions","session_ids":["fixture-a"]}}
+{"t":1535,"frame":{"type":"agent_event","agent":"claude","ts":1792807814609,"session_id":"fixture-a","event":{"kind":"turn.started","prompt":"Session A prompt"}}}
+{"t":1535,"frame":{"type":"agent_event","agent":"claude","ts":1792807814609,"session_id":"fixture-a","event":{"kind":"message.user","text":"Session A prompt"}}}
+{"t":2040,"frame":{"type":"agent_event","agent":"claude","ts":1792807815115,"session_id":"fixture-a","event":{"kind":"activity.started","activity":{"id":"tu_v9fvc8","kind":"file.read","tool":"Read","summary":"a.ts"}}}}
+{"t":2747,"frame":{"type":"agent_event","agent":"claude","ts":1792807815822,"session_id":"fixture-a","event":{"kind":"activity.finished","activity":{"id":"act_7c6c13f1-5fe6-4ff7-ac0e-14903146baf7","kind":"file.read","tool":"Read","summary":"a.ts"}}}}
+{"t":3252,"frame":{"type":"agent_event","agent":"claude","ts":1792807816327,"session_id":"fixture-b","event":{"kind":"turn.started","prompt":"Session B prompt"}}}
+{"t":3253,"frame":{"type":"agent_event","agent":"claude","ts":1792807816327,"session_id":"fixture-b","event":{"kind":"message.user","text":"Session B prompt"}}}
+{"t":3253,"frame":{"type":"active_sessions","session_ids":["fixture-a","fixture-b"]}}
+{"t":3756,"frame":{"type":"agent_event","agent":"claude","ts":1792807816832,"session_id":"fixture-b","event":{"kind":"activity.started","activity":{"id":"act_6baf54fa-cc53-4cab-8891-e8b7b92cba3c","kind":"shell.exec","tool":"Bash","summary":"npm run build"}}}}
+{"t":4763,"frame":{"type":"agent_event","agent":"claude","ts":1792807817838,"session_id":"fixture-a","event":{"kind":"activity.started","activity":{"id":"tu_p3cd7l","kind":"file.read","tool":"Read","summary":"b.ts"}}}}
+{"t":5071,"frame":{"type":"agent_event","agent":"claude","ts":1792807818146,"session_id":"fixture-a","event":{"kind":"activity.finished","activity":{"id":"act_0c39a69b-75f1-495f-8779-aad4491e1452","kind":"file.read","tool":"Read","summary":"b.ts"}}}}
+{"t":5583,"frame":{"type":"agent_event","agent":"claude","ts":1792807818658,"session_id":"fixture-a","event":{"kind":"message.assistant","text":"Session A done.","final":true}}}
+{"t":5583,"frame":{"type":"agent_event","agent":"claude","ts":1792807818658,"session_id":"fixture-a","event":{"kind":"turn.ended","cause":"completed","last_assistant_text":"Session A done."}}}
+{"t":7093,"frame":{"type":"agent_event","agent":"claude","ts":1792807820168,"session_id":"fixture-b","event":{"kind":"activity.finished","activity":{"id":"act_842f510e-6f95-4408-9018-f9ca5567964b","kind":"shell.exec","tool":"Bash","summary":"npm run build"}}}}
+{"t":8599,"frame":{"type":"agent_event","agent":"claude","ts":1792807821674,"session_id":"fixture-b","event":{"kind":"message.assistant","text":"Session B done.","final":true}}}
+{"t":8599,"frame":{"type":"agent_event","agent":"claude","ts":1792807821674,"session_id":"fixture-b","event":{"kind":"turn.ended","cause":"completed","last_assistant_text":"Session B done."}}}
+{"t":12608,"frame":{"type":"agent_event","agent":"claude","ts":1792807825682,"session_id":"fixture-a","event":{"kind":"session.ended","cause":"unknown"}}}
+{"t":12608,"frame":{"type":"active_sessions","session_ids":["fixture-b"]}}
+{"t":13614,"frame":{"type":"agent_event","agent":"claude","ts":1792807826689,"session_id":"fixture-b","event":{"kind":"session.ended","cause":"unknown"}}}
+{"t":13615,"frame":{"type":"active_sessions","session_ids":[]}}
+{"t":14645,"connected":false}

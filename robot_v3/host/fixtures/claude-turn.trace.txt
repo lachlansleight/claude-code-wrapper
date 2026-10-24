@@ -1,0 +1,43 @@
+t=      0 ms  << hello
+                              >> {"type":"request_sessions"}
+t=      0 ms     verb=sleeping             expr=verb_sleeping              v=+0.00 a=0.00 arm=-15 latch=-
+t=      1 ms  << active_sessions []
+t=    529 ms  << agent_event session.started [fixture-a]
+t=    529 ms     verb=waking               expr=verb_waking                v=+0.01 a=0.01 arm=-27 latch=fixture-a
+t=    530 ms  << active_sessions [fixture-a]
+t=   1529 ms     verb=none                 expr=neutral                    v=+0.59 a=0.51 arm=+23 latch=fixture-a
+t=   2538 ms  << agent_event turn.started [fixture-a]
+t=   2538 ms  << agent_event message.user [fixture-a]
+t=   2538 ms     verb=thinking             expr=verb_thinking              v=+0.59 a=0.50 arm=-14 latch=fixture-a
+t=   4044 ms  << agent_event activity.started (file.read) [fixture-a]
+t=   4044 ms     verb=reading              expr=verb_reading               v=+0.58 a=0.50 arm=-18 latch=fixture-a
+t=   4853 ms  << agent_event activity.finished (file.read) [fixture-a]
+t=   5161 ms  << agent_event activity.started (search.code) [fixture-a]
+t=   5568 ms  << agent_event activity.finished (search.code) [fixture-a]
+t=   6568 ms     verb=thinking             expr=verb_thinking              v=+0.56 a=0.50 arm=-20 latch=fixture-a
+t=   7074 ms  << agent_event activity.started (file.write) [fixture-a]
+t=   7074 ms     verb=writing              expr=verb_writing               v=+0.56 a=0.50 arm=-18 latch=fixture-a
+t=   7681 ms  << agent_event activity.finished (file.write) [fixture-a]
+t=   8681 ms     verb=thinking             expr=verb_thinking              v=+0.55 a=0.50 arm=+10 latch=fixture-a
+t=   9193 ms  << agent_event activity.started (shell.exec) [fixture-a]
+t=   9193 ms     verb=executing            expr=verb_executing             v=+0.55 a=0.50 arm=-18 latch=fixture-a
+t=  14193 ms     verb=straining            expr=verb_straining             v=+0.52 a=0.50 arm=-10 latch=fixture-a
+t=  15700 ms  << agent_event activity.finished (shell.exec) [fixture-a]
+t=  16700 ms     verb=thinking             expr=verb_thinking              v=+0.50 a=0.50 arm= -9 latch=fixture-a
+t=  17209 ms  << agent_event notification "Claude needs your permission to use Bash" [fixture-a]
+t=  17209 ms     verb=attracting_attention expr=verb_attracting_attention  v=+0.50 a=0.50 arm=-12 latch=fixture-a
+t=  18209 ms     verb=thinking             expr=verb_thinking              v=+0.49 a=0.50 arm=+24 latch=fixture-a
+t=  19214 ms  << agent_event activity.started (shell.exec) [fixture-a]
+t=  19214 ms     verb=executing            expr=verb_executing             v=+0.49 a=0.50 arm=-19 latch=fixture-a
+t=  19717 ms  << agent_event activity.finished (shell.exec) [fixture-a]
+t=  20717 ms     verb=thinking             expr=verb_thinking              v=+0.48 a=0.50 arm= -7 latch=fixture-a
+t=  21222 ms  << agent_event message.assistant [fixture-a]
+t=  21222 ms  << agent_event turn.ended [fixture-a]
+t=  21222 ms     verb=celebrating          expr=verb_celebrating           v=+0.49 a=0.51 arm=-12 latch=fixture-a
+t=  23722 ms     verb=none                 expr=neutral                    v=+0.97 a=0.66 arm= -7 latch=fixture-a
+t=  26229 ms  << agent_event session.ended [fixture-a]
+                              >> {"type":"request_sessions"}
+t=  26229 ms     verb=sleeping             expr=verb_sleeping              v=+0.95 a=0.50 arm=-15 latch=-
+t=  26230 ms  << active_sessions []
+t=  27258 ms  << (socket disconnected)
+end t=31258 ms, 1107 frames pushed
