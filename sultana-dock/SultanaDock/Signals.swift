@@ -9,6 +9,7 @@ enum BridgeSignal: Equatable {
 
     private struct Frame: Decodable {
         let type: String?
+        let agent: String?
         let session_id: String?
         let event: Event?
     }
@@ -26,9 +27,17 @@ enum BridgeSignal: Equatable {
         else { return nil }
         switch kind {
         case "turn.ended":
+            // An aborted turn was stopped on purpose; no need to call anyone.
+            // Errors do bounce: the agent has stopped and needs a look.
+            if frame.event?.cause == "aborted" { return nil }
             return .turnEnded(sessionID: frame.session_id, cause: frame.event?.cause)
         case "permission.requested":
-            // Codex and OpenCode report permission prompts this way.
+            // Codex and OpenCode report permission prompts this way. Claude
+            // does too now, but Claude also sends its own "Claude needs your
+            // permission" notification 6 s later if the prompt is still
+            // waiting; bounce on that instead, so a prompt answered straight
+            // away doesn't bounce.
+            if frame.agent == "claude" { return nil }
             return .needsAttention(sessionID: frame.session_id)
         case "notification":
             // Claude's permission prompt (same test as the firmware's

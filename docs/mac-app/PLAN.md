@@ -1,7 +1,8 @@
 # Mac app: finalised plan
 
-**Status:** Phases 1–3 done (`robot_v3/host/`, `sultana-dock/`; see their
-READMEs). Phase 4 (behaviour fixes) and Phase 5 (design) remain.
+**Status:** Phases 1–4 done (`robot_v3/host/`, `sultana-dock/`, bridge and
+firmware fixes). Phase 5 (design) is largely covered by Lachlan's Figma
+work; see `sultana-dock/README.md`.
 **Written:** 2026-10-24 against `main` at `0baabc3`.
 **Names:** the robot and project are called Sultana. The Mac app is
 **Sultana Dock**, the host build of the firmware core is **SultanaCore**
@@ -575,27 +576,43 @@ Checked:
   screenshot of the composited window (screen capture isn't permitted
   here), and watching it float over a full-screen app.
 
-### Phase 4 — behaviour fixes and docs (bridge + firmware, ~1 day)
+### Phase 4 — behaviour fixes and docs — **done**
 
-These are the discovery's "known gaps". They are fixed at the source so the
-robot gets them too, and they land *after* Phase 3 so the first side-by-side
-comparison is against unchanged behaviour.
+Fixed at the source, so the robot and Sultana Dock both get them:
 
-1. **Disconnect reset** (`EventRouter::onBridgeConnection(false)`): call
-   `VerbSystem::clearVerb()`. `AgentEvents::notifyConnection` already clears
-   the latch and `pending_permission`, so the held drivers release on the
-   next tick. Sleep / wake and bridge restarts are routine on a Mac; today
-   they leave the face stuck in Executing → Straining → sad.
-2. **Error turns** (`plugin/src/adapters/claude.ts`): `StopFailure` →
-   `turn.ended` with `cause: "error"`, `PostToolUseFailure` →
-   `activity.failed`. Then in `EventRouter::onAgentEvent`, celebrate only
-   when `cause` is `completed`; for other causes `clearVerb()` and a small
-   negative impulse. The exact reaction is an open decision (§8).
-3. **Stale docs** listed in `ENGINE.md` §9, plus the robot_v2 "Firmware
-   quick-map" in `CLAUDE.md`, and a `docs/README.md` entry for the host
-   build and the Mac app.
-4. Rebuild and flash the firmware; the sketch is near the partition limit,
-   so check the size line.
+1. **Disconnect reset:** `EventRouter::onBridgeConnection(false)` clears
+   the verb (and any overlay) unless the face is asleep, so a dropped
+   bridge no longer leaves it in Executing, then Straining, then sad.
+2. **Error turns:** the Claude adapter maps `StopFailure` to `turn.ended`
+   with `cause: error` (and the error code, e.g. `rate_limit`), and
+   `PostToolUseFailure` to `activity.failed`. The firmware celebrates only
+   `completed` turns: `error` clears the verb with a −0.3 valence impulse,
+   `aborted` just clears it. Text mode shows "Stopped (error)".
+3. **Claude permissions (added at Lachlan's request):** `PermissionRequest`
+   becomes `permission.requested`, so the firmware's pending-permission
+   driver finally works for Claude. Claude has no verdict hook, so the
+   adapter keeps one pending request per session and resolves it on the
+   same tool's `PostToolUse*` (allow), or on `PermissionDenied` or the
+   turn or session ending (deny). Auto-mode `PermissionDenied` also ends
+   the tool's activity. All of this was designed from real payloads and
+   sequences in the bridge's own turn logs.
+4. **Sultana Dock:** no bounce for aborted turns; Claude permission prompts
+   still bounce on Claude's own notification 6 s in, not on the request.
+5. **Docs:** the stale firmware docs listed in `ENGINE.md` §9, the event
+   tables in `docs/firmware/BEHAVIOUR.md`, the Claude rows in
+   `HOOK_MAPPING.md` and `OBJECT_INTERFACE.md`, and `CLAUDE.md`'s
+   firmware quick-map (it described robot_v2).
+
+Checked: three new fixtures (`error-turn`, `permission`, `disconnect`)
+recorded through the updated bridge, with golden traces; the existing two
+fixtures' traces are unchanged. The adapter was exercised on realistic
+payloads (parallel tools, long errors, unanswered prompts). Sultana Dock's
+replay of the new fixtures bounced exactly where intended.
+
+Not checked: the ESP32 build and flash (`arduino-cli` needs Rosetta on
+this Mac), and a live Claude Code session through the rebuilt bridge.
+Note that the pending-permission mood is subtle for short waits: valence
+moves with a 90 s time constant (`tau_ms_valence`).
 
 ### Phase 5 — design (you; can run alongside 2–3)
 
@@ -633,7 +650,7 @@ window's final look.
 | Bounce on `turn.ended` | once (`.informationalRequest`), any session, any cause | `.criticalRequest`; only `cause == completed` |
 | Bounce on attention | on | off |
 | Robot window style | **decided:** borderless desktop pet only, no window chrome | — |
-| Error-turn reaction (Phase 4) | no Celebrating; `clearVerb()`; impulse `(−0.3, 0)` | leave as today (Celebrating on every `turn.ended`) |
+| Error-turn reaction (Phase 4) | **decided:** no Celebrating; `clearVerb()`; impulse `(−0.3, 0)`; aborted turns just go idle | — |
 | Dock fps cap default | **decided:** 30, after measuring (see `sultana-dock/README.md`) | — |
 | `SERVO_PIN` for the host build | **resolved:** the firmware's own `config.h` (§4.1) | — |
 | Committed `robot_v3/src/config.h` with credentials | out of scope here; untrack it and rotate the token | leave as is |

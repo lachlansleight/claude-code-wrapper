@@ -47,6 +47,8 @@ export interface TurnStartedEvent {
 export interface TurnEndedEvent {
   kind: 'turn.ended'
   cause?: 'completed' | 'aborted' | 'error' | 'unknown'
+  /** Agent's error code when cause is 'error' (Claude StopFailure: e.g. 'rate_limit'). */
+  error?: string
   last_assistant_text?: string
 }
 

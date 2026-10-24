@@ -242,17 +242,19 @@ where verbs and emotion drivers are derived. Two responsibilities:
 
 | `event.kind`               | Verb action                                               | Emotion action                          |
 |----------------------------|-----------------------------------------------------------|------------------------------------------|
-| `session.started`          | Fire `Waking` overlay (1 s, post→`None`)                  | Impulse `+0.6 V, +0.6 A`                |
+| `session.started`          | Fire `Waking` overlay (1.5 s, post→`None`)                | Set `V = +0.6`, `A = +0.6` (absolute)   |
 | `session.ended`            | `setVerb(Sleeping)`                                       | —                                       |
 | `turn.started`             | If `Sleeping`, fire `Waking` first; then `Thinking`       | —                                       |
-| `turn.ended`               | `clearVerb()`                                             | Impulse `+0.7 V, +0.9 A`                |
-| `activity.started` (read)  | `setVerb(Reading)`                                        | —                                       |
-| `activity.started` (write) | `setVerb(Writing)`                                        | —                                       |
-| `activity.started` (shell) | `setVerb(Executing)`                                      | —                                       |
+| `turn.ended` (`completed` or no cause) | Fire `Celebrating` overlay (3 s, post→`None`) | Impulse `+0.7 V, +0.9 A`                |
+| `turn.ended` (`error`)     | `clearVerb()`                                             | Impulse `-0.3 V`                        |
+| `turn.ended` (`aborted`)   | `clearVerb()`                                             | —                                       |
+| `activity.started` (`shell.exec`) | `setVerb(Executing)`                               | —                                       |
+| `activity.started` (write kinds) | `setVerb(Writing)`                                  | —                                       |
+| `activity.started` (anything else, incl. `shell.background`) | `setVerb(Reading)`      | —                                       |
 | `activity.finished/failed` | `armLinger(1000)`                                         | —                                       |
-| `notification` ("needs…")  | Fire `AttractingAttention` overlay (1 s)                  | —                                       |
-| `permission.requested`     | —                                                         | Hold `PendingPermission` driver at -0.6 |
-| `permission.resolved`      | —                                                         | Release `PendingPermission` driver      |
+| `notification` ("Claude needs…") | Fire `AttractingAttention` overlay (1.5 s)          | —                                       |
+| `permission.requested` / `.resolved` | — (sets / clears `AgentState.pending_permission`; the driver below is polled) | —  |
+| bridge disconnect          | `clearVerb()` unless `Sleeping`                           | — (pending permission cleared)          |
 
 ### Derived held drivers
 

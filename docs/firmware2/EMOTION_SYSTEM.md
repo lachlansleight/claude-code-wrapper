@@ -21,34 +21,40 @@ The system maintains three layered values:
 ```
 goal   ── decays toward held drivers, receives impulses
   │
-  │ τ ≈ 300 ms
+  │ τ = 50 ms
   ▼
 raw    ── continuous (v, a), what renderers read
   │
   │ Voronoi assignment + hysteresis
   ▼
-snap   ── nearest NamedEmotion (one of 14)
+snap   ── nearest NamedEmotion (one of 13)
 ```
 
 ### Goal layer
 
-Receives instantaneous impulses (e.g. `+0.7V, +0.9A` on `turn.ended`) and
-is also pulled by **held drivers**. Activation decays back toward 0 with
-τ ≈ 6 s; valence relaxes toward the active driver's target with τ ≈ 90 s
-(or toward 0 with no driver). The decay constants live in
+Receives instantaneous impulses (e.g. `+0.7V, +0.9A` on a completed
+`turn.ended`) and is also pulled by **held drivers**. Activation decays
+with τ ≈ 6 s, but only from above and only down to the 0.5 baseline
+(`baseline_activation`): below 0.5 it stays put (boot starts it at 0).
+Valence relaxes toward the active driver's target with τ ≈ 90 s (or
+toward 0 with no driver), so held drivers act slowly: a 10 s permission
+wait moves valence only about a tenth of the way to −0.6. The decay constants live in
 `FACE_CONFIG_DATA.h`'s `kEmotionSim` block.
 
 ### Raw layer
 
-A first-order filter that follows the goal with τ ≈ 300 ms. This is
+A first-order filter that follows the goal with τ = 50 ms
+(`tau_ms_raw_follow`). This is
 what `EmotionBlend` reads. It exists so that discrete impulses (a
 `turn.ended` adding +0.7 valence in one tick) animate into the geometry
 instead of teleporting it.
 
 ### Snap layer
 
-The raw point is assigned to the nearest of the 14 `NamedEmotion`
-anchors using Euclidean distance in (v, a) space. To prevent flapping
+The raw point is assigned to the nearest of the 13 `NamedEmotion`
+anchors using Euclidean distance in (v, a) space. (In practice the snap
+always reports Neutral: `dist_sq_tie_eps` is −7, so the tie test in
+`emotionForPoint` never passes. Nothing visible depends on it.) To prevent flapping
 near the Voronoi boundaries:
 
 - The current snap survives until a *meaningfully* closer anchor
@@ -100,7 +106,7 @@ namespace EmotionSystem {
 
 ## Anchor table
 
-The 14 anchors (`FACE_CONFIG_DATA.h::kEmotionPoints`) are placed in
+The 13 anchors (`FACE_CONFIG_DATA.h::kEmotionPoints`) are placed in
 (v, a) space:
 
 | NamedEmotion  |     v |     a |
@@ -109,16 +115,15 @@ The 14 anchors (`FACE_CONFIG_DATA.h::kEmotionPoints`) are placed in
 | Happy         |  +0.5 |   0.5 |
 | Excited       |  +1.0 |   0.6 |
 | Joyful        |  +1.0 |   1.0 |
-| Sad           |  -0.5 |   0.5 |
+| Sad           | -0.53 |  0.50 |
 | Sleepy        |  -0.2 |   0.0 |
 | Distressed    |  -1.0 |   1.0 |
 | Blissed       |  +1.0 |   0.0 |
 | Depressed     |  -1.0 |   0.0 |
 | Shocked       |  -0.3 |   1.0 |
-| Disappointed  |  -1.0 |   0.3 |
-| Cheeky        |  +0.5 |   0.7 |
+| Disappointed  |  -1.0 |  0.31 |
 | Gleeful       |  +0.6 |   1.0 |
-| Frustrated    |  -0.6 |   0.8 |
+| Frustrated    | -0.69 |  0.77 |
 
 These positions, plus the Delaunay triangulation derived from them, are
 the input to the blend.
@@ -128,8 +133,8 @@ the input to the blend.
 `EmotionTriangulation.h` is **generated** by
 `scripts/gen_emotion_triangulation.py` from `kEmotionPoints`. It contains:
 
-- The 14 anchors with their preset `Expression` slot.
-- 17 Delaunay triangles, each named by three anchor indices.
+- The 13 anchors with their preset `Expression` slot.
+- 15 Delaunay triangles, each named by three anchor indices.
 
 At runtime, `EmotionBlend::blendedFaceParams(v, a)`:
 
@@ -177,8 +182,8 @@ smooth gradient.
 
 1. Apply held-driver pull on `goal.v`: ease toward the active driver's
    target with τ ≈ 90 s.
-2. Decay `goal.a` toward 0 with τ ≈ 6 s.
-3. Ease `raw` toward `goal` with τ ≈ 300 ms (independent on each axis).
+2. Decay `goal.a` with τ ≈ 6 s, from above only, floored at 0.5.
+3. Ease `raw` toward `goal` with τ = 50 ms (independent on each axis).
 4. Compute distance from `raw` to every anchor.
 5. Update the snap with Δdist > 0.05 / ≥100 ms hysteresis.
 

@@ -34,13 +34,19 @@ in `Face::SceneContext.effective_expression`.
 The bridge emits semantic lifecycle events (`agent_event`). The firmware maps a
 minimal subset into behaviour writes in `robot_v3/src/app/EventRouter.cpp`:
 
-- `session.started` → overlay waking + positive impulse
-- `session.ended` → set sleeping
-- `turn.started` → set thinking
-- `activity.started` → set verb from activity kind (read/write/exec)
-- `activity.finished` / `activity.failed` → arm a short linger
-- `turn.ended` → clear verb + positive impulse
-- `notification` (attention) → overlay attracting-attention
+- `session.started` → Waking overlay (1.5 s) + set valence/arousal to +0.6
+- `session.ended` → set Sleeping
+- `turn.started` → Thinking (through a Waking overlay if asleep)
+- `activity.started` → verb from activity kind: `shell.exec` Executing,
+  writes Writing, everything else Reading
+- `activity.finished` / `activity.failed` → arm a 1 s linger, then Thinking
+- `turn.ended` → by `cause`: `completed` (or none) plays a 3 s Celebrating
+  overlay with a +0.7 / +0.9 impulse; `error` clears the verb with a −0.3
+  valence dip; `aborted` just clears the verb
+- `notification` starting "Claude needs" → AttractingAttention overlay (1.5 s)
+- pending permission (`permission.requested` until resolved, polled each
+  tick) → valence pulled toward −0.6
+- bridge disconnect → clear the verb, unless asleep
 
 This mapping is intentionally small. The firmware owns these decisions; the
 bridge only provides lifecycle events.

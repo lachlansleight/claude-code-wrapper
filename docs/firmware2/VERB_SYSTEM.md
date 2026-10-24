@@ -36,7 +36,8 @@ enum class Verb : uint8_t {
 ```
 
 `None` means "no verb in flight" (the face will fall back to the
-emotion-derived expression). `Sleeping` is the boot/long-idle state.
+emotion-derived expression). `Sleeping` is the boot state and follows
+`session.ended`; there is no idle timeout into it.
 `Thinking` is the default "alive but idle" state once a session has
 started. `Waking` and `AttractingAttention` are **transient** verbs:
 `setVerb(Waking)` routes to `fireOverlay()` (default 1.5 s). Face
@@ -118,17 +119,23 @@ namespace VerbSystem {
 
 | Bridge event                   | Action                                                                |
 |--------------------------------|-----------------------------------------------------------------------|
-| `session.started`              | Fire `Waking` overlay (1.5 s, post→`None`); impulse `+0.6 V, +0.6 A`  |
+| `session.started`              | Fire `Waking` overlay (1.5 s, post→`None`); set `V`, `A` to `+0.6`    |
 | `session.ended`                | `setVerb(Sleeping)`                                                   |
 | `turn.started`                 | If `Sleeping`, fire `Waking` first then `Thinking`. Else `Thinking`.  |
-| `turn.ended`                   | `clearVerb()`; impulse `+0.7 V, +0.9 A`                               |
-| `activity.started` (file.read / search.* / web.* / mcp.* / unknown) | `setVerb(Reading)` |
+| `turn.ended` (`completed` or no cause) | Fire `Celebrating` overlay (3 s, post→`None`); impulse `+0.7 V, +0.9 A` |
+| `turn.ended` (`error`)         | `clearVerb()`; impulse `-0.3 V`                                       |
+| `turn.ended` (`aborted`)       | `clearVerb()`                                                         |
+| `activity.started` (shell.exec) | `setVerb(Executing)`                                                 |
 | `activity.started` (file.write / file.delete / notebook.edit)        | `setVerb(Writing)` |
-| `activity.started` (shell.exec / shell.background)                   | `setVerb(Executing)` |
+| `activity.started` (anything else, including shell.background)       | `setVerb(Reading)` |
 | `activity.finished` / `failed` | `armLinger(1000)`                                                     |
-| `notification` ("Claude needs ...") | Fire `AttractingAttention` overlay (1.5 s)                       |
-| `permission.requested`         | Hold emotion driver `PendingPermission` at `v = -0.6`                 |
-| `permission.resolved`          | Release `PendingPermission` driver                                    |
+| `notification` ("Claude needs ...") | Fire `AttractingAttention` overlay (1.5 s), returning to the current verb |
+| pending permission (polled)    | Hold emotion driver `PendingPermission` at `v = -0.6` while `AgentState.pending_permission` is set |
+| bridge disconnect              | `clearVerb()` unless `Sleeping`                                       |
+
+Nothing is protected or queued: a `setVerb` cuts an overlay off at once
+(the 500 ms cross-fade still smooths the face), and setting the current
+verb again restarts its time.
 
 ## Verb cross-fade
 

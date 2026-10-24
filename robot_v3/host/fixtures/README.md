@@ -8,6 +8,9 @@ while `scenarios.mjs NAME` posted a scripted Claude Code hook sequence to it.
 |---|---|
 | `claude-turn` | One session through Waking, Thinking, Reading (a burst bridged by the 1 s linger), Writing, Executing then Straining, AttractingAttention, Celebrating, Sleeping |
 | `two-sessions` | The single-session latch: B's turn takes the face from A, A's later events and turn end are dropped |
+| `error-turn` | A failing tool (`PostToolUseFailure` → `activity.failed`) and a turn that dies on an API error (`StopFailure` → `turn.ended` with cause `error`): no Celebrating, a dip in mood |
+| `permission` | Claude permission prompts (`PermissionRequest` → `permission.requested`): pending set, Claude's 6 s notification fires AttractingAttention, approval clears it, an unanswered prompt clears when the turn ends |
+| `disconnect` | The bridge going away mid-command: the face drops back to idle instead of staying in Straining |
 
 ## Recording
 
@@ -27,6 +30,7 @@ BRIDGE_TOKEN=$TOKEN node "$REPO/scripts/record-ws.mjs" \
 BRIDGE_TOKEN=$TOKEN BRIDGE_URL=http://127.0.0.1:8797 \
   node "$REPO/robot_v3/host/fixtures/scenarios.mjs" claude-turn
 kill -INT %2; kill %1
+# for `disconnect`, kill the bridge (%1) about 10.5 s into the scenario instead
 cd "$REPO/robot_v3/host" && make golden
 ```
 

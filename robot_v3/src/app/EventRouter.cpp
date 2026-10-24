@@ -20,6 +20,9 @@ static constexpr uint32_t kOverlayMs = 1500;
 static constexpr uint32_t kStrainStressDelayMs = 30000;
 static constexpr float kBlockedV = -0.6f;
 static constexpr float kStrainV = -0.4f;
+// A turn that ended on an error (Claude's StopFailure): no Celebrating, and
+// a small dip in mood instead of the +0.7 / +0.9 a completed turn gives.
+static constexpr float kErrorTurnValenceImpulse = -0.3f;
 
 bool sPendingPermissionHeld = false;
 bool sStrainHeld = false;
@@ -79,6 +82,17 @@ void onAgentEvent(const AgentEvents::Event& e) {
     return;
   }
   if (strcmp(e.kind, "turn.ended") == 0) {
+    const char* cause = e.event["cause"] | "";
+    if (strcmp(cause, "error") == 0) {
+      VerbSystem::clearVerb();
+      EmotionSystem::impulse(kErrorTurnValenceImpulse, 0.0f);
+      return;
+    }
+    if (strcmp(cause, "aborted") == 0) {  // stopped on purpose: just go idle
+      VerbSystem::clearVerb();
+      return;
+    }
+    // "completed", or a bridge that doesn't say.
     EmotionSystem::impulse(+0.7f, +0.9f);
     VerbSystem::fireOverlay(VerbSystem::Verb::Celebrating, 3000, VerbSystem::Verb::None);
     return;
@@ -245,6 +259,14 @@ void onBridgeMessage(JsonDocument& doc) {
   BridgeControl::dispatch(doc);
 }
 
-void onBridgeConnection(bool connected) { AgentEvents::notifyConnection(connected); }
+void onBridgeConnection(bool connected) {
+  AgentEvents::notifyConnection(connected);
+  // Whatever the agent was doing is no longer known: drop the verb (and any
+  // overlay) so the face doesn't sit in Executing, then Straining, then sad.
+  // A sleeping face stays asleep.
+  if (!connected && VerbSystem::current() != VerbSystem::Verb::Sleeping) {
+    VerbSystem::clearVerb();
+  }
+}
 
 }  // namespace EventRouter

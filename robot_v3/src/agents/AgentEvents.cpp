@@ -336,6 +336,13 @@ static void handleAgentEvent(JsonDocument& doc) {
     if (!strcmp(kind, "session.ended")) {
       g_state.read_tools_this_turn = 0;
       g_state.write_tools_this_turn = 0;
+    } else {
+      const char* cause = evt["cause"] | "";
+      if (!strcmp(cause, "error")) {
+        AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Stopped (error)");
+      } else if (!strcmp(cause, "aborted")) {
+        AsciiCopy::copy(g_state.status_line, sizeof(g_state.status_line), "Stopped");
+      }
     }
   } else if (!strcmp(kind, "activity.started")) {
     g_state.working = true;

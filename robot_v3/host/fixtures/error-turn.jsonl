@@ -1,0 +1,11 @@
+{"t":1,"frame":{"type":"hello","client_id":"ws_9b8e87e4-5590-4410-bee3-95a6fe3c13e4","server_version":"0.3.0"}}
+{"t":1,"frame":{"type":"active_sessions","session_ids":[]}}
+{"t":516,"frame":{"type":"agent_event","agent":"claude","ts":1792817499974,"session_id":"fixture-a","event":{"kind":"turn.started","prompt":"Run the tests"}}}
+{"t":516,"frame":{"type":"agent_event","agent":"claude","ts":1792817499974,"session_id":"fixture-a","event":{"kind":"message.user","text":"Run the tests"}}}
+{"t":516,"frame":{"type":"active_sessions","session_ids":["fixture-a"]}}
+{"t":2026,"frame":{"type":"agent_event","agent":"claude","ts":1792817501484,"session_id":"fixture-a","event":{"kind":"activity.started","activity":{"id":"tu_ucpn3u","kind":"file.read","tool":"Read","summary":"index.test.ts"}}}}
+{"t":2632,"frame":{"type":"agent_event","agent":"claude","ts":1792817502090,"session_id":"fixture-a","event":{"kind":"activity.finished","activity":{"id":"act_247a1508-b79f-4edc-bbb3-02c334f8b43d","kind":"file.read","tool":"Read","summary":"index.test.ts"}}}}
+{"t":3635,"frame":{"type":"agent_event","agent":"claude","ts":1792817503094,"session_id":"fixture-a","event":{"kind":"activity.started","activity":{"id":"toolu_err1","kind":"shell.exec","tool":"Bash","summary":"npm test"}}}}
+{"t":5640,"frame":{"type":"agent_event","agent":"claude","ts":1792817505098,"session_id":"fixture-a","event":{"kind":"activity.failed","activity":{"id":"toolu_err1","kind":"shell.exec","tool":"Bash","summary":"npm test"},"duration_ms":2000,"error_message":"Exit code 1\nFAIL src/index.test.ts\n  2 failing","failure_kind":"error"}}}
+{"t":7147,"frame":{"type":"agent_event","agent":"claude","ts":1792817506604,"session_id":"fixture-a","event":{"kind":"turn.ended","cause":"error","error":"rate_limit","last_assistant_text":"Two tests are failing; looking at"}}}
+{"t":8163,"connected":false}

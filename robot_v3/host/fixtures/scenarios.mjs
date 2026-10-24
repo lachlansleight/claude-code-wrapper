@@ -84,6 +84,65 @@ const scenarios = {
     await sleep(1000)
     await hook(b, 'SessionEnd', { reason: 'exit' })
   },
+
+  // A tool fails (PostToolUseFailure), then the turn dies on an API error
+  // (StopFailure): no Celebrating, a small dip in mood instead.
+  async 'error-turn'() {
+    const a = 'fixture-a'
+    await hook(a, 'UserPromptSubmit', { prompt: 'Run the tests' })
+    await sleep(1500)
+    await tool(a, 'Read', { file_path: 'src/index.test.ts' }, 600)
+    await sleep(1000)
+    await hook(a, 'PreToolUse', { tool_name: 'Bash', tool_input: { command: 'npm test' }, tool_use_id: 'toolu_err1' })
+    await sleep(2000)
+    await hook(a, 'PostToolUseFailure', {
+      tool_name: 'Bash',
+      tool_input: { command: 'npm test' },
+      tool_use_id: 'toolu_err1',
+      error: 'Exit code 1\nFAIL src/index.test.ts\n  2 failing',
+      is_interrupt: false,
+      duration_ms: 2000,
+    })
+    await sleep(1500)
+    await hook(a, 'StopFailure', { error: 'rate_limit', last_assistant_message: 'Two tests are failing; looking at' })
+  },
+
+  // Claude's permission prompts: PermissionRequest sets the robot's pending
+  // permission (its "blocked" mood driver); Claude's own notification 6 s in
+  // fires AttractingAttention; approving (the tool's PostToolUse) clears it.
+  // The second prompt is never answered: the turn ending clears it.
+  async permission() {
+    const a = 'fixture-a'
+    await hook(a, 'UserPromptSubmit', { prompt: 'Clean out the build folder' })
+    await sleep(1500)
+    const rm = { command: 'rm -rf build', description: 'Remove build output' }
+    await hook(a, 'PreToolUse', { tool_name: 'Bash', tool_input: rm, tool_use_id: 'toolu_perm1' })
+    await sleep(100)
+    await hook(a, 'PermissionRequest', { tool_name: 'Bash', tool_input: rm, permission_suggestions: [] })
+    await sleep(6000)
+    await hook(a, 'Notification', { message: 'Claude needs your permission to use Bash' })
+    await sleep(2500)
+    await hook(a, 'PostToolUse', { tool_name: 'Bash', tool_input: rm, tool_use_id: 'toolu_perm1' })
+    await sleep(1500)
+    const write = { file_path: 'NOTES.md', content: 'cleaned' }
+    await hook(a, 'PreToolUse', { tool_name: 'Write', tool_input: write, tool_use_id: 'toolu_perm2' })
+    await sleep(100)
+    await hook(a, 'PermissionRequest', { tool_name: 'Write', tool_input: write, permission_suggestions: [] })
+    await sleep(3000)
+    await hook(a, 'Stop', { assistant_text: ['Removed build/. Skipped writing NOTES.md.'] })
+  },
+
+  // The bridge goes away while a long command runs. The recording script
+  // kills the bridge about 7 s after this scenario's Bash call starts.
+  async disconnect() {
+    const a = 'fixture-a'
+    await hook(a, 'SessionStart', { source: 'startup' })
+    await sleep(2000)
+    await hook(a, 'UserPromptSubmit', { prompt: 'Build it' })
+    await sleep(1500)
+    await hook(a, 'PreToolUse', { tool_name: 'Bash', tool_input: { command: 'npm run build' }, tool_use_id: 'toolu_dc1' })
+    await sleep(30000)  // killed before this ends
+  },
 }
 
 const name = process.argv[2]

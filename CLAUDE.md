@@ -11,7 +11,10 @@ A **standalone agent-agnostic bridge**: a Node HTTP/WS service that
 ingests lifecycle hooks from any agentic CLI (Claude Code, Codex, Cursor,
 OpenCode), parses them into a shared `AgentEvent` vocabulary, and
 broadcasts envelopes over WebSocket. The ESP32-S3 firmware in
-[`robot_v3/`](robot_v3/) is the canonical consumer.
+[`robot_v3/`](robot_v3/) is the canonical consumer. The robot is called
+Sultana; [`sultana-dock/`](sultana-dock/README.md) is a macOS app that
+runs the same firmware code to show the robot in the Dock and on the
+desktop.
 
 The bridge has **no opinion about presentation**. It emits lifecycle
 events (turn started, activity started/finished, permission requested),
@@ -38,6 +41,10 @@ plugin/                       # bridge service (Node)
   .claude-plugin/plugin.json
 .claude-plugin/marketplace.json
 robot_v3/                     # ESP32-S3 firmware
+  host/                       # SultanaCore: the firmware built for a desktop, replay CLI, fixtures, make test
+sultana-dock/                 # Sultana Dock macOS app (Xcode project; links SultanaCore)
+face-editor/                  # Next.js face editor (TS port of the face engine)
+scripts/record-ws.mjs         # record a bridge session as JSONL (fixtures, replay)
 helpers/                      # forwarder scripts for Codex / Cursor / OpenCode
 examples/                     # browser WS client + sample hooks-settings.json
 docs/                         # all documentation (start at docs/README.md)
@@ -94,8 +101,10 @@ HTTP layer adds entries on `permission.requested`, removes them on
 The bridge cannot push verdicts into the agent CLI; `POST /api/permissions/:id`
 only clears local state
 and broadcasts a resolve. The terminal user still has to answer the
-agent's own prompt. The firmware recovers from stuck `BLOCKED` state by
-clearing `pending_permission` on `turn.started`.
+agent's own prompt. Claude Code has no hook for the verdict, so the Claude
+adapter keeps one pending request per session and infers the resolution
+(see `docs/bridge/HOOK_MAPPING.md`). The firmware also clears
+`pending_permission` on turn and session boundaries and on disconnect.
 
 ## Working on this repo
 
@@ -112,17 +121,39 @@ clearing `pending_permission` on `turn.started`.
 - When editing firmware, **test on-device**. Type-checking / Arduino
   compile aren't enough for servo or display work. If no hardware is
   available, say so explicitly.
-- There is no test suite. Verify the bridge via the smoke test in
-  `README.md`; verify firmware on hardware.
+- Firmware behaviour has a regression test: `cd robot_v3/host && make test`
+  replays recorded bridge sessions through the unmodified firmware and
+  diffs golden traces. Run it after behaviour changes; if a change is
+  intended, `make golden` and commit the new traces with it. A new firmware
+  `.cpp` must be added to `FIRMWARE_SRCS` in `robot_v3/host/Makefile` and to
+  the SultanaCore target in `sultana-dock/`.
+- There is no bridge test suite. Verify the bridge via the smoke test in
+  `README.md`.
 
 ## Firmware quick-map
 
-Full tour: [`docs/firmware/OVERVIEW.md`](docs/firmware/OVERVIEW.md).
-Key invariants worth knowing:
+Full tour: [`docs/firmware/OVERVIEW.md`](docs/firmware/OVERVIEW.md) and
+[`docs/firmware2/`](docs/firmware2/README.md). The exact event rules are
+in [`docs/mac-app/ENGINE.md`](docs/mac-app/ENGINE.md) §2. Key invariants:
 
-- **`Personality::tick` polls `pending_permission`.** It cannot use the
-  callback because the single `EventHandler` slot is owned by
-  Personality itself.
+- **The face pulls; nothing pushes.** `EventRouter` turns agent events
+  into `VerbSystem` and `EmotionSystem` writes; each loop
+  `SceneContextFill::fill` snapshots that state into a `SceneContext`
+  that the face reads.
+- **One session at a time.** `AgentEvents`' latch follows the session of
+  the most recent `turn.started` / `session.started` and drops the rest.
+- **Pending permission is polled.** `EventRouter::tick` holds a −0.6
+  valence driver while `AgentState.pending_permission` is set. Valence
+  moves with τ = 90 s, so the effect is slow.
+- **Verbs.** Overlays (Waking and AttractingAttention 1.5 s, Celebrating
+  3 s) cross-fade out over their last 500 ms. Nothing is protected or
+  queued: `setVerb` cuts an overlay. Tools linger 1 s past
+  `activity.finished` / `activity.failed`, then Thinking; Executing turns
+  into Straining after 5 s. Setting the current verb again restarts it.
+- **Turn ends by cause.** `completed` (or none) → Celebrating + happy
+  impulse; `error` → idle with a valence dip; `aborted` → idle.
+- **Disconnects** clear the latch, pending permission and the verb
+  (unless asleep).
 - **The bridge host is discovered at boot, not configured.** The stored
   host is only the last known good address; `BridgeDiscovery::find`
   probes it, then sweeps the local /24 on the bridge port, verifying
@@ -130,17 +161,11 @@ Key invariants worth knowing:
   offline in idle until reboot — `Bridge::begin` is deliberately never
   called, since the WS client blocks the loop for seconds per attempt
   against an unreachable host.
-- **Tool-linger.** `READING` / `WRITING` / `EXECUTING` survive 1 s past
-  `activity.finished` so bursts of same-type calls don't flap. Refreshed
-  by any matching `activity.started`; pre-empted by a different-type one.
-- **Protected `min_ms` windows.** `FINISHED` (1.5 s), `WAKING` (1 s),
-  `WANTS_ATTENTION` (1 s) play in full; pre-empting requests are queued
-  and fire when the window expires.
 - **Body bob tracks arm position.** `FrameController` maps
   `Motion::currentOffsetDeg()` to vertical bob using effective `arm_min_deg` /
   `arm_max_deg` from `Face::effectiveFaceParams()` (28-field row, ms timing).
   Loop: `tickEffectiveParams` → `MotionBehaviors` → `Motion::tick` → `Face::tick`.
-- **TFT_eSPI bakes pins at compile time.** `robot_v2/User_Setup.h`
+- **TFT_eSPI bakes pins at compile time.** `robot_v3/User_Setup.h`
   governs display wiring; `config.h` does not.
 - **The sprite framebuffer must be in internal SRAM, not PSRAM** —
   PSRAM is not DMA-safe for SPI master writes on ESP32-S3.

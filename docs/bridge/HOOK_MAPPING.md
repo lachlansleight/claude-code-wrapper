@@ -13,15 +13,26 @@ Scope:
 | Claude hook | Generic event(s) emitted | Notes |
 |---|---|---|
 | `SessionStart` | `session.started` | `cause` from `payload.source` (`startup`, `resume`, `clear`, else `unknown`) |
-| `SessionEnd` | `session.ended` | Cause currently `unknown` |
-| `UserPromptSubmit` | `turn.started`, `message.user` | Prompt copied from `payload.prompt` |
+| `SessionEnd` | `session.ended` | Cause currently `unknown`. Resolves a pending permission (deny) first |
+| `UserPromptSubmit` | `turn.started`, `message.user` | Prompt copied from `payload.prompt`. Resolves a pending permission (deny) first |
 | `PreToolUse` | `activity.started` | Activity from `tool_name`, `tool_input`, `tool_use_id` |
-| `PostToolUse` | `activity.finished` (+ `todo.updated` for `TodoWrite`) | `todo.updated` emitted when `tool_name === TodoWrite` and `todos` parse succeeds |
-| `Stop` | `message.assistant` (optional), `turn.ended` | Uses `assistant_text` array (last block) if present |
+| `PostToolUse` | `activity.finished` (+ `todo.updated` for `TodoWrite`) | `todo.updated` emitted when `tool_name === TodoWrite` and `todos` parse succeeds. Resolves a pending permission for the same tool (allow) first |
+| `PostToolUseFailure` | `activity.failed` | The tool ran and failed. `error_message` from `payload.error` (trimmed to 300 chars), `failure_kind` `error` (or `unknown` if `is_interrupt`), `duration_ms`. Resolves a pending permission for the same tool (allow) first |
+| `PermissionRequest` | `permission.requested` | Claude is showing a permission prompt. The payload has no `tool_use_id`, so the bridge makes up `request_id` (`perm_<uuid>`) and remembers one pending request per session |
+| `PermissionDenied` | `activity.failed` | Auto mode's classifier refused the tool; it never runs and no `PostToolUse*` follows. `failure_kind: permission_denied`, `error_message` from `payload.reason`. Resolves a pending permission for the same tool (deny) |
+| `Stop` | `message.assistant` (optional), `turn.ended` (`cause: completed`) | Uses `assistant_text` array (last block) if present. Resolves a pending permission (deny) first |
+| `StopFailure` | `turn.ended` (`cause: error`) | The turn ended on an API error. `error` from `payload.error` (e.g. `rate_limit`), `last_assistant_text` from `payload.last_assistant_message`. Resolves a pending permission (deny) first |
 | `SubagentStop` | `subagent.finished` | Uses session id as fallback `subagent_id` |
 | `PreCompact` | `context.compacting` | Optional trigger from `payload.trigger` (`auto`/`manual`) |
-| `Notification` | `notification` (+ optional `permission.requested`) | Emits `permission.requested` if a request token is parsed from message text |
+| `Notification` | `notification` | Claude's "Claude needs your permission to use …" arrives here about 6 s into a waiting prompt. `Claude is waiting for your input` is dropped |
 | any other hook | `unknown` | Default fallback |
+
+Claude has no hook for the user's answer to a permission prompt, so
+`permission.resolved` is inferred: the same tool's `PostToolUse` or
+`PostToolUseFailure` means it ran (allow); `PermissionDenied`, or the turn
+or session ending first, means it didn't (deny). Matching on the tool name
+keeps parallel tool calls in one batch from resolving each other. The
+pending state is in memory in the adapter, so a bridge restart forgets it.
 
 #### Claude activities
 

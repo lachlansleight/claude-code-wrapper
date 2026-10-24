@@ -152,6 +152,12 @@ TS has the `Expression` enum but not these two tables, so copy them.
 
 ### 2.3 Event → behaviour (`EventRouter.cpp` `onAgentEvent`, around line 54)
 
+> **Changed in Phase 4 (PLAN.md):** `turn.ended` now depends on `cause`:
+> `completed` (or none) is as below; `error` clears the verb with a −0.3
+> valence impulse; `aborted` just clears the verb. Claude's
+> `PermissionRequest` now produces `permission.requested`, so the pending
+> permission driver works for Claude too.
+
 These apply only to events that pass the session latch (§2.6).
 
 | `event.kind` | Verb | Emotion |
@@ -286,6 +292,9 @@ For bounce detection the app needs to see completions across **all**
 sessions, not just the latched one. See [`BRIDGE.md`](BRIDGE.md).
 
 ### 2.7 Disconnect behaviour (`AgentEvents::notifyConnection`)
+
+> **Changed in Phase 4:** `EventRouter::onBridgeConnection(false)` now also
+> clears the verb (and any overlay) unless the face is asleep.
 
 On disconnect, the firmware clears the latch, the per-turn text state and
 `pending_permission`, **but leaves VerbSystem and EmotionSystem alone**. A
@@ -512,7 +521,8 @@ Mask the output to a circle.
 
 ## 9. Docs that are out of date
 
-These don't match the code; trust the code.
+These don't match the code; trust the code. *(Fixed in Phase 4, along
+with the event tables in `docs/firmware/BEHAVIOUR.md`.)*
 
 - **`CLAUDE.md` "Firmware quick-map"** describes the old robot_v2
   `Personality` system: `pending_permission` polling by Personality, protected

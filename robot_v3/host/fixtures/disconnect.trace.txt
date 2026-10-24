@@ -1,0 +1,17 @@
+t=      0 ms  << hello
+t=      0 ms  << active_sessions []
+                              >> {"type":"request_sessions"}
+t=      0 ms     verb=sleeping             expr=verb_sleeping              v=+0.00 a=0.00 arm=-15 latch=-
+t=    530 ms  << agent_event session.started [fixture-a]
+t=    530 ms  << active_sessions [fixture-a]
+t=    530 ms     verb=waking               expr=verb_waking                v=+0.01 a=0.01 arm=-27 latch=fixture-a
+t=   1530 ms     verb=none                 expr=neutral                    v=+0.59 a=0.51 arm=+23 latch=fixture-a
+t=   2537 ms  << agent_event turn.started [fixture-a]
+t=   2537 ms  << agent_event message.user [fixture-a]
+t=   2537 ms     verb=thinking             expr=verb_thinking              v=+0.59 a=0.50 arm=-14 latch=fixture-a
+t=   4044 ms  << agent_event activity.started (shell.exec) [fixture-a]
+t=   4044 ms     verb=executing            expr=verb_executing             v=+0.58 a=0.50 arm=-18 latch=fixture-a
+t=   9044 ms     verb=straining            expr=verb_straining             v=+0.55 a=0.50 arm= -7 latch=fixture-a
+t=  10993 ms  << (socket disconnected)
+t=  10993 ms     verb=none                 expr=neutral                    v=+0.53 a=0.50 arm= +9 latch=-
+end t=14993 ms, 455 frames pushed

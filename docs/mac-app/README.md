@@ -3,7 +3,7 @@
 **Status:** Phase 1 (the host build of the firmware core,
 [`robot_v3/host/`](../../robot_v3/host/README.md)), Phase 2 (the Dock app,
 [`sultana-dock/`](../../sultana-dock/README.md)) and Phase 3 (the robot
-window) are done. Phase 4 (behaviour fixes) and Phase 5 (design) remain. The finalised plan is
+window) are done, and so is Phase 4 (bridge and firmware behaviour fixes). The finalised plan is
 [`PLAN.md`](PLAN.md); start there.
 **History:** the technical discovery was written 2026-10-24 against commit
 `1094a48`. It recommended porting the behaviour layer to TypeScript and

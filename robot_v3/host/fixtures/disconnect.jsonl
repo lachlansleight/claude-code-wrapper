@@ -1,0 +1,8 @@
+{"t":0,"frame":{"type":"hello","client_id":"ws_f252a28a-6ed8-4524-ba74-5d4f1c2aec3a","server_version":"0.3.0"}}
+{"t":0,"frame":{"type":"active_sessions","session_ids":[]}}
+{"t":530,"frame":{"type":"agent_event","agent":"claude","ts":1792817524831,"session_id":"fixture-a","event":{"kind":"session.started","cause":"startup"}}}
+{"t":530,"frame":{"type":"active_sessions","session_ids":["fixture-a"]}}
+{"t":2537,"frame":{"type":"agent_event","agent":"claude","ts":1792817526838,"session_id":"fixture-a","event":{"kind":"turn.started","prompt":"Build it"}}}
+{"t":2537,"frame":{"type":"agent_event","agent":"claude","ts":1792817526838,"session_id":"fixture-a","event":{"kind":"message.user","text":"Build it"}}}
+{"t":4044,"frame":{"type":"agent_event","agent":"claude","ts":1792817528344,"session_id":"fixture-a","event":{"kind":"activity.started","activity":{"id":"toolu_dc1","kind":"shell.exec","tool":"Bash","summary":"npm run build"}}}}
+{"t":10993,"connected":false}

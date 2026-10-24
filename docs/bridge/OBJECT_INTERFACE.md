@@ -107,6 +107,7 @@ interface TurnStartedEvent {
 interface TurnEndedEvent {
   kind: 'turn.ended'
   cause?: 'completed' | 'aborted' | 'error' | 'unknown'
+  error?: string                // agent's error code when cause is 'error' (Claude StopFailure: e.g. 'rate_limit')
   last_assistant_text?: string  // best-effort summary of agent's final reply
 }
 ```
@@ -301,15 +302,15 @@ doesn't yet handle it).
 | session.started          | SessionStart           | SessionStart           | sessionStart                               | session.created                |
 | session.ended            | SessionEnd             | —                      | sessionEnd                                 | session.deleted                |
 | turn.started             | UserPromptSubmit       | UserPromptSubmit       | beforeSubmitPrompt                         | message.updated (role=user)    |
-| turn.ended               | Stop                   | Stop                   | stop                                       | session.idle                   |
+| turn.ended               | Stop; StopFailure (cause `error`) | Stop        | stop                                       | session.idle                   |
 | message.user             | UserPromptSubmit.prompt| UserPromptSubmit.prompt| beforeSubmitPrompt.prompt                  | message.updated.content        |
 | message.assistant        | (transcript tail)      | Stop.last_assistant_message | afterAgentResponse                    | message.updated (role=asst)    |
 | thinking                 | (transcript tail)      | —                      | afterAgentThought                          | message.part.updated (thinking)|
 | activity.started         | PreToolUse             | PreToolUse             | preToolUse †                               | tool.execute.before            |
 | activity.finished        | PostToolUse            | PostToolUse            | postToolUse †                              | tool.execute.after             |
-| activity.failed          | (PostToolUse + error)  | (PostToolUse + error)  | postToolUseFailure                         | (tool.execute.after + error)   |
-| permission.requested     | (Notification) ‡       | PermissionRequest      | (preToolUse permission decision)           | permission.asked               |
-| permission.resolved      | (n/a — terminal owns)  | (PermissionRequest reply)| (n/a — IDE owns)                         | permission.replied             |
+| activity.failed          | PostToolUseFailure; PermissionDenied | (PostToolUse + error) | postToolUseFailure          | (tool.execute.after + error)   |
+| permission.requested     | PermissionRequest ‡    | PermissionRequest      | (preToolUse permission decision)           | permission.asked               |
+| permission.resolved      | (inferred) ‡           | (PermissionRequest reply)| (n/a — IDE owns)                         | permission.replied             |
 | todo.updated             | PostToolUse(TodoWrite) | PostToolUse(TodoWrite) | (n/a — Cursor has no todo tool)            | todo.updated                   |
 | subagent.started         | PreToolUse(Task)       | PreToolUse(Subagent)   | subagentStart                              | (n/a)                          |
 | subagent.finished        | SubagentStop           | (Stop with parent)     | subagentStop                               | (n/a)                          |
@@ -329,10 +330,11 @@ shell command, MCP server URL). The bridge consumes those for
 populating `ActivityRef.summary` but does **not** double-emit
 activities for them.
 
-‡ Claude Code's permission flow is delivered via `Notification` hook
-text; the bridge synthesises a `permission.requested` only when it can
-parse a request id out of that text. The bridge still cannot push verdicts
-back into Claude Code from HTTP/WS alone.
+‡ Claude Code reports a permission prompt with `PermissionRequest` but
+has no hook for the user's answer, so the bridge infers
+`permission.resolved` from what happens next (see `HOOK_MAPPING.md`). The
+bridge still cannot push verdicts back into Claude Code from HTTP/WS
+alone.
 
 ## ActivityKind classification table
 

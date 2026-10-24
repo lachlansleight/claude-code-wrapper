@@ -1,0 +1,20 @@
+{"t":0,"frame":{"type":"hello","client_id":"ws_307e9415-b149-4aeb-b5a9-972e89f1d940","server_version":"0.3.0"}}
+{"t":1,"frame":{"type":"active_sessions","session_ids":[]}}
+{"t":528,"frame":{"type":"agent_event","agent":"claude","ts":1792817508336,"session_id":"fixture-a","event":{"kind":"turn.started","prompt":"Clean out the build folder"}}}
+{"t":528,"frame":{"type":"agent_event","agent":"claude","ts":1792817508336,"session_id":"fixture-a","event":{"kind":"message.user","text":"Clean out the build folder"}}}
+{"t":528,"frame":{"type":"active_sessions","session_ids":["fixture-a"]}}
+{"t":2033,"frame":{"type":"agent_event","agent":"claude","ts":1792817509842,"session_id":"fixture-a","event":{"kind":"activity.started","activity":{"id":"toolu_perm1","kind":"shell.exec","tool":"Bash","summary":"rm -rf build"}}}}
+{"t":2136,"frame":{"type":"permission_request","request_id":"perm_de515401-e458-441a-8a8d-1ea523e6e37c","activity":{"id":"act_4c6d4a31-8e7d-4a22-b364-a30909b752b1","kind":"shell.exec","tool":"Bash","summary":"rm -rf build"},"description":"rm -rf build","opened_at":1792817509945}}
+{"t":2136,"frame":{"type":"agent_event","agent":"claude","ts":1792817509945,"session_id":"fixture-a","event":{"kind":"permission.requested","request_id":"perm_de515401-e458-441a-8a8d-1ea523e6e37c","activity":{"id":"act_4c6d4a31-8e7d-4a22-b364-a30909b752b1","kind":"shell.exec","tool":"Bash","summary":"rm -rf build"},"description":"rm -rf build"}}}
+{"t":8140,"frame":{"type":"agent_event","agent":"claude","ts":1792817515949,"session_id":"fixture-a","event":{"kind":"notification","text":"Claude needs your permission to use Bash"}}}
+{"t":10650,"frame":{"type":"permission_resolved","request_id":"perm_de515401-e458-441a-8a8d-1ea523e6e37c","behavior":"allow","by":"remote"}}
+{"t":10650,"frame":{"type":"agent_event","agent":"claude","ts":1792817518457,"session_id":"fixture-a","event":{"kind":"permission.resolved","request_id":"perm_de515401-e458-441a-8a8d-1ea523e6e37c","decision":"allow","scope":"unknown"}}}
+{"t":10650,"frame":{"type":"agent_event","agent":"claude","ts":1792817518457,"session_id":"fixture-a","event":{"kind":"activity.finished","activity":{"id":"toolu_perm1","kind":"shell.exec","tool":"Bash","summary":"rm -rf build"}}}}
+{"t":12155,"frame":{"type":"agent_event","agent":"claude","ts":1792817519964,"session_id":"fixture-a","event":{"kind":"activity.started","activity":{"id":"toolu_perm2","kind":"file.write","tool":"Write","summary":"NOTES.md"}}}}
+{"t":12263,"frame":{"type":"permission_request","request_id":"perm_7144e0b6-ae13-48c9-8144-926410e20300","activity":{"id":"act_9c5b66cf-f7e0-41fb-8b3e-3652b96fbefb","kind":"file.write","tool":"Write","summary":"NOTES.md"},"description":"NOTES.md","opened_at":1792817520071}}
+{"t":12264,"frame":{"type":"agent_event","agent":"claude","ts":1792817520071,"session_id":"fixture-a","event":{"kind":"permission.requested","request_id":"perm_7144e0b6-ae13-48c9-8144-926410e20300","activity":{"id":"act_9c5b66cf-f7e0-41fb-8b3e-3652b96fbefb","kind":"file.write","tool":"Write","summary":"NOTES.md"},"description":"NOTES.md"}}}
+{"t":15269,"frame":{"type":"permission_resolved","request_id":"perm_7144e0b6-ae13-48c9-8144-926410e20300","behavior":"deny","by":"remote"}}
+{"t":15270,"frame":{"type":"agent_event","agent":"claude","ts":1792817523077,"session_id":"fixture-a","event":{"kind":"permission.resolved","request_id":"perm_7144e0b6-ae13-48c9-8144-926410e20300","decision":"deny","scope":"unknown"}}}
+{"t":15270,"frame":{"type":"agent_event","agent":"claude","ts":1792817523077,"session_id":"fixture-a","event":{"kind":"message.assistant","text":"Removed build/. Skipped writing NOTES.md.","final":true}}}
+{"t":15270,"frame":{"type":"agent_event","agent":"claude","ts":1792817523077,"session_id":"fixture-a","event":{"kind":"turn.ended","cause":"completed","last_assistant_text":"Removed build/. Skipped writing NOTES.md."}}}
+{"t":16292,"connected":false}

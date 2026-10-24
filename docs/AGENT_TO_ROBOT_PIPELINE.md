@@ -236,9 +236,11 @@ pending entry"; the user still has to answer the prompt in the agent's
 own terminal. Codex and OpenCode have hook-based permission flows that
 *could* be wired up to deliver verdicts but aren't today.
 
-The firmware's recovery path: `turn.started` clears any pending
-permission state, since a new turn implies the old prompt is no longer
-blocking.
+For Claude Code, the bridge also infers when a prompt has been answered
+(the tool ran, was denied, or the turn ended; see `HOOK_MAPPING.md`),
+since Claude has no hook for the verdict. As a backstop the firmware
+clears any pending permission on `turn.started`, `turn.ended`,
+`session.ended` and bridge disconnects.
 
 ## Where each layer's docs live
 
