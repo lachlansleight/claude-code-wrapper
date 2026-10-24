@@ -29,6 +29,10 @@ old_installed="$dest/Sultana Dock.app"
 built="$here/build/Build/Products/Release/$app_name"
 installed="$dest/$app_name"
 
+# The Node release the bridge ships with (node.env), downloaded once.
+SULTANA_NODE="$("$here/bridge/fetch-node.sh")"
+export SULTANA_NODE
+
 echo "Building $app_name (Release)…"
 log="$here/build/xcodebuild.log"
 mkdir -p "$here/build"

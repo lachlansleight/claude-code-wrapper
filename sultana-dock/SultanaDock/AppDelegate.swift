@@ -389,6 +389,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsWindow?.makeKeyAndOrderFront(nil)
     }
 
+    @objc func showAbout(_ sender: Any?) {
+        AboutPanel.show()
+    }
+
     @objc func openReplay(_ sender: Any?) {
         NSApp.unhide(nil)
         NSApp.activate()
@@ -498,9 +502,8 @@ enum MainMenu {
         let main = NSMenu()
 
         let app = NSMenu(title: "Sultana")
-        app.addItem(
-            withTitle: "About Sultana", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
-            keyEquivalent: "")
+        app.addItem(withTitle: "About Sultana", action: #selector(AppDelegate.showAbout(_:)), keyEquivalent: "")
+            .target = target
         app.addItem(.separator())
         app.addItem(withTitle: "Settings…", action: #selector(AppDelegate.showSettings(_:)), keyEquivalent: ",")
             .target = target

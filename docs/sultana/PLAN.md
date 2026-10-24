@@ -237,6 +237,38 @@ Node LTS made universal (`lipo` of the official arm64 and x64 builds, via
 warns that the bridge won't run on Intel Macs. Turn on hardened runtime for
 the app.
 
+*Status: built, waiting on credentials.*
+- **Apple silicon only** (Lachlan's call). That keeps the download at 39 MB
+  rather than about twice that, and the app itself is arm64 only, so an
+  Intel Mac refuses to open it rather than running without a bridge.
+- **Node:** 24.22.1 LTS, pinned with its SHA-256 in
+  `sultana-dock/bridge/node.env`. `bridge/fetch-node.sh` downloads and
+  verifies it from nodejs.org.
+- **`sultana-dock/release.sh`:**
+  - Developer ID signing with hardened runtime and timestamps;
+  - notarise and staple the app;
+  - a DMG (app plus an Applications link) that is itself signed, notarised
+    and stapled;
+  - a final Gatekeeper assessment and a `.sha256`.
+- **Hardened runtime** is now on in the project too, so everyday builds run
+  under the same rules.
+- **Credits:** About Sultana lists Node.js, ws, ArduinoJson and TFT_eSPI,
+  with a link to their licence texts, all now in `Resources/Licenses/`.
+- **Disk image guard:** opened straight from the disk image (or
+  translocated), Settings asks for a move to Applications. It also turns off
+  Install Plugin and Open at login, which would otherwise point at a path
+  that vanishes.
+- **Install page:** [`docs/INSTALL.md`](../INSTALL.md).
+- **Checked:** the whole script ad hoc (`SULTANA_IDENTITY=-`): build,
+  signature, DMG contents. The app, run from the mounted image under hardened
+  runtime, started its bridge, connected, and showed the guard.
+- **Not yet done:**
+  - a real Developer ID build and notarisation (no certificate or notary
+    profile yet);
+  - the GitHub release itself;
+  - pushing `feat/sultana-dock` and `feat/sultana-plugin`, so the install
+    page's links and the GitHub marketplace work.
+
 ### Later
 
 Linux and Windows frontends; HTTP-hook plugins for other agents where they

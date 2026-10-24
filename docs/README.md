@@ -55,6 +55,9 @@ quickstart; the rest lives here.
 
 ## The Sultana app (Mac) and the host build
 
+- [INSTALL.md](INSTALL.md) — installing the app from a release (the page to
+  send people to).
+
 - [mac-app/README.md](mac-app/README.md) — goals and design brief for
   the Sultana app, a macOS app that shows the robot's face, built by
   compiling the firmware's behaviour and face C++ into the app.

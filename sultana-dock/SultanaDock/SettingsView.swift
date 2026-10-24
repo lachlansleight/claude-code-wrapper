@@ -52,12 +52,19 @@ struct SettingsView: View {
 
     private var setupTab: some View {
         Form {
+            if AppLocation.isTemporary {
+                Section {
+                    Text("Sultana is running from the disk image. Drag it to your Applications folder and open it from there, then come back here.")
+                        .foregroundStyle(.orange)
+                }
+            }
             claudeCodeSection
             robotSection
             Section("Start-up") {
                 Toggle("Open at login", isOn: Binding(
                     get: { loginStatus == .enabled || loginStatus == .requiresApproval },
                     set: setOpenAtLogin))
+                .disabled(AppLocation.isTemporary)
                 if loginStatus == .requiresApproval {
                     HStack {
                         Text("Allow Sultana under Login Items to finish.")
@@ -189,7 +196,7 @@ struct SettingsView: View {
 
     private var pluginButton: some View {
         Button(pluginButtonTitle) { plugin.install() }
-            .disabled(plugin.isWorking || plugin.marketplaceURL == nil)
+            .disabled(plugin.isWorking || plugin.marketplaceURL == nil || AppLocation.isTemporary)
     }
 
     private var pluginStateText: String {

@@ -48,7 +48,8 @@ sultana-plugin/               # the Claude Code plugin: hooks.json only (HTTP ho
 robot_v3/                     # ESP32-S3 firmware
   host/                       # SultanaCore: the firmware built for a desktop, replay CLI, fixtures, make test
 sultana-dock/                 # the Sultana macOS app (Xcode project; links SultanaCore)
-  bridge/                     # Embed Bridge and Plugin build phase + the Node runtime's entitlements
+  bridge/                     # Embed Bridge and Plugin build phase, the pinned Node (node.env, fetch-node.sh), its entitlements
+  install.sh, release.sh      # local install; signed + notarised DMG for others (docs/INSTALL.md)
 face-editor/                  # Next.js face editor (TS port of the face engine)
 scripts/record-ws.mjs         # record a bridge session as JSONL (fixtures, replay)
 helpers/                      # forwarder scripts for Codex / Cursor / OpenCode

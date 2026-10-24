@@ -39,6 +39,8 @@ The Claude Code plugin in this repo *only* registers hooks; the actual
 server runs separately: inside [the Sultana app](sultana-dock/README.md) on a
 Mac, or on its own (`node plugin/dist/index.js`).
 
+**Just want Sultana on your Mac?** See [`docs/INSTALL.md`](docs/INSTALL.md).
+
 ## Repo layout
 
 ```

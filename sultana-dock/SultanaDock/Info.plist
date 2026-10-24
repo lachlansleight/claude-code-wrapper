@@ -33,7 +33,7 @@
 		<true/>
 	</dict>
 	<key>NSHumanReadableCopyright</key>
-	<string>Sultana: the robot's face, from the robot_v3 firmware.</string>
+	<string>© 2026 Lachlan Sleight</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Sultana uses your local network to reach a bridge on another computer, and to let robots on your network connect to its own.</string>
 	<key>NSPrincipalClass</key>

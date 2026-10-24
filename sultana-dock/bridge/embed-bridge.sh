@@ -6,13 +6,15 @@
 #   Contents/Helpers/sultana-bridge        Node, stripped, signed with
 #                                          sultana-bridge.entitlements
 #   Contents/Resources/bridge/bridge.mjs   the bridge as one file (plugin/scripts/bundle.mjs)
-#   Contents/Resources/bridge/licenses/    notices for Node and the bundled packages
 #   Contents/Resources/ClaudePlugin/       a marketplace holding only sultana-plugin/
+#   Contents/Resources/Licenses/           licence texts for all the third-party code:
+#                                          Node, ws, ArduinoJson, TFT_eSPI
 #
-# Node is SULTANA_NODE if set, else the first Node 20+ on PATH, through nvm,
-# or in Homebrew's usual places (Xcode runs build phases with a bare PATH).
-# Its architectures become the bridge's: an arm64-only Node makes an app whose
-# bridge won't start on Intel Macs. plugin/ needs `npm install` first.
+# Node is SULTANA_NODE if set, else the release pinned in node.env if
+# fetch-node.sh has downloaded it (install.sh and release.sh do), else the
+# first Node 20+ on PATH, through nvm, or in Homebrew's usual places (Xcode
+# runs build phases with a bare PATH). Its architectures must cover the app's
+# (arm64). plugin/ needs `npm install` first.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -20,6 +22,7 @@ repo="$(cd "$here/../.." && pwd)"
 entitlements="$here/sultana-bridge.entitlements"
 runtime="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers/sultana-bridge"
 resources="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/bridge"
+licenses="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Licenses"
 
 node_major() { "$1" -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0; }
 
@@ -29,6 +32,9 @@ find_node() {
     return
   fi
   local candidates=()
+  # shellcheck source=node.env
+  . "$here/node.env"
+  candidates+=("$here/../build/node/node-v$NODE_VERSION-darwin-arm64/bin/node")
   if command -v node >/dev/null; then candidates+=("$(command -v node)"); fi
   local nvm_dir="${NVM_DIR:-$HOME/.nvm}"
   if [ -s "$nvm_dir/nvm.sh" ]; then
@@ -63,14 +69,20 @@ archs="$(lipo -archs "$node")"
 for arch in $ARCHS; do
   case " $archs " in
     *" $arch "*) ;;
-    *) echo "warning: Embed Bridge: $node has no $arch code ($archs), so the built-in bridge won't run on $arch Macs. Set SULTANA_NODE to a universal Node for a universal app." ;;
+    *) echo "warning: Embed Bridge: $node has no $arch code ($archs), so the built-in bridge won't run on $arch Macs." ;;
   esac
 done
 
 "$node" "$repo/plugin/scripts/bundle.mjs" "$resources"
+rm -rf "$licenses"
+mkdir -p "$licenses"
+mv "$resources/licenses/"* "$licenses/"
+rmdir "$resources/licenses"
+cp "$repo/robot_v3/host/third_party/ArduinoJson/LICENSE.txt" "$licenses/ArduinoJson.txt"
+cp "$repo/robot_v3/host/third_party/TFT_eSPI-LICENSE.txt" "$licenses/TFT_eSPI.txt"
 node_license="$(dirname "$node")/../LICENSE"
 if [ -f "$node_license" ]; then
-  cp "$node_license" "$resources/licenses/node.txt"
+  cp "$node_license" "$licenses/node.txt"
 else
   echo "warning: Embed Bridge: no LICENSE beside $node; the app ships without Node's licence notice."
 fi

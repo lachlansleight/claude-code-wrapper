@@ -12,11 +12,15 @@ phases 1–3 of [`docs/sultana/PLAN.md`](../docs/sultana/PLAN.md) (the built-in
 bridge, installing the Claude Code plugin, pairing a robot) are done. The robot is drawn from Lachlan's Figma design (file
 SCRATCHPAD, frame "SultanaExample", node 3189:9).
 
+To install the app rather than build it, see
+[`docs/INSTALL.md`](../docs/INSTALL.md).
+
 ## Build and run
 
-Needs Xcode 16 or later (the project uses synchronized folders), macOS 14+,
-and Node.js 20+ with the bridge's packages installed, because the build
-embeds the bridge:
+Needs an Apple silicon Mac (the app is arm64 only, like the Node it ships),
+Xcode 16 or later (the project uses synchronized folders), macOS 14+, and
+Node.js 20+ with the bridge's packages installed, because the build embeds
+the bridge:
 
 ```bash
 cd plugin && npm install
@@ -35,14 +39,13 @@ xcodebuild -project sultana-dock/SultanaDock.xcodeproj -scheme Sultana -configur
 The firmware's per-machine `robot_v3/src/config.h` must exist, as for the
 host build.
 
-The "Embed Bridge and Plugin" build phase (`bridge/embed-bridge.sh`) bundles the bridge
-from `plugin/src/` and copies in the build machine's Node: `SULTANA_NODE` if
-set, else the first Node 20+ on PATH, through nvm, or in Homebrew's usual
-places. That Node's architectures become the bridge's. Release builds of the
-app are universal, so with an arm64-only Node the build warns that the
-built-in bridge won't run on Intel Macs. Point `SULTANA_NODE` at a universal
-Node (`lipo -create` of the arm64 and x64 builds) to fix that. Bridge
-changes reach the app when it's rebuilt.
+The "Embed Bridge and Plugin" build phase (`bridge/embed-bridge.sh`) bundles
+the bridge from `plugin/src/` and copies in a Node runtime to run it. That
+runtime is the Node release pinned in `bridge/node.env` (24.22.1 LTS, with
+its SHA-256), which `bridge/fetch-node.sh` downloads from nodejs.org and
+verifies; `install.sh` and `release.sh` run it. Before the first download,
+Xcode builds fall back to the Node on your machine. `SULTANA_NODE` overrides
+both. Bridge changes reach the app when it's rebuilt.
 
 ### Installing it as a normal app
 
@@ -66,11 +69,54 @@ skips the launch. Re-run it to update after pulling changes. Then:
   Xcode makes the signature stable, and `install.sh` uses that setting too.
 
 The project is signed "to run locally" (ad hoc), so it builds on any Mac
-without an Apple account. The catch: macOS ties the Keychain item holding
-the bridge token to the exact build, so after a rebuild it asks once for
-permission to read it. Choose your own team under Signing & Capabilities
-to make that go away, or use the `SULTANA_BRIDGE_TOKEN` environment
-variable while developing (below).
+without an Apple account, with hardened runtime on, as releases have. The
+catch: macOS ties the Keychain item holding the bridge token to the exact
+build, so after a rebuild it asks once for permission to read it. Choose
+your own team under Signing & Capabilities to make that go away, or use the
+`SULTANA_BRIDGE_TOKEN` environment variable while developing (below).
+
+### Making a release
+
+```bash
+sultana-dock/release.sh
+```
+
+That builds `sultana-dock/build/release/Sultana-<version>.dmg` (and a
+`.sha256` beside it) for other people's Macs:
+
+1. A Release build signed with your **Developer ID Application**
+   certificate, with hardened runtime and secure timestamps. The bridge's Node
+   runtime is signed the same way, with the JIT entitlements V8 needs
+   (`bridge/sultana-bridge.entitlements`).
+2. The app is sent to Apple's notary service, and the ticket stapled to it
+   so it opens offline.
+3. A disk image holding the app and an Applications shortcut, itself signed,
+   notarised and stapled. The script finishes by asking Gatekeeper to assess
+   both.
+
+The version is `MARKETING_VERSION` in the Xcode project (bump it there); the
+build number is the commit count, so it always goes up. The script refuses
+to build with uncommitted changes unless you pass `--allow-dirty`.
+
+It needs, once:
+
+- a Developer ID Application certificate in the login keychain (Xcode ▸
+  Settings ▸ Accounts ▸ your team ▸ Manage Certificates ▸ + ▸ Developer ID
+  Application; only the account holder can make one);
+- notarisation credentials stored in the keychain, using an app-specific
+  password from account.apple.com:
+
+  ```bash
+  xcrun notarytool store-credentials sultana-notary --apple-id <your Apple ID email> --team-id <your team ID>
+  ```
+
+`SULTANA_IDENTITY` picks a certificate by name if you have several (`-`
+signs ad hoc to try the script out, without notarising), and
+`SULTANA_NOTARY_PROFILE` names other stored credentials. `--no-notarize`
+does everything except talk to Apple.
+
+Then attach the DMG to a GitHub release; [`docs/INSTALL.md`](../docs/INSTALL.md)
+is the page to point people at.
 
 ## Setting it up
 
