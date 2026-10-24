@@ -55,11 +55,13 @@ app opens Settings:
 - **Show the robot window**, **Keep the robot window on top**, **Arm
   colour** (General). The arms default to the design's green, #8EE270.
 
-Once it is connected, the app hands focus back to whatever you were using:
-macOS won't bounce the icon of the frontmost app. Clicking the Dock icon
-shows the robot window (or Settings, if the connection needs fixing). The
-Dock menu shows the connection status and has Show Robot, Keep Robot on
-Top, Replay Log and Settings.
+Sultana Dock behaves like any other app when it comes to focus. Clicking
+the Dock icon brings it forward (its menu bar has Settings) and shows the
+robot, or opens Settings if the connection needs fixing. macOS won't bounce
+the icon of the frontmost app, so turn-end bounces only show once you've
+switched to something else, which is where you'll usually be. The Dock
+menu shows the connection status and has Show Robot, Keep Robot on Top,
+Replay Log and Settings.
 
 ## The robot on your desktop
 

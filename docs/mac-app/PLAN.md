@@ -365,11 +365,16 @@ bounce.
 | `agent_event` / `notification` with `text` starting `"Claude needs"`, or `permission.requested` | same | on by default; off |
 | app becomes active | nothing: macOS ends critical requests itself | — |
 
-Bounce is a no-op while the app is frontmost. macOS activates a freshly
-launched app, so with no window to show (Phase 2) the app hides itself
-right after launch and after a Dock click, which hands focus back to the
-previous app. The Phase 3 robot window is a non-activating panel for the
-same reason. Badge counts are later work (§7).
+Bounce is a no-op while the app is frontmost. The robot window is a
+non-activating panel, so touching the robot never makes the app frontmost.
+Badge counts are later work (§7).
+
+*(Phases 2–3 also handed focus straight back after launch and after a Dock
+click, so a bounce right after touching the app wasn't swallowed. It was
+removed at Lachlan's request: depending on timing, a Dock click would show
+the app and then jump back to the previous one, making the menu bar and
+Settings hard to reach. The app now takes focus like any other; it's
+rarely frontmost anyway.)*
 
 Found while building: `requestUserAttention` returns 0-based ids that are
 reused, so **0 is a valid id, not a failure**. Informational requests
@@ -400,14 +405,10 @@ request, so the app stores none.
   windows behind regardless of how macOS treats transparent pixels.)*
 - Stop updating layers while `occlusionState` says the window isn't visible.
   Keep ticking the core and the Dock.
-- *(Focus: `NSApp.deactivate()` looked right in a first probe but proved
-  unreliable across repeated launches, and macOS sometimes activates the
-  app again after launch. What works every time: hide the app (macOS
-  activates the previous one), unhide it without activating once the hide
-  lands, and put the robot back. It runs right after launch, on the app's
-  first activation within 5 s, and on a Dock click. It passed 8 of 8
-  launches. `yieldActivation` can't be used: the app is already frontmost
-  when its launch callbacks run.)*
+- *(Focus: the automatic focus handoff after launch and Dock clicks has
+  been removed; see §5.4. If it's ever wanted back, note that
+  `NSApp.deactivate()` proved unreliable on macOS 27; hiding and then
+  `unhideWithoutActivation()` once the hide lands worked every time.)*
 
 ### 5.6 Drawing the robot
 
@@ -515,8 +516,7 @@ Delivered in `sultana-dock/` (see its `README.md`):
    forwarded.
 3. Display-link tick loop, change detection, RGBA conversion, `CGImage`.
 4. Dock tile with circular clip, bezel and fps cap; bounce on `turn.ended`
-   from any session; attention bounce. The app hides itself when it has no
-   window, so bounces aren't swallowed.
+   from any session; attention bounce.
 5. Settings window (SwiftUI), Keychain token, `.env` import.
 6. Replay mode, wall-clock variant. Also, from Phase 3: the App Nap
    activity token.
