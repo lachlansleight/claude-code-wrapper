@@ -28,6 +28,27 @@ xcodebuild -project sultana-dock/SultanaDock.xcodeproj -scheme "Sultana Dock" -c
 The firmware's per-machine `robot_v3/src/config.h` must exist, as for the
 host build.
 
+### Installing it as a normal app
+
+To run it without Xcode open, build a Release copy and install it:
+
+```bash
+sultana-dock/install.sh
+```
+
+That builds into `sultana-dock/build/` (gitignored), copies
+`Sultana Dock.app` into /Applications (replacing and quitting an older
+copy there) and opens it. `--dest DIR` installs elsewhere; `--no-open`
+skips the launch. Re-run it to update after pulling changes. Then:
+
+- Quit any copy you started from Xcode, or you'll have two Dock icons.
+- Turn on Settings ▸ Open at login from the installed copy, so the login
+  item points at /Applications.
+- On first launch macOS asks for the bridge token in the Keychain; choose
+  Always Allow. Because the build is signed "to run locally", it asks again
+  after each reinstall. Choosing your team under Signing & Capabilities in
+  Xcode makes the signature stable, and `install.sh` uses that setting too.
+
 The project is signed "to run locally" (ad hoc), so it builds on any Mac
 without an Apple account. The catch: macOS ties the Keychain item holding
 the bridge token to the exact build, so after a rebuild it asks once for
