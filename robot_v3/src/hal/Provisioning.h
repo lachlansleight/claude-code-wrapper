@@ -101,10 +101,11 @@ void clear();
  * Overwrite the bridge endpoint (host + port) of the most-recent
  * network (head of the remembered list) and the legacy single-set keys,
  * leaving the SSID, password and token — and every other remembered
- * network — untouched. Used by the `set-provisioning-address` serial
- * command to re-point the robot at a moved bridge server without
- * re-entering the portal. A reboot is required for the change to take
- * effect (the bridge connection is established at boot).
+ * network — untouched. Used by boot-time BridgeDiscovery to record
+ * where it found the bridge, and by the `set-provisioning-address`
+ * serial command to seed that address by hand. The stored host is only
+ * the *last known good* one: discovery probes it first on the next
+ * boot and sweeps the subnet if it no longer answers.
  */
 void setBridgeAddress(const String& host, uint16_t port);
 

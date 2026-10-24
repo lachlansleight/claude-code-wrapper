@@ -1,6 +1,6 @@
 import Panel from "./atoms/Panel";
 
-export type SimulatorPanelMode = "blend" | "verbTimeline" | "logReplay";
+export type SimulatorPanelMode = "blend" | "verbTimeline" | "logReplay" | "settings";
 
 const PanelModeSwitcher = ({
     mode,
@@ -43,6 +43,17 @@ const PanelModeSwitcher = ({
                 onClick={() => setMode("logReplay")}
             >
                 Logs
+            </button>
+            <button
+                type="button"
+                className={
+                    mode === "settings"
+                        ? "rounded border border-face-accent bg-face-panel-2 px-3 py-1.5 text-sm font-inherit text-face-accent"
+                        : "rounded border border-face-border bg-face-panel px-3 py-1.5 text-sm font-inherit text-face-text hover:bg-face-panel-2"
+                }
+                onClick={() => setMode("settings")}
+            >
+                Settings
             </button>
         </Panel>
     );

@@ -30,6 +30,8 @@
  * ## Sleeping
  * `Sleeping` is the boot/idle state. Re-entered when a session ends;
  * `Waking` is often played as a transient overlay when activity resumes.
+ * The one exception is a boot where no bridge was found: nothing would
+ * ever wake the robot, so EventRouter::startIdle() clears the verb.
  *
  * ## Effective verb
  * Renderers should always read effective(), not current(): during a

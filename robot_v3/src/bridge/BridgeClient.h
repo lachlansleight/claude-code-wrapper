@@ -14,8 +14,10 @@
  * higher-level dispatcher (typically `AgentEvents::dispatch` and
  * `BridgeControl::dispatch`) decides what each `type` means.
  *
- * The bridge URL is `ws://<host>:<port>/ws?token=<token>`. Host, port
- * and token come from Provisioning at boot.
+ * The bridge URL is `ws://<host>:<port>/ws?token=<token>`. Port and
+ * token come from Provisioning at boot; the host is whatever
+ * BridgeDiscovery found. If discovery fails begin() is never called and
+ * tick() is a no-op.
  */
 namespace Bridge {
 

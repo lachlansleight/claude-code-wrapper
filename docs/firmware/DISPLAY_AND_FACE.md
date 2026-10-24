@@ -49,9 +49,10 @@ Public surface (`robot_v3/src/hal/Display.h`):
 - `Display::begin()` — TFT init, sprite alloc, `Display::ready()` true on success.
 - `Display::sprite()` — `TFT_eSprite&` everyone draws into.
 - `Display::pushFrame()` — DMA push the sprite to the panel.
-- `Display::drawConnecting(ssid)`, `drawFailedToConnect()`, `drawPortalScreen()`
+- `Display::drawConnecting(ssid)`, `drawFailedToConnect()`, `drawPortalScreen()`,
+  `drawSearchingForBridge(scanned, total)`, `drawBridgeNotFound()`
   — one-shot overlays drawn directly to the panel during the blocking
-  setup phases (provisioning portal, WiFi connect).
+  setup phases (provisioning portal, WiFi connect, bridge discovery).
 
 That's the entire driver surface. Everything else — face shapes, mood
 ring, text, etc. — composes onto the sprite via `Scene` / `FaceRenderer`

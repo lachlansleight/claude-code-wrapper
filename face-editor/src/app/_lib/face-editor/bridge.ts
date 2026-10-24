@@ -24,6 +24,14 @@ export function postDisplayMode(mode: BridgeDisplayMode): Promise<Response | nul
     return postRaw("/api/raw/config/display-mode", { display_mode: mode });
 }
 
+/**
+ * Enable/disable arm (servo) movement via `POST /api/raw/config/motors-disabled`.
+ * `true` holds the servo centred; the value is persisted in device NVS and survives reboot.
+ */
+export function postMotorsDisabled(disabled: boolean): Promise<Response | null> {
+    return postRaw("/api/raw/config/motors-disabled", { motors_disabled: disabled });
+}
+
 export async function postRaw(path: string, body: unknown): Promise<Response | null> {
     const url = bridgeBase() + path;
     const token = bridgeToken();

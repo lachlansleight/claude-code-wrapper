@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Panel from "./atoms/Panel";
-import { bridgeBase, postDisplayMode, type BridgeDisplayMode } from "../../_lib/face-editor/bridge";
+import { bridgeBase } from "../../_lib/face-editor/bridge";
 import type { BridgeLogFileInfo } from "../../api/bridgeLogs/route";
 import {
     formatEntrySummary,
@@ -49,7 +49,6 @@ export function LogReplayPanel({
     const [replaying, setReplaying] = useState(false);
     const [status, setStatus] = useState<string | null>(null);
     const [replayHighlight, setReplayHighlight] = useState<number | null>(null);
-    const [displayModeStatus, setDisplayModeStatus] = useState<string | null>(null);
     const cancelReplayRef = useRef<(() => void) | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -126,21 +125,6 @@ export function LogReplayPanel({
         setReplaying(false);
         setReplayHighlight(null);
         setStatus("Replay stopped.");
-    }, []);
-
-    const sendDisplayMode = useCallback(async (mode: BridgeDisplayMode) => {
-        setDisplayModeStatus(null);
-        const res = await postDisplayMode(mode);
-        if (!res) {
-            setDisplayModeStatus(`Failed to reach bridge at ${bridgeBase()}`);
-            return;
-        }
-        if (!res.ok) {
-            const text = await res.text().catch(() => "");
-            setDisplayModeStatus(`display-mode ${mode} → HTTP ${res.status}${text ? `: ${text}` : ""}`);
-            return;
-        }
-        setDisplayModeStatus(`Display mode → ${mode}`);
     }, []);
 
     const beginReplay = useCallback(() => {
@@ -223,43 +207,6 @@ export function LogReplayPanel({
                     />
                 </div>
                 {listError ? <p className="m-0 text-[0.72em] text-red-400">{listError}</p> : null}
-            </Panel>
-
-            <Panel className="flex flex-col gap-2">
-                <h4 className="m-0 text-[0.72em] font-bold uppercase tracking-wide text-face-muted">
-                    Robot display mode
-                </h4>
-                <p className="m-0 text-[0.72em] leading-snug text-face-muted">
-                    Switches firmware scene via{" "}
-                    <span className="font-mono">POST /api/raw/config/display-mode</span> (
-                    {bridgeBase()}).
-                </p>
-                <div className="flex flex-wrap gap-2">
-                    <button
-                        type="button"
-                        className="rounded border border-face-accent bg-face-panel px-3 py-1 text-[0.72em] font-inherit text-face-accent hover:bg-face-panel-2"
-                        onClick={() => void sendDisplayMode("face")}
-                    >
-                        Face mode
-                    </button>
-                    <button
-                        type="button"
-                        className="rounded border border-amber-500/70 bg-face-panel px-3 py-1 text-[0.72em] font-inherit text-amber-200 hover:bg-face-panel-2"
-                        onClick={() => void sendDisplayMode("text")}
-                    >
-                        Text mode
-                    </button>
-                    <button
-                        type="button"
-                        className="rounded border border-amber-500/70 bg-face-panel px-3 py-1 text-[0.72em] font-inherit text-amber-200 hover:bg-face-panel-2"
-                        onClick={() => void sendDisplayMode("debug")}
-                    >
-                        Debug mode
-                    </button>
-                </div>
-                {displayModeStatus ? (
-                    <p className="m-0 text-[0.72em] leading-snug text-face-muted">{displayModeStatus}</p>
-                ) : null}
             </Panel>
 
             <Panel className="flex max-h-[220px] min-h-0 flex-col gap-1 overflow-hidden p-0">

@@ -19,7 +19,10 @@
  *                            and the legacy keys, leaving SSID/password/
  *                            token untouched, then reboot. Accepts a URL
  *                            like `http://192.168.1.150:8787` (scheme and
- *                            path optional).
+ *                            path optional). This only seeds the last
+ *                            known good address: boot-time discovery
+ *                            still sweeps the subnet if it doesn't
+ *                            answer.
  *
  * Unknown commands log a warning and are otherwise ignored. Call
  * tick() from the main loop.

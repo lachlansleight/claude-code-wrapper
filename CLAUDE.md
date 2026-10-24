@@ -123,6 +123,13 @@ Key invariants worth knowing:
 - **`Personality::tick` polls `pending_permission`.** It cannot use the
   callback because the single `EventHandler` slot is owned by
   Personality itself.
+- **The bridge host is discovered at boot, not configured.** The stored
+  host is only the last known good address; `BridgeDiscovery::find`
+  probes it, then sweeps the local /24 on the bridge port, verifying
+  candidates via `GET /api/health`. If nothing is found the robot runs
+  offline in idle until reboot — `Bridge::begin` is deliberately never
+  called, since the WS client blocks the loop for seconds per attempt
+  against an unreachable host.
 - **Tool-linger.** `READING` / `WRITING` / `EXECUTING` survive 1 s past
   `activity.finished` so bursts of same-type calls don't flap. Refreshed
   by any matching `activity.started`; pre-empted by a different-type one.

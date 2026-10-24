@@ -2,6 +2,7 @@
 #include "src/app/EventRouter.h"
 #include "src/app/SceneContextFill.h"
 #include "src/bridge/BridgeClient.h"
+#include "src/bridge/BridgeDiscovery.h"
 #include "src/face/FrameController.h"
 #include "src/face/FrameEffective.h"
 #include "src/face/SceneTypes.h"
@@ -17,7 +18,12 @@
 namespace {
 Provisioning::Config gCfg;
 constexpr uint32_t kSceneContextLogMs = 500;
+constexpr uint32_t kBridgeNotFoundHoldMs = 3000;
 uint32_t sLastSceneContextLogMs = 0;
+
+void onBridgeScanProgress(uint16_t scanned, uint16_t total) {
+  Display::drawSearchingForBridge(scanned, total);
+}
 }
 
 void setup() {
@@ -79,10 +85,32 @@ void setup() {
     Provisioning::runPortal(gCfg);
   }
 
+  // The stored bridge host is only the last known good address: confirm
+  // it, or sweep the subnet for wherever the bridge has moved to.
+  Display::drawSearchingForBridge(0, 0);
+  String bridgeHost;
+  const bool bridgeFound = BridgeDiscovery::find(gCfg.bridge_host.c_str(), gCfg.bridge_port,
+                                                 bridgeHost, &onBridgeScanProgress);
+  if (bridgeFound && bridgeHost != gCfg.bridge_host) {
+    gCfg.bridge_host = bridgeHost;
+    Provisioning::setBridgeAddress(gCfg.bridge_host, gCfg.bridge_port);
+  }
+  if (!bridgeFound) {
+    Display::drawBridgeNotFound();
+    delay(kBridgeNotFoundHoldMs);
+  }
+
   EventRouter::begin();
   Bridge::onMessage(&EventRouter::onBridgeMessage);
   Bridge::onConnection(&EventRouter::onBridgeConnection);
-  Bridge::begin(gCfg.bridge_host.c_str(), gCfg.bridge_port, gCfg.bridge_token.c_str());
+  if (bridgeFound) {
+    Bridge::begin(gCfg.bridge_host.c_str(), gCfg.bridge_port, gCfg.bridge_token.c_str());
+  } else {
+    // Stay offline until reboot: the WS client blocks the loop for
+    // seconds per attempt when its target is unreachable.
+    LOG_WARN("bridge not found, running offline in idle mode");
+    EventRouter::startIdle();
+  }
 
   LOG_INFO("robot_v3 phase1+2 foundation ready");
 }
