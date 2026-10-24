@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let engine = SultanaEngine()
     private let socket = BridgeSocket()
     private let builtInBridge = BuiltInBridge()
+    private let claudePlugin = ClaudePlugin()
     private let attention = AttentionController()
     private let replay = ReplayController()
     private var dockTile: DockTileController!
@@ -92,10 +93,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             connectLive()
         }
-        if (!preferences.endpoint.isComplete && !replay.isPlaying) || env["SULTANA_DEBUG_SETTINGS"] != nil {
+        // The first launch opens Settings, where Claude Code's plugin is installed.
+        let firstLaunch = !UserDefaults.standard.bool(forKey: Self.launchedBeforeKey)
+        if firstLaunch { UserDefaults.standard.set(true, forKey: Self.launchedBeforeKey) }
+        if (!preferences.endpoint.isComplete && !replay.isPlaying) || firstLaunch
+            || env["SULTANA_DEBUG_SETTINGS"] != nil
+        {
             showSettings(nil)
         }
     }
+
+    private static let launchedBeforeKey = "launchedBefore"
 
     func applicationWillTerminate(_ notification: Notification) {
         socket.stop()
@@ -354,7 +362,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func showSettings(_ sender: Any?) {
         if settingsWindow == nil {
-            let view = SettingsView(preferences: preferences, status: status) { [weak self] in
+            let view = SettingsView(preferences: preferences, status: status, plugin: claudePlugin) { [weak self] in
                 guard let self else { return }
                 if self.replay.isPlaying { self.replay.stop() } else { self.connectLive() }
             }
@@ -444,6 +452,11 @@ extension AppDelegate: BridgeSocketDelegate {
 
     func bridgeSocket(_ socket: BridgeSocket, didReceive text: String) {
         guard !replay.isPlaying else { return }
+        if BridgeSignal.agent(ofFrame: text) == "claude",
+            status.lastClaudeHook.map({ Date().timeIntervalSince($0) >= 1 }) ?? true
+        {
+            status.lastClaudeHook = Date()
+        }
         handleFrame(text)
     }
 }

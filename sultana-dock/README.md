@@ -9,7 +9,8 @@ a turn ends, and can put the whole robot, arms and all, on your desktop.
 
 Status: phases 1–4 of [`docs/mac-app/PLAN.md`](../docs/mac-app/PLAN.md) and
 phases 1–2 of [`docs/sultana/PLAN.md`](../docs/sultana/PLAN.md) (the built-in
-bridge) are done. The robot is drawn from Lachlan's Figma design (file
+bridge) are done, and phase 3 (setup) has started: the app installs its
+Claude Code plugin. The robot is drawn from Lachlan's Figma design (file
 SCRATCHPAD, frame "SultanaExample", node 3189:9).
 
 ## Build and run
@@ -35,7 +36,7 @@ xcodebuild -project sultana-dock/SultanaDock.xcodeproj -scheme "Sultana Dock" -c
 The firmware's per-machine `robot_v3/src/config.h` must exist, as for the
 host build.
 
-The "Embed Bridge" build phase (`bridge/embed-bridge.sh`) bundles the bridge
+The "Embed Bridge and Plugin" build phase (`bridge/embed-bridge.sh`) bundles the bridge
 from `plugin/src/` and copies in the build machine's Node: `SULTANA_NODE` if
 set, else the first Node 20+ on PATH, through nvm, or in Homebrew's usual
 places. That Node's architectures become the bridge's. Release builds of the
@@ -74,9 +75,50 @@ variable while developing (below).
 
 ## Setting it up
 
-Nothing to set up for Claude Code beyond the `sultana` plugin
-([`sultana-plugin/`](../sultana-plugin/README.md)): the app runs the bridge
-on port 8787, where the plugin's hooks go. Settings ▸ Bridge:
+The first launch opens Settings. For Claude Code, all you need is Settings ▸
+Claude Code ▸ **Install Plugin**: the app runs the bridge itself on port
+8787, where the plugin's hooks go.
+
+### Claude Code
+
+The app carries its own copy of the `sultana` plugin
+([`sultana-plugin/`](../sultana-plugin/README.md)) in
+`Contents/Resources/ClaudePlugin/`, a marketplace holding just that plugin,
+and installs it with your `claude` command (`ClaudePlugin.swift`):
+
+```
+claude plugin validate <ClaudePlugin>            stop here if the copy is broken
+claude plugin uninstall sultana@sultana          (may fail: not installed)
+claude plugin marketplace remove sultana         (may fail: not added)
+claude plugin marketplace add <ClaudePlugin>
+claude plugin install sultana@sultana
+```
+
+- **One button, whatever the state:** Install Plugin, Update Plugin (installed
+  from another build of the app), Turn On (turned off in Claude Code) and
+  Reinstall all run those steps. Remove uninstalls it and removes the
+  marketplace.
+- **Versions:** the build stamps the bundled plugin's version with the app's
+  version and a hash of the plugin's files (`0.1.0+502dd526`), so the app
+  can tell when the installed copy is from another build.
+- **Finding `claude`:** apps don't get your shell's PATH, so it looks in
+  `~/.local/bin`, `~/.claude/local`, Homebrew, `~/.npm-global`, `~/.bun`,
+  `~/.volta` and nvm's versions, then asks your login shell
+  (`command -v claude`). If it isn't found, or a step fails, Settings shows
+  the commands to run yourself.
+- **State** is read from Claude Code's own files (`~/.claude`, or
+  `CLAUDE_CONFIG_DIR`): `plugins/installed_plugins.json` and `settings.json`.
+  Settings re-reads them whenever its window comes forward.
+- **Live check:** "Last hook from Claude Code 3 secs ago", from the events
+  the bridge passes on. Plugins load when a Claude Code session starts, so
+  after installing, start a new session or run `/reload-plugins`.
+- **Duplicates:** if the older `claude-code-bridge` plugin is on, or hooks in
+  `settings.json` still run `claude-hook-forward.mjs` or post to
+  `/hooks/claude`, Settings warns that every hook will arrive twice.
+
+### Bridge
+
+Settings ▸ Bridge:
 
 - **Use:** *Built-in bridge* (the default) or *External bridge*. Choose
   External to run a bridge yourself (`node plugin/dist/index.js`), here or on
@@ -298,8 +340,8 @@ noisy. The code streams are the worst case: the firmware renders them at
   if a firmware source file is added, add it to both.
 - The app's Swift sources live in `SultanaDock/`, a synchronized folder:
   new files there are picked up without editing the project.
-- `bridge/` holds the Embed Bridge build phase's script and the runtime's
-  entitlements. The phase reads `plugin/` and Node from outside the project,
+- `bridge/` holds the Embed Bridge and Plugin build phase's script and the
+  runtime's entitlements. The phase reads `plugin/` and Node from outside the project,
   so the app target has user script sandboxing off.
 - The icon art (squircle on Apple's 1024 grid, body shading, face size and
   border, shadow) lives in `SultanaDock/IconArt.swift`, shared by the live

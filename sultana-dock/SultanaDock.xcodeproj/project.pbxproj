@@ -268,7 +268,7 @@
 				7EC6D9E6268A1DE72A5C6080 /* Sources */,
 				00902D9DB823B3227B76DC9A /* Frameworks */,
 				3AF33F3745E98800474FFF1C /* Resources */,
-				5D1B7C2A9E3F4A6B8C0D1E2F /* Embed Bridge */,
+				5D1B7C2A9E3F4A6B8C0D1E2F /* Embed Bridge and Plugin */,
 			);
 			buildRules = (
 			);
@@ -334,7 +334,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		5D1B7C2A9E3F4A6B8C0D1E2F /* Embed Bridge */ = {
+		5D1B7C2A9E3F4A6B8C0D1E2F /* Embed Bridge and Plugin */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -344,7 +344,7 @@
 			);
 			inputPaths = (
 			);
-			name = "Embed Bridge";
+			name = "Embed Bridge and Plugin";
 			outputFileListPaths = (
 			);
 			outputPaths = (

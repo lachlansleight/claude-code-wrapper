@@ -12,6 +12,11 @@ Claude carries on.
 
 ## Install
 
+With Sultana Dock: Settings ▸ Claude Code ▸ **Install Plugin**. The app
+installs the copy it carries, so the hooks always match its bridge.
+
+Otherwise, in Claude Code:
+
 ```
 /plugin marketplace add lachlansleight/claude-code-wrapper
 /plugin install sultana@sultana

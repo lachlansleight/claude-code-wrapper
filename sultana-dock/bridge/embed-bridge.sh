@@ -1,11 +1,13 @@
 #!/bin/bash
-# Xcode build phase ("Embed Bridge"): puts the bridge inside Sultana Dock so
-# the app can run its own.
+# Xcode build phase ("Embed Bridge and Plugin"): puts the bridge inside
+# Sultana Dock so the app can run its own, and the sultana Claude Code plugin
+# so it can install it.
 #
 #   Contents/Helpers/sultana-bridge        Node, stripped, signed with
 #                                          sultana-bridge.entitlements
 #   Contents/Resources/bridge/bridge.mjs   the bridge as one file (plugin/scripts/bundle.mjs)
 #   Contents/Resources/bridge/licenses/    notices for Node and the bundled packages
+#   Contents/Resources/ClaudePlugin/       a marketplace holding only sultana-plugin/
 #
 # Node is SULTANA_NODE if set, else the first Node 20+ on PATH, through nvm,
 # or in Homebrew's usual places (Xcode runs build phases with a bare PATH).
@@ -72,6 +74,26 @@ if [ -f "$node_license" ]; then
 else
   echo "warning: Embed Bridge: no LICENSE beside $node; the app ships without Node's licence notice."
 fi
+
+# The plugin, as a one-plugin marketplace for `claude plugin marketplace add`.
+# Its version is the app's plus a hash of the plugin's files, so Claude Code
+# (and the app's Settings) can tell an installed copy from an older app.
+marketplace="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/ClaudePlugin"
+rm -rf "$marketplace"
+mkdir -p "$marketplace/.claude-plugin"
+cp -R "$repo/sultana-plugin" "$marketplace/sultana-plugin"
+plugin_hash="$(cd "$repo/sultana-plugin" && find . -type f ! -name README.md -print0 | sort -z | xargs -0 shasum | shasum | cut -c1-8)"
+"$node" -e '
+const fs = require("fs")
+const [source, dir, version] = process.argv.slice(1)
+const marketplace = JSON.parse(fs.readFileSync(source, "utf8"))
+marketplace.plugins = marketplace.plugins.filter((p) => p.name === "sultana")
+fs.writeFileSync(`${dir}/.claude-plugin/marketplace.json`, JSON.stringify(marketplace, null, 2) + "\n")
+const manifest = `${dir}/sultana-plugin/.claude-plugin/plugin.json`
+const plugin = JSON.parse(fs.readFileSync(manifest, "utf8"))
+plugin.version = version
+fs.writeFileSync(manifest, JSON.stringify(plugin, null, 2) + "\n")
+' "$repo/.claude-plugin/marketplace.json" "$marketplace" "${MARKETING_VERSION}+${plugin_hash}"
 
 # Copying, stripping and signing 100 MB takes a few seconds, so only do it
 # when Node, the identity or the entitlements change.

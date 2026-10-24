@@ -20,6 +20,15 @@ enum BridgeSignal: Equatable {
         let text: String?
     }
 
+    /// The agent an agent_event frame came from, or nil for other frames.
+    static func agent(ofFrame text: String) -> String? {
+        guard let data = text.data(using: .utf8),
+            let frame = try? JSONDecoder().decode(Frame.self, from: data),
+            frame.type == "agent_event"
+        else { return nil }
+        return frame.agent
+    }
+
     static func from(frame text: String) -> BridgeSignal? {
         guard let data = text.data(using: .utf8),
             let frame = try? JSONDecoder().decode(Frame.self, from: data),

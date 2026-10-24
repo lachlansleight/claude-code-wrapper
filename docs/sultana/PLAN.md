@@ -1,6 +1,6 @@
 # Sultana as a self-contained Claude Code plugin
 
-**Status:** agreed 2026-10-24. Phases 1 and 2 done (`feat/sultana-plugin`); phase 3 next.
+**Status:** agreed 2026-10-24. Phases 1 and 2 done (`feat/sultana-plugin`); phase 3 under way.
 **Builds on:** [`docs/mac-app/PLAN.md`](../mac-app/PLAN.md) (SultanaCore and
 Sultana Dock, phases 1–4 done).
 
@@ -115,7 +115,7 @@ bridge exactly as the old forwarder did, mid-turn text included, with no
 
 - **Runtime: Node plus a bundled file, not a single executable.** esbuild
   bundles the bridge and `ws` into one 206 KB ES module
-  (`npm run bundle` in `plugin/`). The Xcode build phase "Embed Bridge"
+  (`npm run bundle` in `plugin/`). The Xcode build phase "Embed Bridge and Plugin"
   (`sultana-dock/bridge/embed-bridge.sh`) puts it in the app with a copy of
   the build machine's Node, stripped of local symbols, hardened, and signed
   with `allow-jit` and `allow-unsigned-executable-memory`. Without those two
@@ -184,6 +184,33 @@ Not checked:
 2. Live check: wait for the first hook and say so.
 3. Open at login, show the robot, and a robot pairing page that shows the
    token to enter in the robot's setup portal.
+
+*Status: steps 1 and 2 done.*
+- **Plugin source:** the app carries its own copy of the plugin, as a
+  one-plugin marketplace in `Contents/Resources/ClaudePlugin/`, rather than
+  using the GitHub marketplace. That keeps the hooks in step with the
+  bundled bridge, works offline, and doesn't depend on what's on `main`.
+  The build stamps the plugin's version (`<app version>+<hash>`) so the app
+  can offer an update.
+- **Settings ▸ Claude Code:**
+  - Install Plugin, Update Plugin, Turn On or Reinstall: one idempotent
+    sequence, validating first so a broken copy removes nothing.
+  - Remove.
+  - A live "last hook" line.
+  - Warnings when something else also forwards hooks.
+  - The commands to run yourself when `claude` can't be found or a step
+    fails.
+- **First launch:** Settings opens.
+- **Checked:**
+  - Install, reinstall, remove, outdated, turned off, duplicate warnings and
+    a broken copy, all against throwaway `CLAUDE_CONFIG_DIR`s, including one
+    holding a copy of a real config's stale marketplace entry.
+  - Finding `claude` both ways (known paths and the login shell).
+  - Each state's Settings rendering.
+- **Not checked:** the button against a real `~/.claude`, or a machine
+  without Claude Code.
+- **Still to do:** the robot pairing page. Open at login and the robot
+  window are already in Settings.
 
 ### Phase 4: shipping
 

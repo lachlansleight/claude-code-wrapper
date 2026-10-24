@@ -6,6 +6,7 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var preferences: AppPreferences
     @ObservedObject var status: AppStatus
+    @ObservedObject var plugin: ClaudePlugin
     let onConnect: () -> Void
 
     @State private var host = ""
@@ -17,6 +18,8 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            claudeCodeSection
+
             Section {
                 Picker("Use", selection: $preferences.bridgeMode) {
                     ForEach(BridgeMode.allCases) { Text($0.label).tag($0) }
@@ -90,10 +93,94 @@ struct SettingsView: View {
             host = preferences.host
             portText = String(preferences.port)
             token = preferences.token
+            plugin.refresh()
+        }
+        // Claude Code's settings may have changed while the window was away.
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            plugin.refresh()
         }
         // The token is made on the built-in bridge's first run, maybe after
         // this window opened.
         .onChange(of: preferences.token) { _, newToken in token = newToken }
+    }
+
+    private var claudeCodeSection: some View {
+        Section {
+            LabeledContent("Sultana plugin") {
+                Text(pluginStateText).foregroundStyle(plugin.state == .installed ? Color.green : Color.secondary)
+            }
+            HStack {
+                if plugin.state == .notInstalled {
+                    pluginButton.buttonStyle(.borderedProminent)
+                } else {
+                    pluginButton
+                }
+                if plugin.isWorking { ProgressView().controlSize(.small) }
+                Spacer()
+                if plugin.state != .notInstalled {
+                    Button("Remove") { plugin.remove() }.disabled(plugin.isWorking)
+                }
+            }
+            if let lastHook = status.lastClaudeHook {
+                (Text("Last hook from Claude Code ") + Text(lastHook, style: .relative) + Text(" ago"))
+                    .foregroundStyle(.secondary).font(.callout)
+            } else if plugin.state != .notInstalled {
+                Text("No hooks from Claude Code yet. Plugins load when a session starts: start a new one, or run /reload-plugins in one that's open.")
+                    .foregroundStyle(.secondary).font(.callout)
+            }
+            ForEach(plugin.duplicateSenders, id: \.self) { warning in
+                Text("Every hook will arrive twice. \(warning)").foregroundStyle(.orange).font(.callout)
+            }
+            if let error = plugin.lastError {
+                Text(error).foregroundStyle(.red).font(.callout).textSelection(.enabled)
+            }
+            if plugin.lastError != nil || (plugin.hasLookedForCLI && plugin.cli == nil) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Or run these in a terminal:").font(.callout)
+                    Text(plugin.manualCommands).font(.system(.callout, design: .monospaced)).textSelection(.enabled)
+                    Button("Copy Commands") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(plugin.manualCommands, forType: .string)
+                    }
+                }
+            }
+        } header: {
+            Text("Claude Code")
+        } footer: {
+            Text(pluginFooterText).foregroundStyle(.secondary).font(.callout)
+        }
+    }
+
+    private var pluginButton: some View {
+        Button(pluginButtonTitle) { plugin.install() }
+            .disabled(plugin.isWorking || plugin.marketplaceURL == nil)
+    }
+
+    private var pluginStateText: String {
+        switch plugin.state {
+        case .notInstalled: "Not installed"
+        case .installed: "Installed"
+        case .outdated: "Installed from another version of Sultana Dock"
+        case .disabled: "Installed, but turned off"
+        }
+    }
+
+    private var pluginButtonTitle: String {
+        switch plugin.state {
+        case .notInstalled: "Install Plugin"
+        case .installed: "Reinstall"
+        case .outdated: "Update Plugin"
+        case .disabled: "Turn On"
+        }
+    }
+
+    private var pluginFooterText: String {
+        let what = "The plugin sends Claude Code's activity to Sultana."
+        guard plugin.hasLookedForCLI else { return what }
+        guard let cli = plugin.cli else {
+            return "\(what) Couldn't find the claude command: install Claude Code, or run the commands above."
+        }
+        return "\(what) Sultana Dock installs it with \(ClaudePlugin.tildePath(cli))."
     }
 
     @ViewBuilder private var builtInBridgeSettings: some View {
@@ -189,4 +276,6 @@ struct SettingsView: View {
 final class AppStatus: ObservableObject {
     @Published var text = "Starting…"
     @Published var isConnected = false
+    /// When the bridge last passed on an event from Claude Code.
+    @Published var lastClaudeHook: Date?
 }

@@ -39,7 +39,11 @@ curl http://127.0.0.1:8787/api/health
 
 ## 2. Install the plugin
 
-In Claude Code:
+With Sultana Dock, open Settings ▸ Claude Code and click **Install Plugin**
+(Settings opens by itself the first time you launch the app). Then start a
+new Claude Code session, or run `/reload-plugins` in one that's open.
+
+Without it, in Claude Code:
 
 ```
 /plugin marketplace add lachlansleight/claude-code-wrapper
