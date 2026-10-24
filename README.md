@@ -103,9 +103,11 @@ exports always override values from the file.
 
 ## Wire up your agent
 
-Each agent posts hook events to `POST /hooks/<agent>` with body
-`{ "hook_type": "...", "payload": <agent-native-payload> }`. See the
-per-agent guides:
+Each agent posts hook events to `POST /hooks/<agent>`, either wrapped as
+`{ "hook_type": "...", "payload": <agent-native-payload> }` (the forwarder
+scripts) or as the agent's raw hook JSON naming itself in `hook_event_name`
+(Claude Code's HTTP hooks, used by the `sultana` plugin in
+[`sultana-plugin/`](sultana-plugin/README.md)). See the per-agent guides:
 
 - [Claude Code](docs/getting-started/CLAUDE_CODE.md)
 - [Codex CLI](docs/getting-started/CODEX.md)
@@ -115,7 +117,10 @@ per-agent guides:
 ## HTTP API
 
 All endpoints except `/api/health` require
-`Authorization: Bearer $BRIDGE_TOKEN` (or `X-Bridge-Token: $BRIDGE_TOKEN`).
+`Authorization: Bearer $BRIDGE_TOKEN` (or `X-Bridge-Token: $BRIDGE_TOKEN`),
+with one exception: `POST /hooks/<agent>` from this machine is accepted
+without a token if it is JSON and has no `Origin` header (so Claude Code's
+HTTP hooks need no shell setup, and web pages can't forge hooks).
 
 | Method | Path                        | Purpose                                                   |
 |--------|-----------------------------|-----------------------------------------------------------|

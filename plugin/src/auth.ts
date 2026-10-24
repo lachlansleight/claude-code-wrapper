@@ -30,3 +30,27 @@ export function isValidToken(provided: string | null, expected: string): boolean
   }
   return mismatch === 0
 }
+
+const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1'])
+
+export function isLoopback(req: IncomingMessage): boolean {
+  return LOOPBACK_ADDRESSES.has(req.socket.remoteAddress ?? '')
+}
+
+/**
+ * Hook POSTs from this machine are accepted without a token. Claude Code's
+ * HTTP hooks can only put allow-listed environment variables in headers, so
+ * requiring a token would mean shell setup for every user (the sultana
+ * plugin sends none).
+ *
+ * Web pages open in a local browser must not be able to forge hooks, so the
+ * request must be JSON and carry no Origin header: browsers always send
+ * Origin on cross-origin POSTs, and can't send JSON cross-origin without a
+ * CORS preflight. Requests from other machines still need the token.
+ */
+export function isTrustedLocalHook(req: IncomingMessage): boolean {
+  if (!isLoopback(req)) return false
+  if (req.headers.origin !== undefined) return false
+  const contentType = String(req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase()
+  return contentType === 'application/json'
+}

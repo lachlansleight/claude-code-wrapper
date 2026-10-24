@@ -35,11 +35,13 @@ plugin/                       # bridge service (Node)
     activity-classify.ts      # tool name → ActivityKind table
     activity-summary.ts       # ActivityRef.summary builder
     adapters/{claude,codex,cursor,opencode,index,types}.ts
+    transcript.ts             # mid-turn assistant text from Claude transcripts
     hook-forward.ts           # Claude-side stdin→HTTP forwarder
     auth.ts, logger.ts, firebase.ts, types.ts, mojibake.ts, dotenv.ts
   hooks/hooks.json
   .claude-plugin/plugin.json
 .claude-plugin/marketplace.json
+sultana-plugin/               # the Claude Code plugin: hooks.json only (HTTP hooks)
 robot_v3/                     # ESP32-S3 firmware
   host/                       # SultanaCore: the firmware built for a desktop, replay CLI, fixtures, make test
 sultana-dock/                 # Sultana Dock macOS app (Xcode project; links SultanaCore)
@@ -108,16 +110,22 @@ adapter keeps one pending request per session and infers the resolution
 
 ## Working on this repo
 
-- After editing the bridge: `cd plugin && npm run build`. The Claude
-  Code plugin marketplace pin is keyed by commit hash, so to pick up
-  changes inside Claude Code:
+- After editing the bridge: `cd plugin && npm run build`, then restart it.
+- The Claude Code plugin is `sultana-plugin/` (HTTP hooks to the bridge on
+  127.0.0.1:8787; no Node, no token). The marketplace (`sultana`, in
+  `.claude-plugin/marketplace.json`) also lists the legacy
+  `claude-code-bridge` forwarder plugin; never enable both. Plugins are
+  pinned by commit, so to pick up plugin changes inside Claude Code:
   ```
-  /plugin marketplace remove claude-code-bridge-local
+  /plugin marketplace remove sultana
   /plugin marketplace add C:/path/to/claude-code-wrapper
   /reload-plugins
   ```
   Use a Windows-style absolute path with forward slashes — Git-Bash
-  paths (`/c/...`) get treated as git remotes and fail.
+  paths (`/c/...`) get treated as git remotes and fail. Test a plugin
+  change without installing: `claude --plugin-dir sultana-plugin`.
+- The plan for shipping Sultana as a self-contained plugin and app is
+  [`docs/sultana/PLAN.md`](docs/sultana/PLAN.md).
 - When editing firmware, **test on-device**. Type-checking / Arduino
   compile aren't enough for servo or display work. If no hardware is
   available, say so explicitly.

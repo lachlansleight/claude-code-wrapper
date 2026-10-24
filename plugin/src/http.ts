@@ -4,12 +4,13 @@ import { createServer, type IncomingMessage, type ServerResponse, type Server as
 import { randomUUID } from 'node:crypto'
 import { bus } from './bus.js'
 import { state } from './state.js'
-import { extractTokenFromHeaders, isValidToken } from './auth.js'
+import { extractTokenFromHeaders, isTrustedLocalHook, isValidToken } from './auth.js'
 import { logger } from './logger.js'
 import { getParser, listAdapterNames, ParsedEvent } from './adapters/index.js'
 import type { AgentEvent, AgentEventEnvelope, AgentName } from './agent-event.js'
 import type { BridgeConfig } from './types.js'
 import { repairMojibakeDeep } from './mojibake.js'
+import { enrichWithTranscriptText } from './transcript.js'
 
 const LOGS_DIR = 'logs'
 
@@ -118,7 +119,9 @@ function json(res: ServerResponse, status: number, body: unknown): void {
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = []
   let total = 0
-  const MAX = 1_000_000
+  // Claude's PostToolUse payloads include the tool's input and output, which can
+  // be large (a big file write); the sultana plugin sends them unfiltered.
+  const MAX = 16_000_000
   for await (const chunk of req) {
     const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
     total += buf.length
@@ -305,8 +308,10 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
     return
   }
 
-  // All other endpoints require auth.
-  if (!isValidToken(extractTokenFromHeaders(req), config.token)) {
+  // All other endpoints require auth, except hook POSTs from this machine
+  // (see isTrustedLocalHook).
+  const localHook = method === 'POST' && path.startsWith('/hooks/') && isTrustedLocalHook(req)
+  if (!localHook && !isValidToken(extractTokenFromHeaders(req), config.token)) {
     json(res, 401, { error: 'unauthorized' })
     return
   }
@@ -314,14 +319,26 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
   // /hooks/:agent — generic per-agent hook receiver.
   if (method === 'POST' && path.startsWith('/hooks/')) {
     const agent = decodeURIComponent(path.slice('/hooks/'.length))
-    const body = repairMojibakeDeep(await readJsonBody(req)) as { hook_type?: unknown; payload?: unknown }
-    if (typeof body.hook_type !== 'string' || body.hook_type.length === 0) {
+    const body = repairMojibakeDeep(await readJsonBody(req)) as Record<string, unknown>
+    // Two shapes: the forwarder scripts wrap the hook as { hook_type, payload };
+    // Claude Code's HTTP hooks (the sultana plugin) send the raw hook JSON,
+    // which names itself in hook_event_name.
+    let hookType: string
+    let payload: unknown
+    if (typeof body.hook_type === 'string' && body.hook_type.length > 0) {
+      hookType = body.hook_type
+      payload = body.payload
+    } else if (typeof body.hook_event_name === 'string' && body.hook_event_name.length > 0) {
+      hookType = body.hook_event_name
+      payload = body
+    } else {
       json(res, 400, { error: 'hook_type_required' })
       return
     }
+    if (agent === 'claude') payload = enrichWithTranscriptText(hookType, payload)
     const parser = getParser(agent)
-    const parsedEvents = parser?.parse({ hook_type: body.hook_type, payload: body.payload }) || [];
-    const result = processAgentHook(agent, (parser?.name || agent) as AgentName, body.hook_type, parsedEvents, body.payload ?? null)
+    const parsedEvents = parser?.parse({ hook_type: hookType, payload }) || [];
+    const result = processAgentHook(agent, (parser?.name || agent) as AgentName, hookType, parsedEvents, payload ?? null)
     if (!result.ok) {
       json(res, 400, { error: result.error })
       return

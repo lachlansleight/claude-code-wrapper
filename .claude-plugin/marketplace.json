@@ -1,14 +1,22 @@
 {
-  "name": "claude-code-bridge-local",
+  "name": "sultana",
   "owner": {
     "name": "Lachlan Sleight",
     "email": "lachlan@liquid.city"
   },
+  "metadata": {
+    "description": "Sultana: a robot (and Mac app) that shows what your coding agent is doing."
+  },
   "plugins": [
+    {
+      "name": "sultana",
+      "source": "./sultana-plugin",
+      "description": "Sends Claude Code's hooks to the Sultana bridge on this machine. No Node, no shell setup."
+    },
     {
       "name": "claude-code-bridge",
       "source": "./plugin",
-      "description": "Claude Code plugin: wires lifecycle hooks to a separately-running HTTP/WebSocket bridge for robots, dashboards, or other subscribers."
+      "description": "Legacy: forwards hooks through a Node script that needs BRIDGE_TOKEN in your shell. Superseded by the sultana plugin; don't enable both."
     }
   ]
 }

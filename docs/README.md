@@ -45,6 +45,14 @@ quickstart; the rest lives here.
   checklist for adding a `Face::Expression` / `kBaseTargets` row and
   keeping emotion tables, blend, palette, motion, and simulator in sync.
 
+## Sultana as a self-contained plugin
+
+- [sultana/PLAN.md](sultana/PLAN.md) — the plan for shipping Sultana as a
+  Claude Code plugin plus app, with the bridge running inside the app and no
+  shell setup. Linux and Windows later.
+- [../sultana-plugin/README.md](../sultana-plugin/README.md) — the plugin:
+  Claude Code HTTP hooks to the bridge on this machine.
+
 ## Sultana Dock (Mac app) and the host build
 
 - [mac-app/README.md](mac-app/README.md) — goals and design brief for

@@ -213,12 +213,13 @@ export const claudeParser: Parser = {
       }
 
       case 'Stop': {
-        // claude-hook-forward.mjs enriches the payload with assistant_text scraped
-        // from the transcript. Last block is the final reply.
+        // assistant_text is scraped from the transcript (by the bridge, or by the
+        // legacy forwarder); its last block is the final reply. Claude also sends
+        // the final reply itself as last_assistant_message.
         const blocks = Array.isArray(p.assistant_text)
           ? (p.assistant_text as unknown[]).filter((t): t is string => typeof t === 'string')
           : []
-        const last = blocks[blocks.length - 1]
+        const last = blocks[blocks.length - 1] || asString(p.last_assistant_message) || undefined
         const out: ParsedEvent[] = [...resolvePendingPermission(session_id, 'deny')]
         if (last) {
           out.push({ event: { kind: 'message.assistant', text: last, final: true }, session_id })
