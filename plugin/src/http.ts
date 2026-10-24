@@ -189,6 +189,11 @@ function rawCapabilitiesCatalog(): Record<string, unknown> {
         body: { display_mode: 'face' },
         note: 'display_mode: face | text | debug',
       },
+      {
+        path: '/api/raw/config/motors-disabled',
+        body: { motors_disabled: true },
+        note: 'true = arm servo held centred (movement off); false = re-enable. Persisted in device NVS.',
+      },
       { path: '/api/raw/config/set-color', body: { color: 0, r: 0, g: 0, b: 0 }, note: 'color = NamedColor index on device' },
       { path: '/api/raw/servo/hold', body: { angle: 0, duration_ms: 3000 } },
     ],
@@ -702,6 +707,17 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
       return
     }
     emitRawToClients({ type: 'config_change', display_mode: body.display_mode })
+    json(res, 200, { ok: true })
+    return
+  }
+
+  if (method === 'POST' && path === '/api/raw/config/motors-disabled') {
+    const body = (await readJsonBody(req)) as { motors_disabled?: unknown }
+    if (typeof body.motors_disabled !== 'boolean') {
+      json(res, 400, { error: 'motors_disabled_must_be_boolean' })
+      return
+    }
+    emitRawToClients({ type: 'config_change', motors_disabled: body.motors_disabled })
     json(res, 200, { ok: true })
     return
   }

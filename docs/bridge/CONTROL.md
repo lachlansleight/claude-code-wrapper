@@ -85,7 +85,8 @@ Supported actions include:
 These are not behaviour, but are helpful for debugging:
 
 ```json
-{ "type": "config_change", "display_mode": "face" }   // or "text"
+{ "type": "config_change", "display_mode": "face" }   // or "text" / "debug"
+{ "type": "config_change", "motors_disabled": true }  // hold arm servo centred; false re-enables (persisted in device NVS)
 { "type": "setColor", "color": 1, "r": 255, "g": 255, "b": 255 }  // palette entry by index (robot_v3)
 { "type": "set_servo_position", "angle": 0, "duration_ms": 2000 }
 ```

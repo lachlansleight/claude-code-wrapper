@@ -37,6 +37,7 @@ import { VerbSchemaPanel } from "./VerbSchemaPanel";
 import { VerbButtons } from "./VerbButtons";
 import PanelModeSwitcher, { type SimulatorPanelMode } from "./PanelModeSwitcher";
 import { LogEntryInspector, LogReplayPanel } from "./LogReplayPanel";
+import { SettingsPanel } from "./SettingsPanel";
 import type { TurnLogEntry } from "../../_lib/face-editor/logReplay";
 import { SaveFaceConfigButton } from "./SaveFaceConfigButton";
 import { StreamEffectPanel } from "./StreamEffectPanel";
@@ -139,6 +140,7 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
 
     const verbTimelineMode = simulatorMode === "verbTimeline";
     const logReplayMode = simulatorMode === "logReplay";
+    const settingsMode = simulatorMode === "settings";
     const verbTimelinePlaying = verbPlaySpeed !== 0;
 
     const verbEnum = useMemo(
@@ -222,6 +224,14 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
         setVerbPlaySpeed(0);
         fc.setVerbTimelinePreview(null);
         setSimulatorMode("logReplay");
+    }, [fc]);
+
+    const setModeSettings = useCallback(() => {
+        verbDropdownAwaitingEngineRef.current = false;
+        fc.setBlendVerbPreview(null);
+        setVerbPlaySpeed(0);
+        fc.setVerbTimelinePreview(null);
+        setSimulatorMode("settings");
     }, [fc]);
 
     useEffect(() => {
@@ -552,6 +562,7 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
                             if (m === "blend") setModeBlend();
                             if (m === "verbTimeline") setModeVerbTimeline();
                             if (m === "logReplay") setModeLogReplay();
+                            if (m === "settings") setModeSettings();
                         }}
                     />
 
@@ -562,7 +573,7 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
                         fps={fps}
                     />
 
-                    {logReplayMode ? null : verbTimelineMode ? (
+                    {logReplayMode || settingsMode ? null : verbTimelineMode ? (
                         <>
                             <VerbSchemaPanel
                                 fc={fc}
@@ -590,7 +601,7 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
                         </>
                     )}
 
-                    {logReplayMode ? null : (
+                    {logReplayMode || settingsMode ? null : (
                         <StreamEffectPanel value={streamEffect} onChange={setStreamEffect} />
                     )}
                 </div>
@@ -602,6 +613,8 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
                             onSelectIndex={setLogSelectedIndex}
                             onEntriesChange={setLogEntries}
                         />
+                    ) : settingsMode ? (
+                        <SettingsPanel />
                     ) : verbTimelineMode ? (
                         <>
                             <VerbTimelinePanel
@@ -660,7 +673,7 @@ function FaceSimulatorInner({ fc }: { fc: FrameController }) {
                                     : null
                             }
                         />
-                    ) : verbTimelineMode ? (
+                    ) : settingsMode ? null : verbTimelineMode ? (
                         <KeyframeInspector
                             verbName={verbTimelineName}
                             tab={verbTab}

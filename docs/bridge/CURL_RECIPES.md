@@ -53,6 +53,25 @@ curl -X POST "$BRIDGE_URL/api/raw/verb/overlay" \
   -d '{"verb":"attracting_attention","duration_ms":1200}'
 ```
 
+Switch the robot's display mode (`face` / `text` / `debug`):
+
+```bash
+curl -X POST "$BRIDGE_URL/api/raw/config/display-mode" \
+  -H "Authorization: Bearer $BRIDGE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"display_mode":"face"}'
+```
+
+Disable / re-enable arm movement (`true` holds the servo centred; persisted on
+the device, so it survives reboot):
+
+```bash
+curl -X POST "$BRIDGE_URL/api/raw/config/motors-disabled" \
+  -H "Authorization: Bearer $BRIDGE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"motors_disabled":true}'
+```
+
 Send an arbitrary WS frame verbatim:
 
 ```bash
