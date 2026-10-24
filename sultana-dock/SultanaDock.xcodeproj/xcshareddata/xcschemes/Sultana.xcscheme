@@ -15,8 +15,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "29C7B681C8D62CBAC94D51C0"
-               BuildableName = "Sultana Dock.app"
-               BlueprintName = "Sultana Dock"
+               BuildableName = "Sultana.app"
+               BlueprintName = "Sultana"
                ReferencedContainer = "container:SultanaDock.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -43,8 +43,8 @@
          <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "29C7B681C8D62CBAC94D51C0"
-               BuildableName = "Sultana Dock.app"
-               BlueprintName = "Sultana Dock"
+               BuildableName = "Sultana.app"
+               BlueprintName = "Sultana"
                ReferencedContainer = "container:SultanaDock.xcodeproj">
             </BuildableReference>
       </BuildableProductRunnable>
@@ -77,8 +77,8 @@
          <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "29C7B681C8D62CBAC94D51C0"
-               BuildableName = "Sultana Dock.app"
-               BlueprintName = "Sultana Dock"
+               BuildableName = "Sultana.app"
+               BlueprintName = "Sultana"
                ReferencedContainer = "container:SultanaDock.xcodeproj">
             </BuildableReference>
       </BuildableProductRunnable>

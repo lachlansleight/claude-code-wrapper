@@ -1,4 +1,4 @@
-// Renders Sultana Dock's static app icon with the same drawing code as the
+// Renders Sultana's static app icon with the same drawing code as the
 // live Dock tile (SultanaDock/IconArt.swift), around a frame the firmware
 // drew.
 //

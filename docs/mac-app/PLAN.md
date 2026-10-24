@@ -5,7 +5,7 @@ firmware fixes). Phase 5 (design) is largely covered by Lachlan's Figma
 work; see `sultana-dock/README.md`.
 **Written:** 2026-10-24 against `main` at `0baabc3`.
 **Names:** the robot and project are called Sultana. The Mac app is
-**Sultana Dock**, the host build of the firmware core is **SultanaCore**
+**Sultana Dock** (since renamed **Sultana**), the host build of the firmware core is **SultanaCore**
 (C API prefix `sultana_core_`), and its CLI is **`sultana-replay`**.
 **Supersedes:** the "Recommended architecture", "Alternatives considered"
 and "Work plan" sections of [`README.md`](README.md), and the TypeScript /
@@ -646,7 +646,7 @@ window's final look.
 
 | Decision | Plan's default | Alternatives |
 |---|---|---|
-| App name and bundle id | **decided:** Sultana Dock, `com.lachlansleight.sultana.dock` | — |
+| App name and bundle id | **decided:** Sultana Dock, `com.lachlansleight.sultana.dock`; renamed **Sultana** later, bundle id kept | — |
 | Bounce on `turn.ended` | once (`.informationalRequest`), any session, any cause | `.criticalRequest`; only `cause == completed` |
 | Bounce on attention | on | off |
 | Robot window style | **decided:** borderless desktop pet only, no window chrome | — |

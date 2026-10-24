@@ -11,13 +11,25 @@ import type { AgentEvent, AgentName, AgentEventEnvelope } from './agent-event.js
 const VERSION = '0.3.0'
 const WS_PATH = '/ws'
 
-interface ClientInfo {
+export interface ClientInfo {
   client_id: string
+  /** Remote IP address, IPv4-mapped addresses unwrapped. */
+  address: string
+  /** The handshake's User-Agent; the robot's is `arduino-WebSocket-Client`. */
+  user_agent: string
+  /** Epoch ms. */
+  connected_at: number
+}
+
+const clients = new Map<WebSocket, ClientInfo>()
+
+/** Who's connected over WebSocket, for GET /api/clients. */
+export function listClients(): ClientInfo[] {
+  return [...clients.values()]
 }
 
 export function attachWebSocketServer(config: BridgeConfig): (httpServer: HttpServer) => void {
   const wss = new WebSocketServer({ noServer: true })
-  const clients = new Map<WebSocket, ClientInfo>()
 
   function broadcast(payload: unknown): void {
     const data = JSON.stringify(payload)
@@ -39,8 +51,10 @@ export function attachWebSocketServer(config: BridgeConfig): (httpServer: HttpSe
 
   wss.on('connection', (ws, req: IncomingMessage) => {
     const client_id = `ws_${randomUUID()}`
-    clients.set(ws, { client_id })
-    logger.info(`ws connected client_id=${client_id} total=${clients.size}`)
+    const address = (req.socket.remoteAddress ?? '').replace(/^::ffff:/, '')
+    const user_agent = String(req.headers['user-agent'] ?? '')
+    clients.set(ws, { client_id, address, user_agent, connected_at: Date.now() })
+    logger.info(`ws connected client_id=${client_id} address=${address} total=${clients.size}`)
     ws.send(JSON.stringify({ type: 'hello', client_id, server_version: VERSION }))
     ws.send(JSON.stringify({ type: 'active_sessions', session_ids: state.listActiveSessions() }))
 

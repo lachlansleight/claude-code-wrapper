@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let socket = BridgeSocket()
     private let builtInBridge = BuiltInBridge()
     private let claudePlugin = ClaudePlugin()
+    private lazy var robotMonitor = RobotMonitor(preferences: preferences)
     private let attention = AttentionController()
     private let replay = ReplayController()
     private var dockTile: DockTileController!
@@ -93,13 +94,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             connectLive()
         }
-        // The first launch opens Settings, where Claude Code's plugin is installed.
+        // The first launch opens Settings ▸ Setup, where Claude Code's plugin
+        // is installed and robots are paired.
         let firstLaunch = !UserDefaults.standard.bool(forKey: Self.launchedBeforeKey)
         if firstLaunch { UserDefaults.standard.set(true, forKey: Self.launchedBeforeKey) }
-        if (!preferences.endpoint.isComplete && !replay.isPlaying) || firstLaunch
-            || env["SULTANA_DEBUG_SETTINGS"] != nil
-        {
-            showSettings(nil)
+        if !preferences.endpoint.isComplete && !replay.isPlaying {
+            showSettings(tab: .bridge)
+        } else if firstLaunch {
+            showSettings(tab: .setup)
+        } else if let tab = env["SULTANA_DEBUG_SETTINGS"] {
+            showSettings(tab: SettingsTab(rawValue: tab) ?? .setup)
         }
     }
 
@@ -118,7 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// frontmost; bounces resume as soon as you switch away.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if connectionNeedsFixing {
-            showSettings(nil)
+            showSettings(tab: .bridge)
         } else {
             preferences.robotWindowVisible = true
             robotWindow.show()
@@ -279,7 +283,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case (.connected, _): return ("Connected to the built-in bridge", true)
         case (.unauthorized, .portInUse): return ("The bridge already running on port \(endpoint.port) rejected the token", false)
         case (.unauthorized, _): return ("The built-in bridge rejected the token", false)
-        case (_, .unavailable): return ("This build of Sultana Dock doesn't include the bridge", false)
+        case (_, .unavailable): return ("This build of Sultana doesn't include the bridge", false)
         case (_, .portInUse): return ("Port \(endpoint.port) is in use by another program", false)
         case (_, .failed(let reason)): return ("The built-in bridge \(reason); restarting it", false)
         case (_, .running): return ("Connecting to the built-in bridge…", false)
@@ -360,14 +364,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: Settings and replay
 
+    private func showSettings(tab: SettingsTab) {
+        status.settingsTab = tab
+        showSettings(nil)
+    }
+
     @objc func showSettings(_ sender: Any?) {
         if settingsWindow == nil {
-            let view = SettingsView(preferences: preferences, status: status, plugin: claudePlugin) { [weak self] in
+            let view = SettingsView(
+                preferences: preferences, status: status, plugin: claudePlugin, robots: robotMonitor
+            ) { [weak self] in
                 guard let self else { return }
                 if self.replay.isPlaying { self.replay.stop() } else { self.connectLive() }
             }
             let window = NSWindow(contentViewController: NSHostingController(rootView: view))
-            window.title = "Sultana Dock Settings"
+            window.title = "Sultana Settings"
             window.styleMask = [.titled, .closable]
             window.isReleasedWhenClosed = false
             window.center()
@@ -486,9 +497,9 @@ enum MainMenu {
     static func build(target: AppDelegate) -> NSMenu {
         let main = NSMenu()
 
-        let app = NSMenu(title: "Sultana Dock")
+        let app = NSMenu(title: "Sultana")
         app.addItem(
-            withTitle: "About Sultana Dock", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+            withTitle: "About Sultana", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
             keyEquivalent: "")
         app.addItem(.separator())
         app.addItem(withTitle: "Settings…", action: #selector(AppDelegate.showSettings(_:)), keyEquivalent: ",")
@@ -499,14 +510,14 @@ enum MainMenu {
         app.addItem(withTitle: "Stop Replay", action: #selector(AppDelegate.stopReplay(_:)), keyEquivalent: ".")
             .target = target
         app.addItem(.separator())
-        app.addItem(withTitle: "Hide Sultana Dock", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        app.addItem(withTitle: "Hide Sultana", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         app.addItem(
             withTitle: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h"
         ).keyEquivalentModifierMask = [.command, .option]
         app.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         app.addItem(.separator())
-        app.addItem(withTitle: "Quit Sultana Dock", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        main.addItem(withTitle: "Sultana Dock", action: nil, keyEquivalent: "").submenu = app
+        app.addItem(withTitle: "Quit Sultana", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        main.addItem(withTitle: "Sultana", action: nil, keyEquivalent: "").submenu = app
 
         let edit = NSMenu(title: "Edit")
         edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")

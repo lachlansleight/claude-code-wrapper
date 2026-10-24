@@ -118,6 +118,15 @@ curl -H "Authorization: Bearer $BRIDGE_TOKEN" \
 curl -H "Authorization: Bearer $BRIDGE_TOKEN" "$BRIDGE_URL/api/state"
 ```
 
+## See who's connected (robots, apps, browsers)
+
+```bash
+curl -H "Authorization: Bearer $BRIDGE_TOKEN" "$BRIDGE_URL/api/clients"
+# {"clients":[{"client_id":"ws_…","address":"192.168.1.42","user_agent":"arduino-WebSocket-Client","connected_at":1792834766375}]}
+```
+
+A robot's User-Agent is `arduino-WebSocket-Client`.
+
 ## List currently-pending permission requests
 
 ```bash

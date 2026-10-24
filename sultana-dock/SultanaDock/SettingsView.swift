@@ -2,24 +2,83 @@ import AppKit
 import ServiceManagement
 import SwiftUI
 
-/// Bridge and behaviour settings.
+enum SettingsTab: String, CaseIterable {
+    case setup, bridge, general
+}
+
+/// Settings, in three tabs: Setup (Claude Code's plugin, pairing a robot,
+/// start-up), Bridge, and General (the robot window and the Dock).
 struct SettingsView: View {
     @ObservedObject var preferences: AppPreferences
     @ObservedObject var status: AppStatus
     @ObservedObject var plugin: ClaudePlugin
+    @ObservedObject var robots: RobotMonitor
     let onConnect: () -> Void
 
     @State private var host = ""
     @State private var portText = ""
     @State private var token = ""
+    @State private var revealToken = false
+    /// Nil until toggled: the steps start open unless a robot is connected.
+    @State private var robotStepsExpanded: Bool?
     @State private var importError: String?
     @State private var loginStatus = LoginItem.status
     @State private var loginError: String?
 
     var body: some View {
+        TabView(selection: $status.settingsTab) {
+            setupTab.tabItem { Text("Setup") }.tag(SettingsTab.setup)
+            bridgeTab.tabItem { Text("Bridge") }.tag(SettingsTab.bridge)
+            generalTab.tabItem { Text("General") }.tag(SettingsTab.general)
+        }
+        .frame(width: 460)
+        .fixedSize()
+        .onAppear {
+            host = preferences.host
+            portText = String(preferences.port)
+            token = preferences.token
+            plugin.refresh()
+        }
+        // Claude Code's settings may have changed while the window was away.
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            plugin.refresh()
+        }
+        // The token is made on the built-in bridge's first run, maybe after
+        // this window opened.
+        .onChange(of: preferences.token) { _, newToken in token = newToken }
+    }
+
+    // MARK: Tabs
+
+    private var setupTab: some View {
         Form {
             claudeCodeSection
+            robotSection
+            Section("Start-up") {
+                Toggle("Open at login", isOn: Binding(
+                    get: { loginStatus == .enabled || loginStatus == .requiresApproval },
+                    set: setOpenAtLogin))
+                if loginStatus == .requiresApproval {
+                    HStack {
+                        Text("Allow Sultana under Login Items to finish.")
+                            .foregroundStyle(.secondary).font(.callout)
+                        Spacer()
+                        Button("Open Login Items") { SMAppService.openSystemSettingsLoginItems() }
+                    }
+                }
+                if let loginError {
+                    Text(loginError).foregroundStyle(.red).font(.callout)
+                }
+                Toggle("Show the robot on the desktop", isOn: $preferences.robotWindowVisible)
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear { robots.start() }
+        .onDisappear { robots.stop() }
+    }
 
+    private var bridgeTab: some View {
+        Form {
             Section {
                 Picker("Use", selection: $preferences.bridgeMode) {
                     ForEach(BridgeMode.allCases) { Text($0.label).tag($0) }
@@ -43,31 +102,21 @@ struct SettingsView: View {
                     Text(status.text).foregroundStyle(status.isConnected ? Color.green : Color.secondary)
                     Text(
                         preferences.mode == .builtIn
-                            ? "Sultana Dock runs the bridge on port \(String(AppPreferences.builtInPort)), where the sultana Claude Code plugin sends its hooks."
+                            ? "Sultana runs the bridge on port \(String(AppPreferences.builtInPort)), where the sultana Claude Code plugin sends its hooks."
                             : "Connect to a bridge you run yourself (node plugin/dist/index.js), here or on another computer."
                     )
                     .foregroundStyle(.secondary)
                 }
                 .font(.callout)
             }
+        }
+        .formStyle(.grouped)
+    }
 
-            Section("General") {
-                Toggle("Open at login", isOn: Binding(
-                    get: { loginStatus == .enabled || loginStatus == .requiresApproval },
-                    set: setOpenAtLogin))
-                if loginStatus == .requiresApproval {
-                    HStack {
-                        Text("Allow Sultana Dock under Login Items to finish.")
-                            .foregroundStyle(.secondary).font(.callout)
-                        Spacer()
-                        Button("Open Login Items") { SMAppService.openSystemSettingsLoginItems() }
-                    }
-                }
-                if let loginError {
-                    Text(loginError).foregroundStyle(.red).font(.callout)
-                }
-                Toggle("Show the robot window", isOn: $preferences.robotWindowVisible)
-                Toggle("Keep the robot window on top", isOn: $preferences.robotWindowOnTop)
+    private var generalTab: some View {
+        Form {
+            Section("Robot window") {
+                Toggle("Keep the robot on top of other windows", isOn: $preferences.robotWindowOnTop)
                 HStack {
                     ColorPicker("Arm colour", selection: armColor, supportsOpacity: false)
                     if preferences.armColorHex.uppercased() != RobotLayout.defaultArmColorHex {
@@ -87,22 +136,9 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 440)
-        .fixedSize()
-        .onAppear {
-            host = preferences.host
-            portText = String(preferences.port)
-            token = preferences.token
-            plugin.refresh()
-        }
-        // Claude Code's settings may have changed while the window was away.
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
-            plugin.refresh()
-        }
-        // The token is made on the built-in bridge's first run, maybe after
-        // this window opened.
-        .onChange(of: preferences.token) { _, newToken in token = newToken }
     }
+
+    // MARK: Setup ▸ Claude Code
 
     private var claudeCodeSection: some View {
         Section {
@@ -160,7 +196,7 @@ struct SettingsView: View {
         switch plugin.state {
         case .notInstalled: "Not installed"
         case .installed: "Installed"
-        case .outdated: "Installed from another version of Sultana Dock"
+        case .outdated: "Installed from another version of Sultana"
         case .disabled: "Installed, but turned off"
         }
     }
@@ -180,28 +216,143 @@ struct SettingsView: View {
         guard let cli = plugin.cli else {
             return "\(what) Couldn't find the claude command: install Claude Code, or run the commands above."
         }
-        return "\(what) Sultana Dock installs it with \(ClaudePlugin.tildePath(cli))."
+        return "\(what) Sultana installs it with \(ClaudePlugin.tildePath(cli))."
     }
 
-    @ViewBuilder private var builtInBridgeSettings: some View {
-        Toggle("Let robots on my network connect", isOn: $preferences.allowNetworkRobots)
-        if preferences.allowNetworkRobots {
-            Text("Robots on the same network find this Mac by themselves, and connect with this token.")
-                .foregroundStyle(.secondary).font(.callout)
-        }
-        HStack {
-            SecureField("Token", text: $token, prompt: Text("Robots connect with this"))
-            Button("Copy") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(token, forType: .string)
+    // MARK: Setup ▸ Robot
+
+    /// Pairing: the steps for the robot's setup portal (hold BOOT at power-on,
+    /// join its robot-XXXX network, open the page its screen shows) and the
+    /// values to type there, with a live list of connected robots.
+    private var robotSection: some View {
+        Section {
+            if preferences.mode == .builtIn {
+                Toggle("Let robots on my network connect", isOn: $preferences.allowNetworkRobots)
             }
-            .disabled(token.isEmpty)
+            LabeledContent("Robot") {
+                Text(robotStatusText).foregroundStyle(connectedRobots.isEmpty ? Color.secondary : Color.green)
+            }
+            DisclosureGroup(
+                "How to set up a robot",
+                isExpanded: Binding(
+                    get: { robotStepsExpanded ?? connectedRobots.isEmpty },
+                    set: { robotStepsExpanded = $0 })
+            ) {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(robotSteps.enumerated()), id: \.offset) { index, step in
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text("\(index + 1).").monospacedDigit()
+                            Text(step).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .font(.callout)
+                .padding(.vertical, 4)
+                LabeledContent("Bridge host") {
+                    HStack {
+                        Text(robotHost).font(.system(.body, design: .monospaced)).textSelection(.enabled).fixedSize()
+                        copyButton(robotHost)
+                    }
+                }
+                LabeledContent("Port") {
+                    Text(String(preferences.endpoint.port)).font(.system(.body, design: .monospaced))
+                }
+                robotTokenRow
+            }
+        } header: {
+            Text("Robot")
+        } footer: {
+            Text(
+                "If this Mac's address changes, the robot looks for it on your network by itself. With the macOS firewall on, allow sultana-bridge to accept incoming connections."
+            )
+            .foregroundStyle(.secondary).font(.callout)
         }
+    }
+
+    private var connectedRobots: [RobotMonitor.Robot] {
+        if case .connected(let list) = robots.status { return list }
+        return []
+    }
+
+    private var robotStatusText: String {
+        switch robots.status {
+        case .checking: return "Checking…"
+        case .unavailable(let reason): return reason
+        case .connected(let list):
+            if list.count == 1 { return "Connected at \(list[0].address)" }
+            if list.count > 1 { return "\(list.count) connected: \(list.map(\.address).joined(separator: ", "))" }
+            if preferences.mode == .builtIn && !preferences.allowNetworkRobots { return "Can't connect until you let it" }
+            return "None connected"
+        }
+    }
+
+    private var robotSteps: [String] {
+        var steps: [String] = []
+        if preferences.mode == .builtIn && !preferences.allowNetworkRobots {
+            steps.append("Turn on Let robots on my network connect, above.")
+        }
+        steps += [
+            "Hold the robot's BOOT button while you plug it in, until its screen says CONFIG MODE.",
+            "On your phone or this Mac, join the robot-… WiFi network it shows, then open the address under it in a browser (usually http://192.168.4.1).",
+            "Enter your WiFi network and password, and the bridge host, port and token below. Save, and the robot restarts and connects.",
+        ]
+        return steps
+    }
+
+    /// What the robot's portal calls the bridge host: this Mac, unless an
+    /// external bridge runs on another computer.
+    private var robotHost: String {
+        let host = preferences.endpoint.host
+        let local = ["127.0.0.1", "localhost", "::1"].contains(host)
+        return local ? (LocalNetwork.ipv4Address() ?? "this Mac's IP address") : host
+    }
+
+    @ViewBuilder private var robotTokenRow: some View {
+        if preferences.mode == .builtIn {
+            LabeledContent("Token") {
+                HStack {
+                    if revealToken {
+                        TextField("Token", text: $token, prompt: Text("Not set"))
+                            .font(.system(.body, design: .monospaced)).labelsHidden()
+                    } else {
+                        SecureField("Token", text: $token, prompt: Text("Not set")).labelsHidden()
+                    }
+                    Button(revealToken ? "Hide" : "Show") { revealToken.toggle() }
+                    copyButton(token)
+                }
+            }
+            if token != preferences.token {
+                HStack {
+                    Text("To use your robot's existing token, paste it here.").foregroundStyle(.secondary).font(.callout)
+                    Spacer()
+                    Button("Save Token", action: saveToken)
+                        .disabled(token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        } else {
+            LabeledContent("Token") {
+                HStack {
+                    Text("Your bridge's token (Bridge tab)").foregroundStyle(.secondary)
+                    copyButton(preferences.endpoint.token)
+                }
+            }
+        }
+    }
+
+    private func copyButton(_ text: String) -> some View {
+        Button("Copy") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+        }
+        .disabled(text.isEmpty)
+    }
+
+    // MARK: Bridge
+
+    @ViewBuilder private var builtInBridgeSettings: some View {
         HStack {
             Button("Show Log") { NSWorkspace.shared.open(BuiltInBridge.logURL) }
             Spacer()
-            Button("Save Token", action: saveToken)
-                .disabled(token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || token == preferences.token)
         }
     }
 
@@ -278,4 +429,6 @@ final class AppStatus: ObservableObject {
     @Published var isConnected = false
     /// When the bridge last passed on an event from Claude Code.
     @Published var lastClaudeHook: Date?
+    /// The Settings tab showing; the app picks one when it opens Settings.
+    @Published var settingsTab: SettingsTab = .setup
 }

@@ -1,6 +1,6 @@
 {
   "name": "sultana",
-  "description": "Sultana, the robot that shows what Claude Code is doing. Sends Claude Code's hooks to the Sultana bridge on this machine (Sultana Dock, or the standalone bridge) at http://127.0.0.1:8787.",
+  "description": "Sultana, the robot that shows what Claude Code is doing. Sends Claude Code's hooks to the Sultana bridge on this machine (the Sultana app, or the standalone bridge) at http://127.0.0.1:8787.",
   "author": {
     "name": "Lachlan Sleight",
     "email": "lachlan@liquid.city"

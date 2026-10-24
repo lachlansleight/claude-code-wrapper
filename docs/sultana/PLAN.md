@@ -1,14 +1,14 @@
 # Sultana as a self-contained Claude Code plugin
 
-**Status:** agreed 2026-10-24. Phases 1 and 2 done (`feat/sultana-plugin`); phase 3 under way.
+**Status:** agreed 2026-10-24. Phases 1–3 done (`feat/sultana-plugin`); phase 4 next.
 **Builds on:** [`docs/mac-app/PLAN.md`](../mac-app/PLAN.md) (SultanaCore and
-Sultana Dock, phases 1–4 done).
+the Sultana app, phases 1–4 done).
 
 ## Goal
 
 A friend installs Sultana and it just works with Claude Code:
 
-1. Download Sultana Dock, drag it to Applications, open it.
+1. Download Sultana, drag it to Applications, open it.
 2. Click "Connect Claude Code". The app installs the Sultana plugin.
 3. Start or restart a Claude Code session. Sultana reacts to the first hook,
    confirming it works.
@@ -41,17 +41,17 @@ Claude Code ── HTTP hooks (+ curl for SessionStart) ──► bridge (TypeSc
                                                         │  parse → AgentEvent
                                                         │  transcript → mid-turn text
                                                         ▼
-                                       WebSocket :8787 ──► Sultana Dock (Mac; later others)
+                                       WebSocket :8787 ──► the Sultana app (Mac; later others)
                                                        ──► robot over WiFi (token)
                                                        ──► face editor (token)
 ```
 
-On the Mac the bridge is a sidecar inside Sultana Dock. Elsewhere it runs on
+On the Mac the bridge is a sidecar inside the Sultana app. Elsewhere it runs on
 its own (`node plugin/dist/index.js`) or inside a future frontend.
 
 ```
-Sultana Dock.app/Contents/
-  MacOS/Sultana Dock                the app
+Sultana.app/Contents/
+  MacOS/Sultana                     the app
   Helpers/sultana-bridge            Node, stripped, hardened runtime + JIT entitlements
   Resources/bridge/bridge.mjs       the bridge and ws, one file (plugin/scripts/bundle.mjs)
   Resources/bridge/licenses/        Node's and ws's licences
@@ -99,7 +99,7 @@ bridge exactly as the old forwarder did, mid-turn text included, with no
   token; the legacy wrapped format still works.
 - Not yet checked: a logged-in session with tool calls end to end.
 
-### Phase 2: the bridge inside Sultana Dock
+### Phase 2: the bridge inside the Sultana app
 
 1. Build the bridge as a single portable executable (Bun `--compile` or
    Node's single executable applications; measure size and compatibility,
@@ -152,9 +152,9 @@ bridge exactly as the old forwarder did, mid-turn text included, with no
   in: Let robots on my network connect (binds `0.0.0.0`), the token (made on
   first run, kept in the Keychain, with Copy) and Show Log. Users who had an
   external bridge at another address or port stay on External.
-- **Logs:** stderr goes to `~/Library/Logs/Sultana Dock/bridge.log` (rotated
+- **Logs:** stderr goes to `~/Library/Logs/Sultana/bridge.log` (rotated
   at 2 MB). Turn logs are off; the hidden setting `bridgeTurnLogs` writes
-  them under `~/Library/Application Support/Sultana Dock/Bridge/logs/`.
+  them under `~/Library/Application Support/Sultana/Bridge/logs/`.
 
 Checked with test builds on a spare port:
 - Startup: listening and connected about 110 ms after launch.
@@ -185,7 +185,7 @@ Not checked:
 3. Open at login, show the robot, and a robot pairing page that shows the
    token to enter in the robot's setup portal.
 
-*Status: steps 1 and 2 done.*
+*Status: done.*
 - **Plugin source:** the app carries its own copy of the plugin, as a
   one-plugin marketplace in `Contents/Resources/ClaudePlugin/`, rather than
   using the GitHub marketplace. That keeps the hooks in step with the
@@ -200,7 +200,9 @@ Not checked:
   - Warnings when something else also forwards hooks.
   - The commands to run yourself when `claude` can't be found or a step
     fails.
-- **First launch:** Settings opens.
+- **First launch:** Settings opens on its new Setup tab (Claude Code, Robot,
+  Start-up). Bridge and General are the other tabs; a broken connection
+  opens Bridge.
 - **Checked:**
   - Install, reinstall, remove, outdated, turned off, duplicate warnings and
     a broken copy, all against throwaway `CLAUDE_CONFIG_DIR`s, including one
@@ -209,8 +211,21 @@ Not checked:
   - Each state's Settings rendering.
 - **Not checked:** the button against a real `~/.claude`, or a machine
   without Claude Code.
-- **Still to do:** the robot pairing page. Open at login and the robot
-  window are already in Settings.
+- **Robot pairing** (Setup ▸ Robot):
+  - the robot-access switch;
+  - the portal steps (BOOT at power-on, join `robot-…`, open
+    192.168.4.1);
+  - the values to type there: this Mac's IPv4 address, the port and the
+    token, with Copy;
+  - "Connected at 192.168.1.42" once a robot connects.
+
+  For that, the bridge now records each WebSocket client's address and
+  User-Agent and serves them at `GET /api/clients`. The robot's WebSocket
+  library always sends `arduino-WebSocket-Client`, so no firmware change was
+  needed. Checked with a fake robot client (that User-Agent, on a test
+  bridge): Settings showed it connected within one poll, and folded the steps
+  away. Not checked: a real robot pairing through its portal (no hardware
+  here).
 
 ### Phase 4: shipping
 

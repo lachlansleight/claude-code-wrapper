@@ -100,6 +100,8 @@ writes credentials back to NVS and reboots; `/forget` clears.
 Multi-network support: up to `kMaxKnownNetworks` (currently 4) entries
 are kept; `tryConnect` walks them in order at boot. The OLED shows the
 AP SSID + IP via `Display::drawPortalScreen()` while the portal blocks.
+The Sultana app's Settings ▸ Setup ▸ Robot walks through this and shows the
+bridge host, port and token to enter.
 
 ## Bridge discovery
 

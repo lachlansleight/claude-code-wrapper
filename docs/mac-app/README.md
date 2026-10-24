@@ -1,4 +1,4 @@
-# Sultana Dock (Mac app)
+# The Sultana app (Mac)
 
 **Status:** Phase 1 (the host build of the firmware core,
 [`robot_v3/host/`](../../robot_v3/host/README.md)), Phase 2 (the Dock app,
@@ -41,7 +41,7 @@ This folder contains:
 
 ## How it's built, in one paragraph
 
-Sultana Dock is a Swift/AppKit app. It links SultanaCore, a static library built from the firmware's own
+The Sultana app is a Swift/AppKit app. It links SultanaCore, a static library built from the firmware's own
 `app/`, `behaviour/`, `agents/`, `face/` and `core/` sources plus
 `Motion.cpp`, `MotionBehaviors.cpp` and `Settings.cpp`, compiled unmodified
 against ~150 lines of stub headers (`Arduino.h`, `TFT_eSPI.h`,

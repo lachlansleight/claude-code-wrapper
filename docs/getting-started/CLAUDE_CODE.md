@@ -1,21 +1,21 @@
 # Getting started — Claude Code
 
 Wire Claude Code's lifecycle hooks into the bridge so Sultana (the robot,
-Sultana Dock, or any WebSocket subscriber) can react to Claude's activity.
+the Sultana app, or any WebSocket subscriber) can react to Claude's activity.
 
 The **sultana plugin** does this with Claude Code's HTTP hooks: no Node
 script per hook and nothing to set in your shell. It needs the bridge on the
 **same machine** as Claude Code, on port **8787**.
 
-On a Mac, [Sultana Dock](../../sultana-dock/README.md) runs the bridge for
+On a Mac, [the Sultana app](../../sultana-dock/README.md) runs the bridge for
 you: open the app and skip to step 2. Otherwise, run the standalone bridge.
 
 ## Prerequisites
 
-- Sultana Dock, or Node.js 20+ for the standalone bridge
+- The Sultana app, or Node.js 20+ for the standalone bridge
 - Claude Code with HTTP hooks (2.1.116 is known to work)
 
-## 1. Build and start the bridge (without Sultana Dock)
+## 1. Build and start the bridge (without the Sultana app)
 
 ```bash
 git clone https://github.com/lachlansleight/claude-code-wrapper
@@ -39,7 +39,7 @@ curl http://127.0.0.1:8787/api/health
 
 ## 2. Install the plugin
 
-With Sultana Dock, open Settings ▸ Claude Code and click **Install Plugin**
+With the Sultana app, open Settings ▸ Claude Code and click **Install Plugin**
 (Settings opens by itself the first time you launch the app). Then start a
 new Claude Code session, or run `/reload-plugins` in one that's open.
 
@@ -70,7 +70,7 @@ its marketplace.
 
 ## 3. Verify
 
-With Sultana Dock, type anything in Claude: the face in the Dock starts
+With the Sultana app, type anything in Claude: the face in the Dock starts
 working. Otherwise, open `examples/ws-client.html` in a browser, paste your
 token, click **Connect**. Type anything in Claude. You should see:
 
@@ -83,7 +83,7 @@ token, click **Connect**. Type anything in Claude. You should see:
   `last_assistant_text`)
 
 If nothing arrives: check the bridge is listening on 8787 on the same
-machine (Sultana Dock's Settings show the bridge's status, with Show Log),
+machine (the Sultana app's Settings show the bridge's status, with Show Log),
 and that the plugin loaded (`/plugin`, or `claude plugin list`). If the
 bridge isn't running, Claude carries on; each hook fails instantly.
 

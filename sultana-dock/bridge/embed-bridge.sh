@@ -1,7 +1,7 @@
 #!/bin/bash
-# Xcode build phase ("Embed Bridge and Plugin"): puts the bridge inside
-# Sultana Dock so the app can run its own, and the sultana Claude Code plugin
-# so it can install it.
+# Xcode build phase ("Embed Bridge and Plugin"): puts the bridge inside the
+# Sultana app so it can run its own, and the sultana Claude Code plugin so it
+# can install it.
 #
 #   Contents/Helpers/sultana-bridge        Node, stripped, signed with
 #                                          sultana-bridge.entitlements

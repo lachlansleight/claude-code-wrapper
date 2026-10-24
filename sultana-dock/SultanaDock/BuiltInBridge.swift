@@ -10,7 +10,7 @@ import Foundation
 /// end of that pipe, so however the app ends (quit, crash, force quit) the
 /// bridge follows and frees the port. Exit status 3 means the port was taken,
 /// which is retried every 10 s; any other exit restarts it after 1, 2, 4… up
-/// to 30 s. Its stderr goes to ~/Library/Logs/Sultana Dock/bridge.log.
+/// to 30 s. Its stderr goes to ~/Library/Logs/Sultana/bridge.log.
 @MainActor
 final class BuiltInBridge {
     struct Configuration: Equatable {
@@ -40,10 +40,10 @@ final class BuiltInBridge {
     static let logRotationBytes = 2_000_000
 
     static let logURL = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("Logs/Sultana Dock/bridge.log")
+        .appendingPathComponent("Logs/Sultana/bridge.log")
     /// The bridge's working directory; turn logs go in logs/ under it.
     static let dataDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("Sultana Dock/Bridge", isDirectory: true)
+        .appendingPathComponent("Sultana/Bridge", isDirectory: true)
 
     static var runtimeURL: URL? {
         let url = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/sultana-bridge")

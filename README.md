@@ -36,7 +36,7 @@ vocabulary spec is
 ```
 
 The Claude Code plugin in this repo *only* registers hooks; the actual
-server runs separately: inside [Sultana Dock](sultana-dock/README.md) on a
+server runs separately: inside [the Sultana app](sultana-dock/README.md) on a
 Mac, or on its own (`node plugin/dist/index.js`).
 
 ## Repo layout
@@ -108,7 +108,7 @@ let it bind `127.0.0.1` over another bridge's `0.0.0.0` and take that
 bridge's local traffic.
 
 `npm run bundle` builds `dist/bundle/bridge.mjs`, the bridge and its
-dependencies in one file that runs on a bare Node 20+. Sultana Dock embeds
+dependencies in one file that runs on a bare Node 20+. The Sultana app embeds
 it (see [`sultana-dock/README.md`](sultana-dock/README.md#the-built-in-bridge)).
 
 | Variable                   | Default                  | Purpose                                                |
@@ -151,6 +151,7 @@ HTTP hooks need no shell setup, and web pages can't forge hooks).
 | GET    | `/api/messages/:chat_id`    | Read message log for a chat.                              |
 | GET    | `/api/state`                | Bridge state (chats, pending permissions, uptime).        |
 | GET    | `/api/sessions`             | Active session ids (last 10 minutes of activity).         |
+| GET    | `/api/clients`              | Connected WebSocket clients: id, address, User-Agent (a robot's is `arduino-WebSocket-Client`), when they connected. |
 | GET    | `/api/permissions`          | Currently-pending permission requests.                    |
 | POST   | `/api/permissions/:id`      | Resolve a pending permission locally + broadcast.         |
 | GET    | `/api/firebaseData`         | Proxy the agent's Firebase RTDB record.                   |

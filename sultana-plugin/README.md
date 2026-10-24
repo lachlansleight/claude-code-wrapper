@@ -1,7 +1,7 @@
 # Sultana plugin for Claude Code
 
 Sends Claude Code's lifecycle hooks to the Sultana bridge on this machine, so
-Sultana (the robot, and the Sultana Dock app) can show what Claude is doing.
+Sultana (the robot, and the Sultana Mac app) can show what Claude is doing.
 
 It contains no code: every hook is a Claude Code HTTP hook that POSTs the
 hook's JSON to `http://127.0.0.1:8787/hooks/claude`. `SessionStart` can't be
@@ -12,7 +12,7 @@ Claude carries on.
 
 ## Install
 
-With Sultana Dock: Settings ▸ Claude Code ▸ **Install Plugin**. The app
+With the Sultana app: Settings ▸ Claude Code ▸ **Install Plugin**. The app
 installs the copy it carries, so the hooks always match its bridge.
 
 Otherwise, in Claude Code:
@@ -31,7 +31,7 @@ claude plugin install sultana@sultana
 
 Plugins load when a session starts (or on `/reload-plugins`).
 
-Then run a bridge on port 8787: on a Mac, [Sultana Dock](../sultana-dock/README.md)
+Then run a bridge on port 8787: on a Mac, [the Sultana app](../sultana-dock/README.md)
 does this for you. Elsewhere, run the standalone bridge
 (`node plugin/dist/index.js`, see the top-level README).
 

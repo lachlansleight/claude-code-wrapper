@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Bundles the bridge and its dependencies into one ES module that runs on a
-// bare Node 20+ with no node_modules: this is what Sultana Dock embeds.
+// bare Node 20+ with no node_modules: this is what the Sultana app embeds.
 //
 //   node scripts/bundle.mjs [outdir]     (default: dist/bundle)
 //

@@ -63,7 +63,7 @@ final class ClaudePlugin: ObservableObject {
 
     /// The same steps as the Install button, for pasting into a terminal.
     var manualCommands: String {
-        let path = marketplaceURL?.path ?? "/Applications/Sultana Dock.app/Contents/Resources/ClaudePlugin"
+        let path = marketplaceURL?.path ?? "/Applications/Sultana.app/Contents/Resources/ClaudePlugin"
         return "claude plugin marketplace add \"\(path)\"\nclaude plugin install \(Self.pluginID)"
     }
 
@@ -106,7 +106,7 @@ final class ClaudePlugin: ObservableObject {
 
     func install() {
         guard let marketplaceURL else {
-            lastError = "This build of Sultana Dock doesn't include the plugin."
+            lastError = "This build of Sultana doesn't include the plugin."
             return
         }
         run([

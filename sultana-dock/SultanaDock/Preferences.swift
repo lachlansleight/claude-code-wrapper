@@ -220,7 +220,7 @@ enum Keychain {
         if update == errSecSuccess { return true }
         var add = baseQuery
         add[kSecValueData as String] = data
-        add[kSecAttrLabel as String] = "Sultana Dock bridge token"
+        add[kSecAttrLabel as String] = "Sultana bridge token"
         let status = SecItemAdd(add as CFDictionary, nil)
         if status != errSecSuccess { Log.app.error("keychain write failed: \(status)") }
         return status == errSecSuccess

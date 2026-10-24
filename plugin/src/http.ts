@@ -11,6 +11,7 @@ import type { AgentEvent, AgentEventEnvelope, AgentName } from './agent-event.js
 import type { BridgeConfig } from './types.js'
 import { repairMojibakeDeep } from './mojibake.js'
 import { enrichWithTranscriptText } from './transcript.js'
+import { listClients } from './ws.js'
 
 /** Where turn logs go; undefined means don't write them. Set by startHttpServer. */
 let turnLogDir: string | undefined
@@ -487,6 +488,11 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: BridgeC
 
   if (method === 'GET' && path === '/api/sessions') {
     json(res, 200, { session_ids: state.listActiveSessions() })
+    return
+  }
+
+  if (method === 'GET' && path === '/api/clients') {
+    json(res, 200, { clients: listClients() })
     return
   }
 

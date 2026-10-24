@@ -1,4 +1,4 @@
-# Sultana Dock
+# Sultana for Mac
 
 Sultana's face, live in the macOS Dock. The app runs the agent bridge
 itself (or connects to one you run), listens to it exactly as the robot
@@ -8,9 +8,8 @@ the screen the firmware renders into its Dock tile. It bounces the icon when
 a turn ends, and can put the whole robot, arms and all, on your desktop.
 
 Status: phases 1–4 of [`docs/mac-app/PLAN.md`](../docs/mac-app/PLAN.md) and
-phases 1–2 of [`docs/sultana/PLAN.md`](../docs/sultana/PLAN.md) (the built-in
-bridge) are done, and phase 3 (setup) has started: the app installs its
-Claude Code plugin. The robot is drawn from Lachlan's Figma design (file
+phases 1–3 of [`docs/sultana/PLAN.md`](../docs/sultana/PLAN.md) (the built-in
+bridge, installing the Claude Code plugin, pairing a robot) are done. The robot is drawn from Lachlan's Figma design (file
 SCRATCHPAD, frame "SultanaExample", node 3189:9).
 
 ## Build and run
@@ -24,13 +23,13 @@ cd plugin && npm install
 ```
 
 ```bash
-open sultana-dock/SultanaDock.xcodeproj    # then Run the "Sultana Dock" scheme
+open sultana-dock/SultanaDock.xcodeproj    # then Run the "Sultana" scheme
 ```
 
 or from the command line:
 
 ```bash
-xcodebuild -project sultana-dock/SultanaDock.xcodeproj -scheme "Sultana Dock" -configuration Release build
+xcodebuild -project sultana-dock/SultanaDock.xcodeproj -scheme Sultana -configuration Release build
 ```
 
 The firmware's per-machine `robot_v3/src/config.h` must exist, as for the
@@ -54,7 +53,7 @@ sultana-dock/install.sh
 ```
 
 That builds into `sultana-dock/build/` (gitignored), copies
-`Sultana Dock.app` into /Applications (replacing and quitting an older
+`Sultana.app` into /Applications (replacing and quitting an older
 copy there) and opens it. `--dest DIR` installs elsewhere; `--no-open`
 skips the launch. Re-run it to update after pulling changes. Then:
 
@@ -75,11 +74,13 @@ variable while developing (below).
 
 ## Setting it up
 
-The first launch opens Settings. For Claude Code, all you need is Settings ▸
-Claude Code ▸ **Install Plugin**: the app runs the bridge itself on port
-8787, where the plugin's hooks go.
+Settings has three tabs: **Setup** (Claude Code, Robot, Start-up), **Bridge**
+and **General**. The first launch opens Setup. For Claude Code, all you need
+is Setup ▸ Claude Code ▸ **Install Plugin**: the app runs the bridge itself
+on port 8787, where the plugin's hooks go. When the connection needs fixing,
+Settings opens on Bridge instead.
 
-### Claude Code
+### Setup ▸ Claude Code
 
 The app carries its own copy of the `sultana` plugin
 ([`sultana-plugin/`](../sultana-plugin/README.md)) in
@@ -116,40 +117,65 @@ claude plugin install sultana@sultana
   `settings.json` still run `claude-hook-forward.mjs` or post to
   `/hooks/claude`, Settings warns that every hook will arrive twice.
 
-### Bridge
+### Setup ▸ Robot
 
-Settings ▸ Bridge:
+Pairing a robot means typing four things into its setup portal: your WiFi,
+the bridge host, the port and the token. This section has the steps and the
+values, and says when a robot connects.
+
+- **Let robots on my network connect** (built-in bridge only): the bridge
+  listens on every interface instead of only this Mac.
+- **Robot:** "Connected at 192.168.1.42", from the bridge's
+  `GET /api/clients` (polled every 3 s while the tab shows). A robot is a
+  client whose User-Agent is `arduino-WebSocket-Client`, which the
+  firmware's WebSocket library always sends.
+- **How to set up a robot** (open until a robot connects):
+  1. Hold the robot's BOOT button while you plug it in, until its screen
+     says CONFIG MODE.
+  2. Join the open `robot-…` network it shows, and open the address under
+     it (usually http://192.168.4.1).
+  3. Enter your WiFi, and the bridge host, port and token shown here, and
+     save.
+
+  The robot restarts, probes that host, then sweeps the subnet if the Mac's
+  address has changed
+  ([`docs/firmware/OVERVIEW.md`](../docs/firmware/OVERVIEW.md#provisioning-portal)).
+- **Bridge host** is this Mac's IPv4 address (Wi-Fi or Ethernet), or an
+  external bridge's host if it's on another computer.
+- **Token:** made on first run and kept in the login Keychain, with Show and
+  Copy. To keep a robot's existing token, paste it here and Save Token; the
+  bridge restarts with it.
+
+### Bridge
 
 - **Use:** *Built-in bridge* (the default) or *External bridge*. Choose
   External to run a bridge yourself (`node plugin/dist/index.js`), here or on
   another computer. If you had set the app up for a bridge at another
   address or port before the built-in one existed, it stays on External.
-- **Built in ▸ Let robots on my network connect:** the bridge listens on
-  every interface instead of only this Mac. Robots on the same network find
-  it by themselves (they sweep the subnet on port 8787) and need the token.
-- **Built in ▸ Token:** made on first run and kept in the login Keychain.
-  Copy it into a robot's setup, or paste your robot's token here and Save
-  Token. The bridge restarts with it.
 - **Built in ▸ Show Log:** opens the bridge's log in Console.
 - **External ▸ Host, Port, Token:** where your bridge is. "Import from
   .env…" reads `BRIDGE_TOKEN`, `BRIDGE_PORT` and `BRIDGE_HOST` from the
   bridge's `.env` (for example `plugin/src/.env`); a `0.0.0.0` bind address
   becomes `127.0.0.1`. The token is stored in the login Keychain.
 
-The rest:
+### The rest
 
-- **When a turn ends:** bounce once (default), bounce until you switch to
-  the app, or don't bounce.
-- **Bounce when an agent needs permission:** Claude's "Claude needs your
-  permission…" notification, or `permission.requested` from Codex/OpenCode.
-- **Dock icon frame rate:** 30 (default), 15 or 10 fps. See *Cost* below.
-- **Open at login** (General). This registers the app where it is now, so
-  copy it to /Applications first rather than registering a build in
-  DerivedData.
-- **Show the robot window**, **Keep the robot window on top**, **Arm
-  colour** (General). The arms default to the design's green, #8EE270.
+- **Open at login** (Setup ▸ Start-up). This registers the app where it is
+  now, so copy it to /Applications first rather than registering a build in
+  DerivedData. Apps registered as Sultana Dock before the rename need it
+  turned off and on again.
+- **Show the robot on the desktop** (Setup ▸ Start-up), **Keep the robot on
+  top of other windows** and **Arm colour** (General). The arms default to
+  the design's green, #8EE270.
+- **When a turn ends** (General): bounce once (default), bounce until you
+  switch to the app, or don't bounce.
+- **Bounce when an agent needs permission** (General): Claude's "Claude needs
+  your permission…" notification, or `permission.requested` from
+  Codex/OpenCode.
+- **Dock icon frame rate** (General): 30 (default), 15 or 10 fps. See *Cost*
+  below.
 
-Sultana Dock behaves like any other app when it comes to focus. Clicking
+The Sultana app behaves like any other app when it comes to focus. Clicking
 the Dock icon brings it forward (its menu bar has Settings) and shows the
 robot, or opens Settings if the connection needs fixing. macOS won't bounce
 the icon of the frontmost app, so turn-end bounces only show once you've
@@ -191,7 +217,7 @@ sultana-bridge bridge.mjs --managed --host 127.0.0.1 --port 8787
   Dock/bridge.log`, moved to `bridge.log.1` at 2 MB. Turn logs are off; to
   keep them (for making replay fixtures), run
   `defaults write com.lachlansleight.sultana.dock bridgeTurnLogs -bool YES`
-  and they go to `~/Library/Application Support/Sultana Dock/Bridge/logs/`.
+  and they go to `~/Library/Application Support/Sultana/Bridge/logs/`.
 - **Signing.** The runtime is signed with hardened runtime and
   `bridge/sultana-bridge.entitlements`. V8 compiles JavaScript at run time,
   so it needs `allow-jit` and `allow-unsigned-executable-memory`; without
@@ -303,11 +329,11 @@ disabled) or in the shell:
 | `SULTANA_REPLAY=/path/log.jsonl` | Replay a recording at launch. |
 | `SULTANA_REPLAY_CLOCK=log` | Replay on the log's clock and report the frame hash (see above). |
 | `SULTANA_DEBUG_DIR=/some/dir` | Once a second, write `dock.png` (the tile as drawn), `robot.png` (the robot's layers on a transparent background, while shown), `settings.png` (while Settings is open) and `state.json` (connection status, Dock push rate, the firmware's verb/expression/emotion/latch/arm); append connections, built-in bridge states, bounces, replays and sleep/wake to `events.log`. |
-| `SULTANA_DEBUG_SETTINGS=1` | Open Settings at launch. |
+| `SULTANA_DEBUG_SETTINGS=setup` | Open Settings at launch, on that tab (`setup`, `bridge` or `general`). |
 
 Any setting can also be overridden for one run with a launch argument, which
 UserDefaults reads without storing it, for example
-`"Sultana Dock" -bridgeMode external -allowNetworkRobots YES`.
+`Sultana -bridgeMode external -allowNetworkRobots YES`.
 
 Logs:
 
@@ -336,7 +362,7 @@ noisy. The code streams are the worst case: the firmware renders them at
 
 - Two targets: **SultanaCore** (static library: the firmware files listed in
   `FIRMWARE_SRCS` in `robot_v3/host/Makefile`, plus the host HAL and C API)
-  and **Sultana Dock** (the app). The Makefile is the canonical file list;
+  and **Sultana** (the app). The Makefile is the canonical file list;
   if a firmware source file is added, add it to both.
 - The app's Swift sources live in `SultanaDock/`, a synchronized folder:
   new files there are picked up without editing the project.

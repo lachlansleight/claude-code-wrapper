@@ -13,5 +13,5 @@ robot_v3/host/build/
 xcuserdata/
 *.xcuserstate
 
-# Sultana Dock command-line builds (install.sh)
+# Sultana app command-line builds (install.sh)
 sultana-dock/build/

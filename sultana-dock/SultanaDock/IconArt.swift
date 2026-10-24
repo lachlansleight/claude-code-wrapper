@@ -1,6 +1,6 @@
 import CoreGraphics
 
-/// Sultana Dock's icon: the robot's body as a standard macOS squircle,
+/// Sultana's app icon: the robot's body as a standard macOS squircle,
 /// white fading to light grey toward its edges, with the face (the
 /// firmware's OLED screen) set into it as large as fits, inside the same
 /// thin #ECECEC border as the desktop robot.

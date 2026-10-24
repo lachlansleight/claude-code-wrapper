@@ -2,7 +2,7 @@
 
 This folder builds the firmware's own behaviour, face and motion code for a
 desktop host, unmodified, and drives it through a small C API. It is the
-engine inside the Sultana Dock Mac app (`sultana-dock/`) and, through the
+engine inside the Sultana Mac app (`sultana-dock/`) and, through the
 `sultana-replay` CLI, the firmware's regression test suite.
 
 Nothing here is compiled into the ESP32 build: Arduino only compiles the

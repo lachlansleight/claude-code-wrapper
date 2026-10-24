@@ -66,7 +66,7 @@
 		A6B7B186852EE76D45B78D47 /* host_internal.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = host_internal.h; sourceTree = "<group>"; };
 		ABBC0DF780142B66A03CC1AF /* EventRouter.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = EventRouter.cpp; sourceTree = "<group>"; };
 		ADB36DF195827E7442ED0399 /* Scene.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Scene.cpp; sourceTree = "<group>"; };
-		B6CDB6E5D160E013280D3C68 /* Sultana Dock.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Sultana Dock.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		B6CDB6E5D160E013280D3C68 /* Sultana.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Sultana.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		BD37B6B5635D2C58910CE3D8 /* VerbTimeline.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VerbTimeline.cpp; sourceTree = "<group>"; };
 		CF32D25277F9CAFD09F2911C /* sultana_core.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = sultana_core.cpp; sourceTree = "<group>"; };
 		D5BF01B63C781BB13BB6AF14 /* ActivityDots.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ActivityDots.cpp; sourceTree = "<group>"; };
@@ -76,12 +76,12 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		EB0CE7302E7798328E40C840 /* Exceptions for "SultanaDock" folder in "Sultana Dock" target */ = {
+		EB0CE7302E7798328E40C840 /* Exceptions for "SultanaDock" folder in "Sultana" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 29C7B681C8D62CBAC94D51C0 /* Sultana Dock */;
+			target = 29C7B681C8D62CBAC94D51C0 /* Sultana */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -89,7 +89,7 @@
 		79E2A7A7BFBF6FB3A08FDC09 /* SultanaDock */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				EB0CE7302E7798328E40C840 /* Exceptions for "SultanaDock" folder in "Sultana Dock" target */,
+				EB0CE7302E7798328E40C840 /* Exceptions for "SultanaDock" folder in "Sultana" target */,
 			);
 			path = SultanaDock;
 			sourceTree = "<group>";
@@ -118,7 +118,7 @@
 		00C45FD35CB0F9C5F764F070 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				B6CDB6E5D160E013280D3C68 /* Sultana Dock.app */,
+				B6CDB6E5D160E013280D3C68 /* Sultana.app */,
 				5C6E2A9EE29FD52546FF51BB /* libSultanaCore.a */,
 			);
 			name = Products;
@@ -261,9 +261,9 @@
 			productReference = 5C6E2A9EE29FD52546FF51BB /* libSultanaCore.a */;
 			productType = "com.apple.product-type.library.static";
 		};
-		29C7B681C8D62CBAC94D51C0 /* Sultana Dock */ = {
+		29C7B681C8D62CBAC94D51C0 /* Sultana */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = AE00E44D1CF6E2E3FA93958F /* Build configuration list for PBXNativeTarget "Sultana Dock" */;
+			buildConfigurationList = AE00E44D1CF6E2E3FA93958F /* Build configuration list for PBXNativeTarget "Sultana" */;
 			buildPhases = (
 				7EC6D9E6268A1DE72A5C6080 /* Sources */,
 				00902D9DB823B3227B76DC9A /* Frameworks */,
@@ -278,11 +278,11 @@
 			fileSystemSynchronizedGroups = (
 				79E2A7A7BFBF6FB3A08FDC09 /* SultanaDock */,
 			);
-			name = "Sultana Dock";
+			name = "Sultana";
 			packageProductDependencies = (
 			);
-			productName = "Sultana Dock";
-			productReference = B6CDB6E5D160E013280D3C68 /* Sultana Dock.app */;
+			productName = "Sultana";
+			productReference = B6CDB6E5D160E013280D3C68 /* Sultana.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -317,7 +317,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				29C7B681C8D62CBAC94D51C0 /* Sultana Dock */,
+				29C7B681C8D62CBAC94D51C0 /* Sultana */,
 				2277647359DA36C2B02BD155 /* SultanaCore */,
 			);
 		};
@@ -527,7 +527,7 @@
 				OTHER_LDFLAGS = "-lc++";
 				PRODUCT_BUNDLE_IDENTIFIER = com.lachlansleight.sultana.dock;
 				PRODUCT_MODULE_NAME = SultanaDock;
-				PRODUCT_NAME = "Sultana Dock";
+				PRODUCT_NAME = "Sultana";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "SultanaDock/SultanaDock-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
@@ -557,7 +557,7 @@
 				OTHER_LDFLAGS = "-lc++";
 				PRODUCT_BUNDLE_IDENTIFIER = com.lachlansleight.sultana.dock;
 				PRODUCT_MODULE_NAME = SultanaDock;
-				PRODUCT_NAME = "Sultana Dock";
+				PRODUCT_NAME = "Sultana";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "SultanaDock/SultanaDock-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
@@ -576,7 +576,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		AE00E44D1CF6E2E3FA93958F /* Build configuration list for PBXNativeTarget "Sultana Dock" */ = {
+		AE00E44D1CF6E2E3FA93958F /* Build configuration list for PBXNativeTarget "Sultana" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				967DE5DAE8F9C3546488D3FD /* Debug */,

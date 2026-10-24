@@ -23,7 +23,7 @@ not derived states. Behaviour derivation lives in the firmware
 
 Source lives in `plugin/src/`. Compiled output is `plugin/dist/`. The
 Claude Code plugins only register hooks that POST to the bridge. On a Mac,
-Sultana Dock runs a bundled copy of the bridge (built into the app by its
+The Sultana app runs a bundled copy of the bridge (built into the app by its
 "Embed Bridge and Plugin" build phase); otherwise start it separately
 (`node plugin/dist/index.js`).
 
@@ -40,14 +40,14 @@ plugin/                       # bridge service (Node)
     transcript.ts             # mid-turn assistant text from Claude transcripts
     hook-forward.ts           # Claude-side stdin→HTTP forwarder
     auth.ts, logger.ts, firebase.ts, types.ts, mojibake.ts, dotenv.ts
-  scripts/bundle.mjs          # esbuild: the bridge as one file, for Sultana Dock
+  scripts/bundle.mjs          # esbuild: the bridge as one file, for the Sultana app
   hooks/hooks.json
   .claude-plugin/plugin.json
 .claude-plugin/marketplace.json
 sultana-plugin/               # the Claude Code plugin: hooks.json only (HTTP hooks)
 robot_v3/                     # ESP32-S3 firmware
   host/                       # SultanaCore: the firmware built for a desktop, replay CLI, fixtures, make test
-sultana-dock/                 # Sultana Dock macOS app (Xcode project; links SultanaCore)
+sultana-dock/                 # the Sultana macOS app (Xcode project; links SultanaCore)
   bridge/                     # Embed Bridge and Plugin build phase + the Node runtime's entitlements
 face-editor/                  # Next.js face editor (TS port of the face engine)
 scripts/record-ws.mjs         # record a bridge session as JSONL (fixtures, replay)
@@ -115,7 +115,7 @@ adapter keeps one pending request per session and infers the resolution
 ## Working on this repo
 
 - After editing the bridge: `cd plugin && npm run build`, then restart it.
-  Sultana Dock picks up bridge changes when the app is rebuilt.
+  The Sultana app picks up bridge changes when it's rebuilt.
 - Test bridges belong on a spare port (8797, 8798) with a clean
   environment (`env -i PATH=/usr/bin:/bin BRIDGE_TOKEN=test node …`): a
   shell may export `BRIDGE_*` settings (log file, Firebase), and a bridge
@@ -133,7 +133,7 @@ adapter keeps one pending request per session and infers the resolution
   Use a Windows-style absolute path with forward slashes — Git-Bash
   paths (`/c/...`) get treated as git remotes and fail. Test a plugin
   change without installing: `claude --plugin-dir sultana-plugin`.
-  Sultana Dock carries its own copy of the plugin and installs it from
+  The Sultana app carries its own copy of the plugin and installs it from
   Settings ▸ Claude Code; after changing `sultana-plugin/`, rebuild the app
   and use Update Plugin there. Test that code against a throwaway
   `CLAUDE_CONFIG_DIR`, not your real `~/.claude`.

@@ -7,7 +7,7 @@
 #   make clean
 #
 # FIRMWARE_SRCS is the canonical list of firmware files compiled for the
-# host. The Sultana Dock Xcode project (sultana-dock/) compiles the same
+# host. The Sultana app Xcode project (sultana-dock/) compiles the same
 # list; keep them in sync.
 
 HOST_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))

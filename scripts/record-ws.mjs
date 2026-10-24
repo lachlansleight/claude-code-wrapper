@@ -3,7 +3,7 @@
 //   {"t": <ms since connect>, "frame": {...}}
 // (or {"t", "text"} for a frame that isn't JSON). If the socket closes, a
 // final {"t", "connected": false} line is written. This is the input format
-// of robot_v3/host's sultana-replay and Sultana Dock's replay mode.
+// of robot_v3/host's sultana-replay and the Sultana app's replay mode.
 //
 // Usage:
 //   BRIDGE_TOKEN=... node scripts/record-ws.mjs OUT.jsonl [--url ws://127.0.0.1:8787/ws] [--duration SECONDS]

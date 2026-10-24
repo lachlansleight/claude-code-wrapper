@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Sultana Dock</string>
+	<string>Sultana</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIconName</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Sultana Dock</string>
+	<string>Sultana</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -35,7 +35,7 @@
 	<key>NSHumanReadableCopyright</key>
 	<string>Sultana: the robot's face, from the robot_v3 firmware.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Sultana Dock connects to the agent bridge on your local network to follow what your coding agents are doing.</string>
+	<string>Sultana uses your local network to reach a bridge on another computer, and to let robots on your network connect to its own.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

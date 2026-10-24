@@ -53,15 +53,15 @@ quickstart; the rest lives here.
 - [../sultana-plugin/README.md](../sultana-plugin/README.md) — the plugin:
   Claude Code HTTP hooks to the bridge on this machine.
 
-## Sultana Dock (Mac app) and the host build
+## The Sultana app (Mac) and the host build
 
 - [mac-app/README.md](mac-app/README.md) — goals and design brief for
-  Sultana Dock, a macOS Dock app that shows the robot's face, built by
+  the Sultana app, a macOS app that shows the robot's face, built by
   compiling the firmware's behaviour and face C++ into the app.
 - [../robot_v3/host/README.md](../robot_v3/host/README.md) — SultanaCore,
   the firmware core built for a desktop: C API, the `sultana-replay` CLI,
   recorded fixtures and golden-trace regression tests (`make test`).
-- [../sultana-dock/README.md](../sultana-dock/README.md) — the Sultana Dock
+- [../sultana-dock/README.md](../sultana-dock/README.md) — the Sultana
   app: building, settings, replay, developer aids, measured cost.
 - [mac-app/PLAN.md](mac-app/PLAN.md) — the finalised plan: architecture,
   host build of the firmware (`robot_v3/host/`), C API, app design,

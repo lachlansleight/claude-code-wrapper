@@ -1,6 +1,6 @@
 import AppKit
 
-/// Sultana Dock: the Sultana robot's face, live in the macOS Dock.
+/// Sultana: the Sultana robot's face, live in the macOS Dock and on the desktop.
 @main
 @MainActor
 enum SultanaDockApp {

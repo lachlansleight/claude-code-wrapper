@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build Sultana Dock (Release) and install it as a normal app, so it runs
+# Build Sultana (Release) and install it as a normal app, so it runs
 # without Xcode open.
 #
 #   sultana-dock/install.sh              # build, install to /Applications, open it
@@ -23,14 +23,16 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-app_name="Sultana Dock.app"
+app_name="Sultana.app"
+# The app was called Sultana Dock before; replace that copy too.
+old_installed="$dest/Sultana Dock.app"
 built="$here/build/Build/Products/Release/$app_name"
 installed="$dest/$app_name"
 
 echo "Building $app_name (Release)…"
 log="$here/build/xcodebuild.log"
 mkdir -p "$here/build"
-if ! xcodebuild -project "$here/SultanaDock.xcodeproj" -scheme "Sultana Dock" -configuration Release \
+if ! xcodebuild -project "$here/SultanaDock.xcodeproj" -scheme Sultana -configuration Release \
     -derivedDataPath "$here/build" build >"$log" 2>&1; then
   grep -E ': error: ' "$log" | sort -u >&2 || true
   echo "Build failed; full log: $log" >&2
@@ -38,14 +40,20 @@ if ! xcodebuild -project "$here/SultanaDock.xcodeproj" -scheme "Sultana Dock" -c
 fi
 
 # Quit a copy already running from the install location before replacing it.
-if pgrep -f "$installed/Contents/MacOS/" >/dev/null; then
-  echo "Quitting the running copy in $dest…"
-  pkill -f "$installed/Contents/MacOS/" || true
-  sleep 1
-fi
+for copy in "$installed" "$old_installed"; do
+  if pgrep -f "$copy/Contents/MacOS/" >/dev/null; then
+    echo "Quitting the running copy of $(basename "$copy") in $dest…"
+    pkill -f "$copy/Contents/MacOS/" || true
+    sleep 1
+  fi
+done
 
 mkdir -p "$dest"
 rm -rf "$installed"
+if [ -d "$old_installed" ]; then
+  echo "Removing the old $(basename "$old_installed")"
+  rm -rf "$old_installed"
+fi
 ditto "$built" "$installed"
 echo "Installed: $installed"
 
