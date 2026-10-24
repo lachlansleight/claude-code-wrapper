@@ -2,12 +2,13 @@ import AppKit
 import Combine
 import SwiftUI
 
-/// Wires the bridge socket, the firmware core, the Dock tile and bounces
-/// together. Everything runs on the main thread.
+/// Wires the bridge socket, the firmware core, the Dock tile, the robot
+/// window and bounces together. Everything runs on the main thread.
 ///
 ///   bridge ──text frame──► BridgeSignal (bounce, any session)
 ///                     └──► SultanaEngine (firmware: latch, verbs, emotion, face)
 ///   display link ──► engine.tick ──pixels changed──► Dock tile (≤ fps cap)
+///                                              └───► robot window (screen + arms)
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let preferences = AppPreferences()
@@ -17,17 +18,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let attention = AttentionController()
     private let replay = ReplayController()
     private var dockTile: DockTileController!
+    private var robotWindow: RobotWindowController!
+    private var latestFrame: CGImage?
+    private var robotFrameChangeCount: UInt64 = .max
     private var displayLink: CADisplayLink?
     private var activity: NSObjectProtocol?
     private var settingsWindow: NSWindow?
+    private var isAsleep = false
     private var cancellables: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = MainMenu.build(target: self)
 
         dockTile = DockTileController()
+        robotWindow = RobotWindowController()
+        robotWindow.onVisibilityChange = { [weak self] visible in
+            guard let self, self.preferences.robotWindowVisible != visible else { return }
+            self.preferences.robotWindowVisible = visible
+        }
         preferences.$dockFramesPerSecond
             .sink { [weak self] fps in self?.dockTile.framesPerSecond = fps }
+            .store(in: &cancellables)
+        preferences.$robotWindowVisible
+            .sink { [weak self] visible in self?.setRobotWindowVisible(visible) }
+            .store(in: &cancellables)
+        preferences.$robotWindowOnTop
+            .sink { [weak self] onTop in self?.robotWindow.keepsOnTop = onTop }
             .store(in: &cancellables)
 
         engine.onSend = { [weak self] text in self?.socket.send(text) }
@@ -42,18 +58,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.startDisplayLink() }
         }
+        observeSleepAndWake()
 
-        // Developer aid: SULTANA_REPLAY=/path/to/log.jsonl replays a recording
-        // at launch instead of connecting to the bridge.
-        if let path = ProcessInfo.processInfo.environment["SULTANA_REPLAY"], !path.isEmpty {
-            startReplay(URL(fileURLWithPath: path))
+        // Developer aids: SULTANA_REPLAY=/path/to/log.jsonl replays a recording
+        // at launch instead of connecting; SULTANA_REPLAY_CLOCK=log replays it
+        // on the log's clock (frame-exact with sultana-replay --seed 1).
+        let env = ProcessInfo.processInfo.environment
+        if let path = env["SULTANA_REPLAY"], !path.isEmpty {
+            let clock = ReplayController.Clock(rawValue: env["SULTANA_REPLAY_CLOCK"] ?? "") ?? .wall
+            startReplay(URL(fileURLWithPath: path), clock: clock)
         } else {
             connectLive()
         }
         if preferences.endpoint.isComplete || replay.isPlaying {
-            // macOS activates a freshly launched app, and an active app can't
-            // bounce. With no window to show, hand focus straight back.
-            DispatchQueue.main.async { self.yieldFocusIfWindowless() }
+            DispatchQueue.main.async { self.yieldFocus() }
         } else {
             showSettings(nil)
         }
@@ -65,23 +83,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
-    /// Clicking the Dock icon. Until the robot window exists (Phase 3), this
-    /// opens Settings when there is something to fix, and otherwise gives
-    /// focus back so the next turn can still bounce the icon.
+    /// Clicking the Dock icon shows the robot window, or Settings when the
+    /// connection needs fixing.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !status.isConnected && !replay.isPlaying {
+        if !preferences.endpoint.isComplete || socket.status == .unauthorized {
             showSettings(nil)
         } else {
-            yieldFocusIfWindowless()
+            preferences.robotWindowVisible = true
+            robotWindow.show()
+            yieldFocus()
         }
         return false
-    }
-
-    /// Hides the app (which re-activates whatever was in front before) when
-    /// it has no visible windows. The Dock tile keeps animating.
-    private func yieldFocusIfWindowless() {
-        guard NSApp.isActive, !NSApp.windows.contains(where: { $0.isVisible }) else { return }
-        NSApp.hide(nil)
     }
 
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
@@ -89,6 +101,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let statusItem = NSMenuItem(title: status.text, action: nil, keyEquivalent: "")
         statusItem.isEnabled = false
         menu.addItem(statusItem)
+        menu.addItem(.separator())
+        menu.addItem(
+            withTitle: robotWindow.isVisible ? "Hide Robot" : "Show Robot",
+            action: #selector(toggleRobotWindow(_:)), keyEquivalent: ""
+        ).target = self
+        let onTop = menu.addItem(
+            withTitle: "Keep Robot on Top", action: #selector(toggleRobotOnTop(_:)), keyEquivalent: "")
+        onTop.target = self
+        onTop.state = preferences.robotWindowOnTop ? .on : .off
         menu.addItem(.separator())
         if replay.isPlaying {
             menu.addItem(withTitle: "Stop Replay", action: #selector(stopReplay(_:)), keyEquivalent: "").target = self
@@ -99,6 +120,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return menu
     }
 
+    /// macOS activates a freshly launched app and an app clicked in the Dock,
+    /// and won't bounce the active app. Unless Settings is open, hand focus
+    /// straight back to whatever was in front. The robot window is a
+    /// non-activating panel and stays put.
+    private func yieldFocus() {
+        guard NSApp.isActive, settingsWindow?.isVisible != true else { return }
+        NSApp.deactivate()
+    }
+
     // MARK: Tick loop
 
     private func startDisplayLink() {
@@ -107,16 +137,64 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
         let link = screen.displayLink(target: self, selector: #selector(displayLinkFired(_:)))
         link.add(to: .main, forMode: .common)
+        link.isPaused = isAsleep
         displayLink = link
     }
 
     @objc private func displayLinkFired(_ link: CADisplayLink) {
-        replay.tick()
         // The firmware throttles its own rendering to 33 ms (16 ms while the
         // code streams show), so ticking at the display rate is harmless.
-        if engine.tick() { dockTile.markDirty() }
-        dockTile.pushIfDue(from: engine)
-        DebugDump.shared?.tick(engine: engine, dockTile: dockTile, status: status.text)
+        let changed: Bool
+        if replay.isPlaying, replay.clock == .log {
+            changed = replay.advanceLogClock(engine: engine)
+        } else {
+            replay.tick()
+            changed = engine.tick()
+        }
+        if changed {
+            latestFrame = engine.makeImage()
+            dockTile.markDirty()
+        }
+        dockTile.pushIfDue(latestFrame)
+
+        if robotWindow.needsUpdates {
+            if robotFrameChangeCount != engine.changeCount, let frame = latestFrame {
+                robotWindow.view.show(frame: frame)
+                robotFrameChangeCount = engine.changeCount
+            }
+            robotWindow.view.updateArms(commandedDegrees: engine.armOffsetDegrees, nowMs: MonotonicClock.nowMs())
+        }
+        DebugDump.shared?.tick(engine: engine, dockTile: dockTile, robotWindow: robotWindow, status: status.text)
+    }
+
+    // MARK: Sleep and wake
+
+    private func observeSleepAndWake() {
+        let center = NSWorkspace.shared.notificationCenter
+        center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.systemWillSleep() }
+        }
+        center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.systemDidWake() }
+        }
+    }
+
+    /// Stop drawing and close the socket cleanly; the firmware sees an
+    /// ordinary disconnect, as the robot would if the bridge vanished.
+    private func systemWillSleep() {
+        isAsleep = true
+        displayLink?.isPaused = true
+        if !replay.isPlaying { socket.stop() }
+        DebugDump.shared?.event("system will sleep")
+    }
+
+    /// Reconnect straight away rather than waiting for the heartbeat to
+    /// notice the old socket is dead.
+    private func systemDidWake() {
+        isAsleep = false
+        displayLink?.isPaused = false
+        if !replay.isPlaying { connectLive() }
+        DebugDump.shared?.event("system did wake")
     }
 
     // MARK: Frames and connection
@@ -166,7 +244,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: Actions
+    // MARK: Robot window
+
+    private func setRobotWindowVisible(_ visible: Bool) {
+        if visible, !robotWindow.isVisible {
+            robotWindow.show()
+            robotFrameChangeCount = .max
+        } else if !visible, robotWindow.isVisible {
+            robotWindow.hide()
+        }
+    }
+
+    @objc func toggleRobotWindow(_ sender: Any?) {
+        preferences.robotWindowVisible = !robotWindow.isVisible
+    }
+
+    @objc func toggleRobotOnTop(_ sender: Any?) {
+        preferences.robotWindowOnTop.toggle()
+    }
+
+    // MARK: Settings and replay
 
     @objc func showSettings(_ sender: Any?) {
         if settingsWindow == nil {
@@ -196,14 +293,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startReplay(url)
     }
 
-    private func startReplay(_ url: URL) {
+    private func startReplay(_ url: URL, clock: ReplayController.Clock = .wall) {
         do {
             let entries = try ReplayController.load(url)
             socket.stop()
-            engine.reset()
-            replay.start(entries, name: url.lastPathComponent)
+            if clock == .log {
+                // Same starting point as sultana-replay: core initialised at
+                // t=0 with seed 1, every pushed frame hashed.
+                engine.manualClockMs = 0
+                engine.frameHash = SultanaEngine.frameHashSeed
+                engine.reset(seed: 1)
+            } else {
+                engine.reset()
+            }
+            replay.start(entries, name: url.lastPathComponent, clock: clock)
             updateStatus()
-            DebugDump.shared?.event("replay started \(url.lastPathComponent)")
+            DebugDump.shared?.event("replay started \(url.lastPathComponent) (\(clock.rawValue) clock)")
         } catch {
             let alert = NSAlert()
             alert.messageText = "Can't replay \(url.lastPathComponent)"
@@ -217,8 +322,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func replayFinished() {
-        DebugDump.shared?.event("replay finished")
-        engine.reset()
+        if replay.clock == .log, let hash = engine.frameHash {
+            let summary = String(format: "frame-hash %016llx (%u frames)", hash, engine.framesPushed)
+            Log.app.info("replay finished (log clock): \(summary, privacy: .public)")
+            DebugDump.shared?.event("replay finished (log clock): \(summary)")
+        } else {
+            DebugDump.shared?.event("replay finished")
+        }
+        engine.frameHash = nil
+        engine.manualClockMs = nil
+        engine.reset(seed: UInt32.random(in: 1...UInt32.max))
         connectLive()
     }
 }
@@ -248,8 +361,18 @@ extension AppDelegate: BridgeSocketDelegate {
 
 extension AppDelegate: NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        if menuItem.action == #selector(stopReplay(_:)) { return replay.isPlaying }
-        return true
+        switch menuItem.action {
+        case #selector(stopReplay(_:)):
+            return replay.isPlaying
+        case #selector(toggleRobotWindow(_:)):
+            menuItem.title = robotWindow.isVisible ? "Hide Robot" : "Show Robot"
+            return true
+        case #selector(toggleRobotOnTop(_:)):
+            menuItem.state = preferences.robotWindowOnTop ? .on : .off
+            return true
+        default:
+            return true
+        }
     }
 }
 
@@ -293,6 +416,13 @@ enum MainMenu {
         main.addItem(withTitle: "Edit", action: nil, keyEquivalent: "").submenu = edit
 
         let window = NSMenu(title: "Window")
+        window.addItem(withTitle: "Show Robot", action: #selector(AppDelegate.toggleRobotWindow(_:)), keyEquivalent: "1")
+            .target = target
+        window.addItem(
+            withTitle: "Keep Robot on Top", action: #selector(AppDelegate.toggleRobotOnTop(_:)), keyEquivalent: "t"
+        ).keyEquivalentModifierMask = [.command, .option]
+        window.items.last?.target = target
+        window.addItem(.separator())
         window.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         window.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         main.addItem(withTitle: "Window", action: nil, keyEquivalent: "").submenu = window

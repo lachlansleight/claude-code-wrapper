@@ -3,8 +3,20 @@ import Foundation
 /// Plays a recorded bridge session (JSONL, as written by
 /// scripts/record-ws.mjs and read by robot_v3/host's sultana-replay) into
 /// the app in real time, instead of the live bridge.
+///
+/// Two clocks:
+/// - `.wall`: entries are delivered at their `t` offsets and the app keeps
+///   ticking the firmware on its own clock, as it does live.
+/// - `.log`: the replay owns the firmware's clock. It advances it in 1 ms
+///   steps from 0, delivering due entries before each tick, which is
+///   exactly what sultana-replay does. With the same seed, every frame is
+///   byte-identical to the CLI's (checked with the frame hash).
 @MainActor
 final class ReplayController {
+    enum Clock: String {
+        case wall, log
+    }
+
     struct Entry {
         enum Kind {
             case frame(String)
@@ -29,6 +41,9 @@ final class ReplayController {
 
     private(set) var isPlaying = false
     private(set) var name = ""
+    private(set) var clock: Clock = .wall
+    /// The simulated time of the next step, in log-clock mode.
+    private var logClockMs: UInt32 = 0
     private var entries: [Entry] = []
     private var next = 0
     private var startMs: UInt32 = 0
@@ -67,9 +82,11 @@ final class ReplayController {
 
     /// Starts playing. Like sultana-replay, the socket counts as connected at
     /// t=0 unless the log's first entry says otherwise.
-    func start(_ entries: [Entry], name: String) {
+    func start(_ entries: [Entry], name: String, clock: Clock = .wall) {
         self.entries = entries
         self.name = name
+        self.clock = clock
+        logClockMs = 0
         next = 0
         startMs = MonotonicClock.nowMs()
         endMs = (entries.last?.t ?? 0) + Self.tailMs
@@ -78,20 +95,48 @@ final class ReplayController {
         } else {
             onConnected?(true)
         }
-        Log.app.info("replay started: \(name, privacy: .public), \(entries.count) entries")
+        Log.app.info("replay started: \(name, privacy: .public), \(entries.count) entries, \(clock.rawValue) clock")
     }
 
+    /// Log-clock mode: run the firmware up to the wall time elapsed since
+    /// the replay started, one millisecond at a time. Returns whether the
+    /// screen changed. The caller must not tick the engine itself.
+    func advanceLogClock(engine: SultanaEngine) -> Bool {
+        guard isPlaying, clock == .log else { return false }
+        let target = min(MonotonicClock.nowMs() &- startMs, endMs)
+        var changed = false
+        while isPlaying, logClockMs <= target {
+            engine.manualClockMs = logClockMs
+            while next < entries.count, entries[next].t <= logClockMs {
+                deliver(entries[next])
+                next += 1
+            }
+            if engine.tick() { changed = true }
+            if logClockMs == endMs {
+                stop()
+            } else {
+                logClockMs += 1
+            }
+        }
+        return changed
+    }
+
+    /// Wall-clock mode: deliver the entries that are due.
     func tick() {
-        guard isPlaying else { return }
+        guard isPlaying, clock == .wall else { return }
         let elapsed = MonotonicClock.nowMs() &- startMs
         while next < entries.count, entries[next].t <= elapsed {
-            switch entries[next].kind {
-            case .frame(let text): onFrame?(text)
-            case .connected(let connected): onConnected?(connected)
-            }
+            deliver(entries[next])
             next += 1
         }
         if elapsed >= endMs { stop() }
+    }
+
+    private func deliver(_ entry: Entry) {
+        switch entry.kind {
+        case .frame(let text): onFrame?(text)
+        case .connected(let connected): onConnected?(connected)
+        }
     }
 
     func stop() {

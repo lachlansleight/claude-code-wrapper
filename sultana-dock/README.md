@@ -4,10 +4,11 @@ Sultana's face, live in the macOS Dock. The app connects to the agent
 bridge exactly as the robot does, runs the robot_v3 firmware's own
 behaviour and face code in-process (SultanaCore, from
 [`robot_v3/host/`](../robot_v3/host/README.md)), and draws the screen the
-firmware renders into its Dock tile. It bounces the icon when a turn ends.
+firmware renders into its Dock tile. It bounces the icon when a turn ends,
+and can show the whole robot, arms and all, in a floating window.
 
-Status: Phase 2 of [`docs/mac-app/PLAN.md`](../docs/mac-app/PLAN.md). The
-robot window with arms, launch at login and sleep/wake handling are Phase 3.
+Status: Phases 1–3 of [`docs/mac-app/PLAN.md`](../docs/mac-app/PLAN.md) are
+done. The robot's body and arms are placeholders until the Phase 5 art.
 
 ## Build and run
 
@@ -47,11 +48,46 @@ app opens Settings:
 - **Bounce when an agent needs permission:** Claude's "Claude needs your
   permission…" notification, or `permission.requested` from Codex/OpenCode.
 - **Dock icon frame rate:** 30 (default), 15 or 10 fps. See *Cost* below.
+- **Open at login** (General). This registers the app where it is now, so
+  copy it to /Applications first rather than registering a build in
+  DerivedData.
+- **Show the robot window**, **Keep the robot window on top** (General).
 
-Once it is connected, the app hides itself: it has no window, and macOS
-won't bounce the icon of the frontmost app. Clicking the Dock icon opens
-Settings if something needs fixing; the Dock menu shows the connection
-status and has Settings and Replay Log.
+Once it is connected, the app hands focus back to whatever you were using:
+macOS won't bounce the icon of the frontmost app. Clicking the Dock icon
+shows the robot window (or Settings, if the connection needs fixing). The
+Dock menu shows the connection status and has Show Robot, Keep Robot on
+Top, Replay Log and Settings.
+
+## The robot window
+
+A resizable panel with the whole robot: body, the round screen (the
+firmware's frame, with crisp panel pixels) and two arms driven by the servo
+angle the firmware commands. The real robot has one servo and a gear that
+mirrors it to both arms, so the arms always move as a mirrored pair, and
+the drawn arms lag the commanded angle at about 500°/s as the SG92R servo
+does.
+
+- Clicking or dragging the window never activates the app, so turn-end
+  bounces keep working while it is open.
+- **Keep Robot on Top** (⌥⌘T) floats it above other windows, on every Space
+  and over full-screen apps.
+- Window ▸ Show Robot (⌘1) toggles it. Its size and position are remembered.
+- It stops redrawing while it's covered or closed; the Dock tile carries on.
+
+The geometry lives in `RobotLayout` in `SultanaDock/RobotWindow.swift`:
+screen and body size, each arm's pivot, length and rest angle, which way a
+positive offset moves the arms, and the servo rate. The placeholder follows
+the face editor's arm overlay: two palms orbit the screen, at 3 and 9
+o'clock when the offset is 0, rising for positive offsets. That struct is
+where the Phase 5 art plugs in.
+
+## Sleep and wake
+
+Before the Mac sleeps, the app stops drawing and closes the socket, so the
+firmware sees an ordinary disconnect. On wake it reconnects straight away
+instead of waiting for the heartbeat to notice the old socket is dead. The
+firmware's clock pauses while the Mac sleeps.
 
 ## What it does
 
@@ -80,6 +116,19 @@ Dock menu or app menu ▸ **Replay Log…** plays a bridge recording (JSONL from
 in real time instead of the live bridge, bounces included. When it ends, the
 app reconnects to the bridge.
 
+With `SULTANA_REPLAY_CLOCK=log` (below), the replay drives the firmware's
+clock from the log in 1 ms steps, seeded like `sultana-replay --seed 1`, and
+hashes every frame the firmware pushes. The hash lands in `events.log` and
+the system log when the replay ends, and must equal the CLI's:
+
+```bash
+robot_v3/host/build/sultana-replay robot_v3/host/fixtures/claude-turn.jsonl --seed 1 --frame-hash
+# frame-hash de9628a6b59d2e17 (1107 frames)
+```
+
+That proves the app runs the same firmware, fed the same way, to the
+pixel.
+
 ## Developer aids
 
 Set these in the scheme (Edit Scheme ▸ Run ▸ Arguments; they are there,
@@ -89,7 +138,8 @@ disabled) or in the shell:
 |---|---|
 | `SULTANA_BRIDGE_HOST` / `_PORT` / `_TOKEN` | Override the stored connection settings without changing them. With a token here, the Keychain is never touched. |
 | `SULTANA_REPLAY=/path/log.jsonl` | Replay a recording at launch. |
-| `SULTANA_DEBUG_DIR=/some/dir` | Once a second, write `dock.png` (the tile as drawn) and `state.json` (connection status, Dock push rate, the firmware's verb/expression/emotion/latch); append connections and bounces to `events.log`. |
+| `SULTANA_REPLAY_CLOCK=log` | Replay on the log's clock and report the frame hash (see above). |
+| `SULTANA_DEBUG_DIR=/some/dir` | Once a second, write `dock.png` (the tile as drawn), `robot.png` (the robot window, while open) and `state.json` (connection status, Dock push rate, the firmware's verb/expression/emotion/latch/arm); append connections, bounces, replays and sleep/wake to `events.log`. |
 
 Logs:
 
@@ -123,16 +173,16 @@ noisy. The code streams are the worst case: the firmware renders them at
 - The app's Swift sources live in `SultanaDock/`, a synchronized folder:
   new files there are picked up without editing the project.
 - `tools/make_app_icon.py` renders the static app icon from a frame the
-  firmware drew:
+  firmware drew. The current icon is the thinking face, 3.5 s into the
+  `claude-turn` fixture:
 
   ```bash
-  robot_v3/host/build/sultana-replay boot.jsonl --frames /tmp/f --frame-every 1500 --tail 1500
-  python3 sultana-dock/tools/make_app_icon.py /tmp/f/frame_0001500.png sultana-dock/SultanaDock/Assets.xcassets/AppIcon.appiconset
+  robot_v3/host/build/sultana-replay robot_v3/host/fixtures/claude-turn.jsonl --frames /tmp/f --frame-every 100
+  python3 sultana-dock/tools/make_app_icon.py /tmp/f/frame_0003500.png sultana-dock/SultanaDock/Assets.xcassets/AppIcon.appiconset
   ```
 
-  where `boot.jsonl` is just the first line of a recording. It's a
-  placeholder until the Phase 5 design; on Tahoe a plain icon gets placed in
-  a squircle when the app isn't running.
+  It's a placeholder until the Phase 5 design; on Tahoe a plain icon gets
+  placed in a squircle when the app isn't running.
 - `NSApp.requestUserAttention` returns 0-based ids that get reused, so 0 is
   a valid request, not a failure. The app doesn't track ids: macOS ends a
   critical bounce itself when the app is activated.

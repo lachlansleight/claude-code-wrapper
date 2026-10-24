@@ -1,7 +1,7 @@
 # Mac app: finalised plan
 
-**Status:** Phase 1 done (`robot_v3/host/`). Phase 2 done (`sultana-dock/`,
-see its `README.md`). Phase 3 next.
+**Status:** Phases 1–3 done (`robot_v3/host/`, `sultana-dock/`; see their
+READMEs). Phase 4 (behaviour fixes) and Phase 5 (design) remain.
 **Written:** 2026-10-24 against `main` at `0baabc3`.
 **Names:** the robot and project are called Sultana. The Mac app is
 **Sultana Dock**, the host build of the firmware core is **SultanaCore**
@@ -384,6 +384,11 @@ request, so the app stores none.
   `MACOS.md` is a later toggle, not v1.
 - Stop updating layers while `occlusionState` says the window isn't visible.
   Keep ticking the core and the Dock.
+- *(Built as above. Focus: with the window open the app can't hide itself
+  to hand focus back, so it uses `NSApp.deactivate()` everywhere instead,
+  which returns focus to the previous app and leaves the panel visible.
+  Tested; `yieldActivation` can't be used because the app is already
+  frontmost by the time its launch callbacks run.)*
 
 ### 5.6 Drawing the robot
 
@@ -400,6 +405,11 @@ Layer tree per `MACOS.md`: body, `armLeft`, `armRight`, round `screen`.
   real robot. Do not lag the body bob; the firmware's bob follows the
   commanded angle on the device too.
 - `CATransaction.setDisableActions(true)` around each frame's updates.
+- *(Built with placeholder vector art following the face editor's arm
+  overlay: palms orbit the screen, at 3 and 9 o'clock at offset 0, and a
+  positive offset raises both. All geometry is in `RobotLayout`, the
+  Phase 5 hand-off point. The drawing fits its aspect ratio inside any
+  bounds.)*
 
 ### 5.7 Preferences and secrets
 
@@ -424,7 +434,9 @@ core without a bridge. Two clocks:
 - **wall clock**: frames injected at their `t` offsets; normal ticking.
 - **log clock**: `now_ms` comes from the log in 16 ms steps, same seed as
   the CLI. Frames are then byte-identical to `sultana-replay --frames`, which is
-  the frame-exact check in §8.
+  the frame-exact check in §8. *(Built in Phase 3 with 1 ms steps, matching
+  the CLI's default; `SULTANA_REPLAY_CLOCK=log`. The app hashes every
+  pushed frame like `--frame-hash`.)*
 
 This is also how most of Phase 2–3 gets developed: no agent, no bridge.
 *(Built in Phase 2: the wall-clock variant, from the menus or with
@@ -505,18 +517,38 @@ bridge's Claude adapter, not a live Claude Code session):
 - Not checked: a live Claude Code session end to end, and watching the
   bounce happen (the request ids are consistent with it working; see §5.4).
 
-### Phase 3 — robot window and polish (Mac, ~2 days)
+### Phase 3 — robot window and polish — **done**
 
-1. `NSPanel` per §5.5 with placeholder body and arm art.
-2. Layer tree, round screen, arm rotation, servo-lag rate limit.
-3. Always-on-top and all-Spaces toggle; Dock menu; reopen-on-click.
-4. Launch at login; sleep / wake handling (the App Nap token landed in
-   Phase 2).
-5. Replay mode, log-clock variant; frame-exact check against the CLI.
+Delivered in `sultana-dock/` (see its `README.md`):
 
-**Done when:** the window can be resized, floated over a full-screen app,
-and survives sleep/wake; a log-clock replay in the app matches the CLI's
-PNGs byte for byte.
+1. `RobotWindowController`: non-activating `NSPanel`, transparent title
+   bar, fixed aspect ratio, minimum size, remembered frame.
+2. `RobotView`: body, round screen (nearest-neighbour), two mirrored arms on
+   the commanded servo angle with a 500°/s lag; skips updates while covered.
+3. Keep on Top (floating level, all Spaces, over full-screen apps); Show /
+   Hide Robot and Keep on Top in the Dock and Window menus and in Settings;
+   a Dock click shows the robot.
+4. Open at login (`SMAppService`) in Settings; sleep closes the socket and
+   pauses drawing, wake reconnects at once.
+5. Log-clock replay with a frame hash. Also: the static icon is now the
+   thinking face.
+
+Checked:
+
+- **Frame-exact:** log-clock replays in the app gave the same frame hash
+  and frame count as `sultana-replay --seed 1 --frame-hash`, for both
+  fixtures (`claude-turn`: `de9628a6b59d2e17`, 1107 frames;
+  `two-sessions`: `4ea59648961b14ef`, 617 frames).
+- **Robot window:** snapshots during a replay show the arms raised for
+  Celebrating and lowered for Thinking, mirrored, at 320 and 360 pt. With
+  the window open, focus stayed in the app you were using.
+- **Keep on Top:** the window server reports the panel at layer 0
+  normally and layer 3 (floating) with the option on. A saved non-square
+  frame is restored square.
+- **Not checked:** a real sleep/wake cycle (it would mean sleeping your
+  Mac), registering the login item (it would add one to your system),
+  resizing by dragging, closing with the close button, and watching it
+  float over a full-screen app.
 
 ### Phase 4 — behaviour fixes and docs (bridge + firmware, ~1 day)
 
@@ -575,7 +607,7 @@ window's final look.
 | App name and bundle id | **decided:** Sultana Dock, `com.lachlansleight.sultana.dock` | — |
 | Bounce on `turn.ended` | once (`.informationalRequest`), any session, any cause | `.criticalRequest`; only `cause == completed` |
 | Bounce on attention | on | off |
-| Robot window style | titlebar-transparent panel first | borderless pet window |
+| Robot window style | **built:** titlebar-transparent panel | borderless pet window later |
 | Error-turn reaction (Phase 4) | no Celebrating; `clearVerb()`; impulse `(−0.3, 0)` | leave as today (Celebrating on every `turn.ended`) |
 | Dock fps cap default | **decided:** 30, after measuring (see `sultana-dock/README.md`) | — |
 | `SERVO_PIN` for the host build | **resolved:** the firmware's own `config.h` (§4.1) | — |

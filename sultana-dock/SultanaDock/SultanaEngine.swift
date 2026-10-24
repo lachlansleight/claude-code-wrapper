@@ -20,7 +20,21 @@ final class SultanaEngine {
     /// Increments whenever the screen's pixels change.
     private(set) var changeCount: UInt64 = 0
 
-    let seed: UInt32
+    /// When set, every call hands the firmware this time instead of the
+    /// monotonic clock. Exact (log-clock) replays drive time from the log.
+    var manualClockMs: UInt32?
+
+    /// When non-nil, every frame the firmware pushes is folded into this
+    /// FNV-1a hash, exactly like `sultana-replay --frame-hash`, so a replay in
+    /// the app can be checked against the CLI frame for frame.
+    var frameHash: UInt64?
+    static let frameHashSeed: UInt64 = 1_469_598_103_934_665_603
+
+    /// Frames pushed since the last reset (sultana_core_frame_count).
+    var framesPushed: UInt32 { sultana_core_frame_count() }
+
+    private(set) var seed: UInt32
+    private var now: UInt32 { manualClockMs ?? MonotonicClock.nowMs() }
     private var lastFrame = [UInt16](repeating: 0, count: SultanaEngine.pixelCount)
     private let bitmap: CGContext
 
@@ -46,14 +60,16 @@ final class SultanaEngine {
     }
 
     /// Back to the state the robot boots into: asleep, disconnected.
-    func reset() {
-        sultana_core_init(MonotonicClock.nowMs(), seed)
+    /// Optionally with a new RNG seed.
+    func reset(seed newSeed: UInt32? = nil) {
+        if let newSeed { seed = newSeed }
+        sultana_core_init(now, seed)
         for i in lastFrame.indices { lastFrame[i] = 0 }
         changeCount += 1
     }
 
     func setConnected(_ connected: Bool) {
-        sultana_core_set_connected(connected, MonotonicClock.nowMs())
+        sultana_core_set_connected(connected, now)
     }
 
     /// One received WebSocket text frame. False if it wasn't JSON.
@@ -62,17 +78,22 @@ final class SultanaEngine {
         var text = text
         return text.withUTF8 { utf8 in
             utf8.withMemoryRebound(to: CChar.self) { chars in
-                sultana_core_inject(chars.baseAddress, chars.count, MonotonicClock.nowMs())
+                sultana_core_inject(chars.baseAddress, chars.count, now)
             }
         }
     }
 
     /// One iteration of the firmware's loop(). True if the screen changed.
     func tick() -> Bool {
-        guard sultana_core_tick(MonotonicClock.nowMs()), let frame = sultana_core_frame565() else {
+        guard sultana_core_tick(now), let frame = sultana_core_frame565() else {
             return false
         }
         let bytes = Self.pixelCount * MemoryLayout<UInt16>.size
+        if var hash = frameHash {
+            let raw = UnsafeRawBufferPointer(start: frame, count: bytes)
+            for byte in raw { hash = (hash ^ UInt64(byte)) &* 1_099_511_628_211 }
+            frameHash = hash
+        }
         let changed = lastFrame.withUnsafeMutableBytes { last -> Bool in
             if memcmp(last.baseAddress!, frame, bytes) == 0 { return false }
             memcpy(last.baseAddress!, frame, bytes)

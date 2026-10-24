@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import ServiceManagement
 
 enum TurnEndBounce: String, CaseIterable, Identifiable {
     case off, once, untilActive
@@ -25,6 +26,8 @@ final class AppPreferences: ObservableObject {
         static let turnEndBounce = "turnEndBounce"
         static let attentionBounce = "attentionBounce"
         static let dockFramesPerSecond = "dockFramesPerSecond"
+        static let robotWindowVisible = "robotWindowVisible"
+        static let robotWindowOnTop = "robotWindowOnTop"
     }
 
     static let dockFrameRates = [30, 15, 10]
@@ -41,6 +44,12 @@ final class AppPreferences: ObservableObject {
     @Published var dockFramesPerSecond: Int {
         didSet { defaults.set(dockFramesPerSecond, forKey: Key.dockFramesPerSecond) }
     }
+    @Published var robotWindowVisible: Bool {
+        didSet { defaults.set(robotWindowVisible, forKey: Key.robotWindowVisible) }
+    }
+    @Published var robotWindowOnTop: Bool {
+        didSet { defaults.set(robotWindowOnTop, forKey: Key.robotWindowOnTop) }
+    }
 
     let environmentHost: String?
     let environmentPort: Int?
@@ -55,6 +64,8 @@ final class AppPreferences: ObservableObject {
         attentionBounce = defaults.object(forKey: Key.attentionBounce) as? Bool ?? true
         let fps = defaults.integer(forKey: Key.dockFramesPerSecond)
         dockFramesPerSecond = Self.dockFrameRates.contains(fps) ? fps : 30
+        robotWindowVisible = defaults.bool(forKey: Key.robotWindowVisible)
+        robotWindowOnTop = defaults.bool(forKey: Key.robotWindowOnTop)
 
         let env = ProcessInfo.processInfo.environment
         environmentHost = env["SULTANA_BRIDGE_HOST"].flatMap { $0.isEmpty ? nil : $0 }
@@ -78,6 +89,22 @@ final class AppPreferences: ObservableObject {
         if trimmed != self.token {
             if trimmed.isEmpty { Keychain.deleteToken() } else { Keychain.writeToken(trimmed) }
             self.token = trimmed
+        }
+    }
+}
+
+/// Open at login, through SMAppService (macOS 13+). Registers the app at
+/// its current location, so register a copy in /Applications rather than a
+/// build in DerivedData.
+enum LoginItem {
+    static var status: SMAppService.Status { SMAppService.mainApp.status }
+    static var isEnabled: Bool { status == .enabled }
+
+    static func setEnabled(_ enabled: Bool) throws {
+        if enabled {
+            try SMAppService.mainApp.register()
+        } else {
+            try SMAppService.mainApp.unregister()
         }
     }
 }

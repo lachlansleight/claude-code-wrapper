@@ -1,8 +1,9 @@
 import Foundation
 
 /// Developer aid: when SULTANA_DEBUG_DIR is set, writes the Dock tile as
-/// drawn (dock.png) and a state snapshot (state.json) once a second, and
-/// appends connection and bounce events to events.log.
+/// drawn (dock.png), the robot window while it's open (robot.png) and a
+/// state snapshot (state.json) once a second, and appends connection,
+/// bounce and replay events to events.log.
 @MainActor
 final class DebugDump {
     static let shared: DebugDump? = {
@@ -31,7 +32,7 @@ final class DebugDump {
         try? handle.close()
     }
 
-    func tick(engine: SultanaEngine, dockTile: DockTileController, status: String) {
+    func tick(engine: SultanaEngine, dockTile: DockTileController, robotWindow: RobotWindowController, status: String) {
         let now = MonotonicClock.nowMs()
         guard now &- lastWriteMs >= 1000 else { return }
         let elapsed = lastWriteMs == 0 ? 1 : Double(now &- lastWriteMs) / 1000
@@ -47,6 +48,9 @@ final class DebugDump {
         try? state.data(using: .utf8)?.write(to: directory.appendingPathComponent("state.json"))
         if let png = dockTile.snapshotPNG() {
             try? png.write(to: directory.appendingPathComponent("dock.png"))
+        }
+        if robotWindow.isVisible, let png = robotWindow.view.snapshotPNG() {
+            try? png.write(to: directory.appendingPathComponent("robot.png"))
         }
     }
 

@@ -294,10 +294,10 @@
 				LastSwiftUpdateCheck = 2700;
 				LastUpgradeCheck = 2700;
 				TargetAttributes = {
-					29C7B681C8D62CBAC94D51C0 = {
+					2277647359DA36C2B02BD155 = {
 						CreatedOnToolsVersion = 27.0;
 					};
-					2277647359DA36C2B02BD155 = {
+					29C7B681C8D62CBAC94D51C0 = {
 						CreatedOnToolsVersion = 27.0;
 					};
 				};
@@ -492,18 +492,14 @@
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_PREVIEWS = NO;
 				GENERATE_INFOPLIST_FILE = NO;
-				HEADER_SEARCH_PATHS = (
-					"$(SRCROOT)/../robot_v3/host/core",
-				);
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/../robot_v3/host/core";
 				INFOPLIST_FILE = SultanaDock/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				OTHER_LDFLAGS = (
-					"-lc++",
-				);
+				OTHER_LDFLAGS = "-lc++";
 				PRODUCT_BUNDLE_IDENTIFIER = com.lachlansleight.sultana.dock;
 				PRODUCT_MODULE_NAME = SultanaDock;
 				PRODUCT_NAME = "Sultana Dock";
@@ -525,18 +521,14 @@
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_PREVIEWS = NO;
 				GENERATE_INFOPLIST_FILE = NO;
-				HEADER_SEARCH_PATHS = (
-					"$(SRCROOT)/../robot_v3/host/core",
-				);
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/../robot_v3/host/core";
 				INFOPLIST_FILE = SultanaDock/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				OTHER_LDFLAGS = (
-					"-lc++",
-				);
+				OTHER_LDFLAGS = "-lc++";
 				PRODUCT_BUNDLE_IDENTIFIER = com.lachlansleight.sultana.dock;
 				PRODUCT_MODULE_NAME = SultanaDock;
 				PRODUCT_NAME = "Sultana Dock";
@@ -577,7 +569,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
 	};
 	rootObject = 98F54143AB4E86B28C3AFEE0 /* Project object */;
 }

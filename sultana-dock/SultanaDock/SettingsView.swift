@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import SwiftUI
 
 /// Connection and behaviour settings.
@@ -11,6 +12,8 @@ struct SettingsView: View {
     @State private var portText = ""
     @State private var token = ""
     @State private var importError: String?
+    @State private var loginStatus = LoginItem.status
+    @State private var loginError: String?
 
     var body: some View {
         Form {
@@ -38,6 +41,25 @@ struct SettingsView: View {
                 Text(status.text).foregroundStyle(status.isConnected ? Color.green : Color.secondary)
             }
 
+            Section("General") {
+                Toggle("Open at login", isOn: Binding(
+                    get: { loginStatus == .enabled || loginStatus == .requiresApproval },
+                    set: setOpenAtLogin))
+                if loginStatus == .requiresApproval {
+                    HStack {
+                        Text("Allow Sultana Dock under Login Items to finish.")
+                            .foregroundStyle(.secondary).font(.callout)
+                        Spacer()
+                        Button("Open Login Items") { SMAppService.openSystemSettingsLoginItems() }
+                    }
+                }
+                if let loginError {
+                    Text(loginError).foregroundStyle(.red).font(.callout)
+                }
+                Toggle("Show the robot window", isOn: $preferences.robotWindowVisible)
+                Toggle("Keep the robot window on top", isOn: $preferences.robotWindowOnTop)
+            }
+
             Section("Dock") {
                 Picker("When a turn ends", selection: $preferences.turnEndBounce) {
                     ForEach(TurnEndBounce.allCases) { Text($0.label).tag($0) }
@@ -56,6 +78,16 @@ struct SettingsView: View {
             portText = String(preferences.port)
             token = preferences.token
         }
+    }
+
+    private func setOpenAtLogin(_ enabled: Bool) {
+        do {
+            try LoginItem.setEnabled(enabled)
+            loginError = nil
+        } catch {
+            loginError = error.localizedDescription
+        }
+        loginStatus = LoginItem.status
     }
 
     private func save() {

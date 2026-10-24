@@ -22,11 +22,12 @@ final class DockTileController {
 
     func markDirty() { dirty = true }
 
-    func pushIfDue(from engine: SultanaEngine) {
-        guard dirty else { return }
+    /// Redraws the tile with the latest frame if it changed and the cap allows.
+    func pushIfDue(_ image: CGImage?) {
+        guard dirty, let image else { return }
         let now = MonotonicClock.nowMs()
         let interval = UInt32(1000 / max(1, framesPerSecond))
-        guard pushCount == 0 || now &- lastPushMs >= interval, let image = engine.makeImage() else { return }
+        guard pushCount == 0 || now &- lastPushMs >= interval else { return }
         view.image = image
         NSApp.dockTile.display()
         lastPushMs = now
