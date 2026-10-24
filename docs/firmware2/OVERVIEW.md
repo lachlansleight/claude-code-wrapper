@@ -74,11 +74,18 @@ assembled each loop.
    ≥800 ms on GPIO 0, or a one-shot portal request is queued, run the
    blocking soft-AP captive portal (`robot-XXXX` / `192.168.4.1`).
    Otherwise try each remembered network in turn until one connects.
-4. **Behaviour wiring** — `EventRouter::begin()` constructs the verb
+4. **Bridge discovery** — `BridgeDiscovery::find()` probes the last
+   known bridge host, then sweeps the local /24 if that fails (see
+   [`BRIDGE_AND_EVENTS.md`](BRIDGE_AND_EVENTS.md)). A host that moved is
+   saved back to NVS. If nothing is found, a "Bridge Server Not Found"
+   error is shown for 3 s.
+5. **Behaviour wiring** — `EventRouter::begin()` constructs the verb
    and emotion systems and registers all callbacks against `AgentEvents`
    and `BridgeControl`.
-5. **Bridge** — `Bridge::begin(host, port, token)` opens the WebSocket
-   and starts auto-reconnect + heartbeat.
+6. **Bridge** — if discovery succeeded, `Bridge::begin(host, port,
+   token)` opens the WebSocket and starts auto-reconnect + heartbeat.
+   Otherwise `EventRouter::startIdle()` swaps the boot `Sleeping` verb
+   for the idle face and the robot stays offline until reboot.
 
 `loop()` runs at ~100 Hz (10 ms minimum sleep). Each iteration:
 

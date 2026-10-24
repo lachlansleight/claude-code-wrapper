@@ -107,6 +107,36 @@ void drawFailedToConnect() {
   pushFrame();
 }
 
+void drawSearchingForBridge(uint16_t scanned, uint16_t total) {
+  if (!fbReady) return;
+  fb.fillSprite(kBackground565);
+  fb.setTextDatum(MC_DATUM);
+  fb.setTextColor(kForeground565, kBackground565);
+  fb.setTextSize(2);
+  fb.drawString("Searching for", kW / 2, kH / 2 - 12);
+  fb.drawString("Bridge Server", kW / 2, kH / 2 + 14);
+  if (total > 0) {
+    char progress[16];
+    snprintf(progress, sizeof(progress), "%u/%u", (unsigned)scanned, (unsigned)total);
+    fb.setTextColor(kAccent565, kBackground565);
+    fb.drawString(progress, kW / 2, kH / 2 + 46);
+  }
+  fb.setTextDatum(TL_DATUM);
+  pushFrame();
+}
+
+void drawBridgeNotFound() {
+  if (!fbReady) return;
+  fb.fillSprite(kBackground565);
+  fb.setTextDatum(MC_DATUM);
+  fb.setTextColor(kError565, kBackground565);
+  fb.setTextSize(2);
+  fb.drawString("Bridge Server", kW / 2, kH / 2 - 12);
+  fb.drawString("Not Found", kW / 2, kH / 2 + 14);
+  fb.setTextDatum(TL_DATUM);
+  pushFrame();
+}
+
 void drawPortalScreen(const char* ssid, const char* ip) {
   if (!fbReady) return;
   fb.fillSprite(kBackground565);

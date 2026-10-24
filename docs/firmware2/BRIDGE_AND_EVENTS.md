@@ -37,13 +37,42 @@ focuses on what the firmware does with them.
                    verbs + emotion drivers
 ```
 
+## BridgeDiscovery
+
+`src/bridge/BridgeDiscovery.{h,cpp}`. Blocking, boot-time search for the
+bridge, run from `setup()` once WiFi is up. The host stored by
+Provisioning is treated as the *last known good* address rather than
+the truth, because the bridge machine's IP moves.
+
+```cpp
+namespace BridgeDiscovery {
+    using ProgressHandler = void (*)(uint16_t scanned, uint16_t total);
+    bool find(const char* lastKnownHost, uint16_t port, String& outHost,
+              ProgressHandler onProgress);
+}
+```
+
+- Probes `lastKnownHost` first (1.5 s connect timeout); on a hit no
+  sweep happens.
+- Otherwise sweeps `.1`–`.254` of the robot's own /24 (own address
+  skipped), 8 non-blocking connects in flight, 500 ms timeout each —
+  ~16 s for a subnet of dead addresses. The in-flight count stays below
+  lwIP's `ARP_TABLE_SIZE` (10) so a pending probe's ARP entry is never
+  recycled before its reply arrives.
+- A host is the bridge only if it accepts the connection **and**
+  answers `GET /api/health` (unauthenticated) with `"ok": true`.
+- `onProgress` drives the `scanned/254` line on the search splash.
+
+If nothing is found, `Bridge::begin()` is never called and the robot
+runs offline in idle until reboot.
+
 ## BridgeClient
 
 `src/bridge/BridgeClient.{h,cpp}`. Thin WebSocket client wrapping
 ArduinoWebsockets:
 
-- Connects to `ws://<host>:<port>/ws?token=<token>` from the
-  provisioning config.
+- Connects to `ws://<host>:<port>/ws?token=<token>` — host from
+  `BridgeDiscovery`, port and token from the provisioning config.
 - Heartbeat: 15 s interval, 3 s ping timeout, 2 consecutive failures
   treated as dead → reconnect.
 - Auto-reconnect with backoff.

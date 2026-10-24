@@ -19,6 +19,8 @@ namespace Display {
     void drawConnecting(const char* ssid);
     void drawPortalScreen(const char* ssid, const char* ip);
     void drawFailedToConnect();
+    void drawSearchingForBridge(uint16_t scanned, uint16_t total);  // total 0 = no progress line
+    void drawBridgeNotFound();
 }
 ```
 

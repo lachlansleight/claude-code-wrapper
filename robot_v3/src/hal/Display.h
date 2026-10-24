@@ -16,9 +16,10 @@ class TFT_eSprite;
  * blits it to the panel via DMA.
  *
  * Pin selection is baked in at compile time via `robot_v3/User_Setup.h`
- * (see TFT_eSPI docs); the runtime `config.h` cannot override it. Three
- * pre-canned full-screen UI states (boot/connecting/portal/failed) live
- * here so they can run before the face renderer is available.
+ * (see TFT_eSPI docs); the runtime `config.h` cannot override it. The
+ * pre-canned full-screen UI states (boot, WiFi connecting / failed,
+ * bridge search / not found, portal) live here so they can run before
+ * the face renderer is available.
  *
  * The TFT backlight, if wired to `TFT_BL`, is driven via LEDC PWM and is
  * controllable through setBrightness().
@@ -70,5 +71,15 @@ void drawConnecting(const char* ssid);
 
 /// Full-screen "Failed to Connect" splash. Shown when all known networks fail.
 void drawFailedToConnect();
+
+/**
+ * Full-screen "Searching for Bridge Server" splash, drawn during boot
+ * bridge discovery. With @p total > 0 a `scanned/total` progress line is
+ * added underneath (the subnet sweep); pass 0/0 for the plain splash.
+ */
+void drawSearchingForBridge(uint16_t scanned, uint16_t total);
+
+/// Full-screen "Bridge Server Not Found" error. Shown when discovery fails.
+void drawBridgeNotFound();
 
 }  // namespace Display

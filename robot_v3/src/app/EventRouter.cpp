@@ -201,6 +201,8 @@ void begin() {
   Motion::setEnabled(!Settings::motorsDisabled());
 }
 
+void startIdle() { VerbSystem::clearVerb(); }
+
 void tick() {
   AgentEvents::tick();
 

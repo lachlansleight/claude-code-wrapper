@@ -63,6 +63,14 @@ namespace EventRouter {
 void begin();
 
 /**
+ * Start awake instead of asleep: drop the boot `Sleeping` verb so the
+ * face shows the idle (neutral, emotion-driven) expression. Used when
+ * no bridge was found at boot — with no events coming, nothing would
+ * ever wake the robot. Call after begin().
+ */
+void startIdle();
+
+/**
  * Per-loop pump. Drives AgentEvents::tick, polls for session
  * re-latching, runs VerbSystem::tick, applies/releases derived
  * emotion drivers based on the current AgentState + verb, then

@@ -41,8 +41,13 @@ boot
   │
   WifiMgr::tryConnect on each known network in turn
   │
+  BridgeDiscovery::find(last known host, port)
+        ├─ found ─────► (save host if it moved)
+        └─ not found ─► "Bridge Server Not Found" for 3 s
+  │
   EventRouter::begin()
-  Bridge::begin(host, port, token)
+  found?      Bridge::begin(host, port, token)
+  not found?  EventRouter::startIdle()     (offline until reboot)
   │
   ┌───────────────── loop() ─────────────────┐
   │  tickSerialCommands                       │
@@ -72,6 +77,7 @@ more `tick()` that observes the same state.
 | Display | `robot_v3/src/hal/Display.*` | TFT init, sprite framebuffer, DMA push |
 | Motion (HAL) | `robot_v3/src/hal/Motion.*` | servo primitive + slew + hold override |
 | Settings | `robot_v3/src/hal/Settings.*` | NVS-backed palette + face/text mode, version counter |
+| Bridge discovery | `robot_v3/src/bridge/BridgeDiscovery.*` | boot-time search for the bridge (last known host, then /24 sweep) |
 | Bridge transport | `robot_v3/src/bridge/BridgeClient.*` | WS client + JSON parse → callbacks |
 | AgentEvents | `robot_v3/src/agents/AgentEvents.*` | semantic `agent_event` parsing into `AgentState` (side-effect free) |
 | BridgeControl | `robot_v3/src/agents/BridgeControl.*` | parses non-semantic WS controls (palette/mode/servo) |
@@ -94,6 +100,31 @@ writes credentials back to NVS and reboots; `/forget` clears.
 Multi-network support: up to `kMaxKnownNetworks` (currently 4) entries
 are kept; `tryConnect` walks them in order at boot. The OLED shows the
 AP SSID + IP via `Display::drawPortalScreen()` while the portal blocks.
+
+## Bridge discovery
+
+The bridge host stored in NVS is only the **last known good** address —
+the bridge machine's IP is expected to move. After WiFi connects,
+`BridgeDiscovery::find()` (blocking, `setup()` only):
+
+1. Shows "Searching for Bridge Server" and probes the last known host.
+2. If that fails, sweeps `.1`–`.254` of the robot's own /24 on the same
+   port (8787 unless overridden), showing `scanned/254` progress. Eight
+   connects are kept in flight at once, so a full sweep of dead
+   addresses takes ~16 s.
+3. A host only counts if it accepts the TCP connection **and** answers
+   the unauthenticated `GET /api/health` with `"ok": true`.
+
+On success a changed address is written back with
+`Provisioning::setBridgeAddress()` so it becomes the next boot's last
+known good. On failure the robot shows "Bridge Server Not Found" for
+3 s, then runs the normal face **awake in idle** (`Verb::None`) instead
+of asleep, and makes no further bridge attempts until reboot —
+`Bridge::begin()` is never called, because the WebSocket client blocks
+the loop for up to 5 s per attempt against an unreachable host.
+
+The bridge must be bound to a LAN-reachable address
+(`BRIDGE_HOST=0.0.0.0`) to be discoverable.
 
 ## Serial commands
 
