@@ -43,36 +43,41 @@ final class DockTileController {
     }
 }
 
-/// The round 240x240 screen in a thin bezel, scaled to the tile. The
-/// framing matches the static app icon (tools/make_app_icon.py) and Apple's
-/// icon grid, so the tile sits at the same size as its neighbours. The Dock
-/// shows tiles smaller than the 240-pixel panel, so the face is smoothed
-/// when downscaled (thin lines would drop out otherwise) and kept
-/// pixel-sharp when upscaled.
+/// The app icon, live: the robot's body as a macOS squircle with the
+/// firmware's screen set into it (IconArt.swift, shared with the static
+/// icon). The body never changes, so it's rendered once per tile size and
+/// only the screen is redrawn per frame.
 final class FaceTileView: NSView {
-    static let screenFraction: CGFloat = 0.80
-    static let bezelFraction: CGFloat = 0.86
-    static let bezelColor = CGColor(srgbRed: 0x23 / 255, green: 0x23 / 255, blue: 0x26 / 255, alpha: 1)
-
     var image: CGImage?
+    private var body: (pixels: Int, image: CGImage)?
 
     override func draw(_ dirtyRect: NSRect) {
-        guard let image, let context = NSGraphicsContext.current?.cgContext else { return }
-        let tile = min(bounds.width, bounds.height)
-        func centred(_ fraction: CGFloat) -> CGRect {
-            let side = tile * fraction
-            return CGRect(x: bounds.midX - side / 2, y: bounds.midY - side / 2, width: side, height: side)
-        }
-        context.setFillColor(Self.bezelColor)
-        context.fillEllipse(in: centred(Self.bezelFraction))
-
-        let screen = centred(Self.screenFraction)
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+        let side = min(bounds.width, bounds.height)
         let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
-        context.interpolationQuality = screen.width * scale >= CGFloat(image.width) ? .none : .high
+        let tile = CGRect(x: bounds.midX - side / 2, y: bounds.midY - side / 2, width: side, height: side)
+
+        if let body = bodyImage(pixels: Int((side * scale).rounded())) {
+            context.interpolationQuality = .high
+            context.draw(body, in: tile)
+        }
         context.saveGState()
-        context.addEllipse(in: screen)
-        context.clip()
-        context.draw(image, in: screen)
+        context.translateBy(x: tile.minX, y: tile.minY)
+        IconArt.drawFace(image, in: context, size: side, pixelScale: scale)
         context.restoreGState()
+    }
+
+    private func bodyImage(pixels: Int) -> CGImage? {
+        if let body, body.pixels == pixels { return body.image }
+        guard pixels > 0,
+            let context = CGContext(
+                data: nil, width: pixels, height: pixels, bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        IconArt.drawBody(in: context, size: CGFloat(pixels))
+        guard let image = context.makeImage() else { return nil }
+        body = (pixels, image)
+        return image
     }
 }

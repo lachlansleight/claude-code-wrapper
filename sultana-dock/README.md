@@ -124,9 +124,12 @@ display link ──► engine.tick ──pixels changed──► Dock tile (≤ 
 - **Bounces see every session.** The firmware only follows one session at a
   time, so the app reads `turn.ended` and attention signals from the raw
   frames before the firmware's latch drops them.
-- **The Dock tile** is the round screen in a thin bezel, sized to Apple's
-  icon grid so it matches its neighbours. It is redrawn only when the
-  firmware's pixels change, at most at the frame-rate cap.
+- **The Dock tile** is the app icon, live: the robot's body as a standard
+  macOS squircle, white fading to light grey toward its edges, with the
+  firmware's screen set into it as large as fits, inside the same thin
+  #ECECEC border as the desktop robot. It is redrawn only when the
+  firmware's pixels change, at most at the frame-rate cap; the body is
+  rendered once and cached.
 
 ## Replaying a recording
 
@@ -191,17 +194,21 @@ noisy. The code streams are the worst case: the firmware renders them at
   if a firmware source file is added, add it to both.
 - The app's Swift sources live in `SultanaDock/`, a synchronized folder:
   new files there are picked up without editing the project.
-- `tools/make_app_icon.py` renders the static app icon from a frame the
-  firmware drew. The current icon is the thinking face, 3.5 s into the
-  `claude-turn` fixture:
+- The icon art (squircle on Apple's 1024 grid, body shading, face size and
+  border, shadow) lives in `SultanaDock/IconArt.swift`, shared by the live
+  tile and the static icon. `tools/make_app_icon.swift` renders the static
+  icon set with it, around a frame the firmware drew. The current icon is
+  the thinking face, 3.5 s into the `claude-turn` fixture:
 
   ```bash
   robot_v3/host/build/sultana-replay robot_v3/host/fixtures/claude-turn.jsonl --frames /tmp/f --frame-every 100
-  python3 sultana-dock/tools/make_app_icon.py /tmp/f/frame_0003500.png sultana-dock/SultanaDock/Assets.xcassets/AppIcon.appiconset
+  swiftc -O -parse-as-library -o /tmp/make_app_icon sultana-dock/tools/make_app_icon.swift sultana-dock/SultanaDock/IconArt.swift
+  /tmp/make_app_icon /tmp/f/frame_0003500.png sultana-dock/SultanaDock/Assets.xcassets/AppIcon.appiconset
   ```
 
-  It's a placeholder until the Phase 5 design; on Tahoe a plain icon gets
-  placed in a squircle when the app isn't running.
+  Because the icon is already a squircle on the standard grid, it should
+  look like any other Mac icon when the app isn't running. An Icon Composer
+  `.icon` would add Tahoe's light/dark/tinted variants on top of that.
 - `NSApp.requestUserAttention` returns 0-based ids that get reused, so 0 is
   a valid request, not a failure. The app doesn't track ids: macOS ends a
   critical bounce itself when the app is activated.

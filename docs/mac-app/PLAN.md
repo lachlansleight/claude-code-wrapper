@@ -332,17 +332,21 @@ Swift, AppKit, **minimum macOS 14** (`NSScreen.displayLink`,
   clipped to a circle. Corners outside the circle are transparent. Call
   `dockTile.display()` only when a new image arrived, and no more often than
   the **Dock fps cap** preference (default 30; offer 15 and 10).
-  *(Built: the screen fills 80% of the tile inside a thin graphite bezel
-  (86%), matching Apple's icon grid so it sits at the same size as other
-  Dock icons. The Dock shows tiles smaller than 240 px, so the face is
-  smoothed when downscaled and nearest-neighbour only when upscaled. CPU
-  was measured at each cap; see `sultana-dock/README.md`. 30 fps stays the
-  default.)*
+  *(Built: the tile is the squircle icon described below, on Apple's icon
+  grid so it sits at the same size as other Dock icons. The Dock shows tiles
+  smaller than 240 px, so the face is smoothed when downscaled and
+  nearest-neighbour only when upscaled. CPU was measured at each cap; see
+  `sultana-dock/README.md`. 30 fps stays the default.)*
 - The static bundle icon (shown when the app isn't running) is a still of
   the sleeping face, made with Icon Composer so Tahoe doesn't squircle it.
-  *(Phase 2 ships a plain asset-catalog icon rendered from a firmware frame
-  by `sultana-dock/tools/make_app_icon.py`; the Icon Composer version waits
-  for the Phase 5 design.)*
+  *(Built differently, at Lachlan's direction: both the live tile and the
+  static icon are a standard macOS squircle (continuous corners, 824 on the
+  1024 grid, usual drop shadow) that is the robot's body, white fading to
+  light grey toward the edges, with the firmware's screen inset as large as
+  fits inside the desktop robot's #ECECEC face border. One drawing routine,
+  `IconArt.swift`, serves both; `tools/make_app_icon.swift` renders the
+  asset-catalog icon around a firmware frame (the thinking face). An Icon
+  Composer `.icon` for Tahoe's appearance variants is still possible later.)*
 - `applicationShouldHandleReopen` (click on the icon) shows the robot window.
 - Dock menu (`applicationDockMenu`): Show Robot, Always on Top ✓, Replay
   Log…, Preferences…, Quit.
