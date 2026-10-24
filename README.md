@@ -36,7 +36,8 @@ vocabulary spec is
 ```
 
 The Claude Code plugin in this repo *only* registers hooks; the actual
-server runs separately (`node plugin/dist/index.js`).
+server runs separately: inside [Sultana Dock](sultana-dock/README.md) on a
+Mac, or on its own (`node plugin/dist/index.js`).
 
 ## Repo layout
 
@@ -89,6 +90,26 @@ exports always override values from the file.
 `BRIDGE_TOKEN` is required — the bridge refuses to start without one.
 `BRIDGE_HOST` defaults to `127.0.0.1`. Set it to `0.0.0.0` if a LAN device
 (like the ESP32) needs to reach it.
+
+Command-line options win over the environment (`node dist/index.js --help`):
+
+| Option | Purpose |
+|---|---|
+| `--host <address>` | Bind address, as `BRIDGE_HOST`. |
+| `--port <n>` | Port, as `BRIDGE_PORT`. |
+| `--data-dir <dir>` | Where turn logs go (`<dir>/logs/`); default the working directory. |
+| `--turn-logs` | Write turn logs even with `--managed`. |
+| `--managed` | For an app running the bridge as a child process: ignore `.env`, no turn logs, print `{"event":"listening",…}` on stdout once listening, exit when stdin closes. |
+
+The token only comes from `BRIDGE_TOKEN`, never the command line, so it
+doesn't show up in `ps`. The bridge refuses to start (exit status 3) if
+something already answers on its port over loopback: macOS would otherwise
+let it bind `127.0.0.1` over another bridge's `0.0.0.0` and take that
+bridge's local traffic.
+
+`npm run bundle` builds `dist/bundle/bridge.mjs`, the bridge and its
+dependencies in one file that runs on a bare Node 20+. Sultana Dock embeds
+it (see [`sultana-dock/README.md`](sultana-dock/README.md#the-built-in-bridge)).
 
 | Variable                   | Default                  | Purpose                                                |
 |----------------------------|--------------------------|--------------------------------------------------------|

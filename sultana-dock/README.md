@@ -1,19 +1,26 @@
 # Sultana Dock
 
-Sultana's face, live in the macOS Dock. The app connects to the agent
-bridge exactly as the robot does, runs the robot_v3 firmware's own
-behaviour and face code in-process (SultanaCore, from
-[`robot_v3/host/`](../robot_v3/host/README.md)), and draws the screen the
-firmware renders into its Dock tile. It bounces the icon when a turn ends,
-and can put the whole robot, arms and all, on your desktop.
+Sultana's face, live in the macOS Dock. The app runs the agent bridge
+itself (or connects to one you run), listens to it exactly as the robot
+does, runs the robot_v3 firmware's own behaviour and face code in-process
+(SultanaCore, from [`robot_v3/host/`](../robot_v3/host/README.md)), and draws
+the screen the firmware renders into its Dock tile. It bounces the icon when
+a turn ends, and can put the whole robot, arms and all, on your desktop.
 
-Status: Phases 1–3 of [`docs/mac-app/PLAN.md`](../docs/mac-app/PLAN.md) are
-done. The robot is drawn from Lachlan's Figma design (file SCRATCHPAD, frame
-"SultanaExample", node 3189:9).
+Status: phases 1–4 of [`docs/mac-app/PLAN.md`](../docs/mac-app/PLAN.md) and
+phases 1–2 of [`docs/sultana/PLAN.md`](../docs/sultana/PLAN.md) (the built-in
+bridge) are done. The robot is drawn from Lachlan's Figma design (file
+SCRATCHPAD, frame "SultanaExample", node 3189:9).
 
 ## Build and run
 
-Needs Xcode 16 or later (the project uses synchronized folders) and macOS 14+.
+Needs Xcode 16 or later (the project uses synchronized folders), macOS 14+,
+and Node.js 20+ with the bridge's packages installed, because the build
+embeds the bridge:
+
+```bash
+cd plugin && npm install
+```
 
 ```bash
 open sultana-dock/SultanaDock.xcodeproj    # then Run the "Sultana Dock" scheme
@@ -27,6 +34,15 @@ xcodebuild -project sultana-dock/SultanaDock.xcodeproj -scheme "Sultana Dock" -c
 
 The firmware's per-machine `robot_v3/src/config.h` must exist, as for the
 host build.
+
+The "Embed Bridge" build phase (`bridge/embed-bridge.sh`) bundles the bridge
+from `plugin/src/` and copies in the build machine's Node: `SULTANA_NODE` if
+set, else the first Node 20+ on PATH, through nvm, or in Homebrew's usual
+places. That Node's architectures become the bridge's. Release builds of the
+app are universal, so with an arm64-only Node the build warns that the
+built-in bridge won't run on Intel Macs. Point `SULTANA_NODE` at a universal
+Node (`lipo -create` of the arm64 and x64 builds) to fix that. Bridge
+changes reach the app when it's rebuilt.
 
 ### Installing it as a normal app
 
@@ -58,13 +74,28 @@ variable while developing (below).
 
 ## Setting it up
 
-Start the bridge as usual (`node plugin/dist/index.js`). On first launch the
-app opens Settings:
+Nothing to set up for Claude Code beyond the `sultana` plugin
+([`sultana-plugin/`](../sultana-plugin/README.md)): the app runs the bridge
+on port 8787, where the plugin's hooks go. Settings ▸ Bridge:
 
-- **Host, Port, Token:** where the bridge is. "Import from .env…" reads
-  `BRIDGE_TOKEN`, `BRIDGE_PORT` and `BRIDGE_HOST` from the bridge's `.env`
-  (for example `plugin/src/.env`); a `0.0.0.0` bind address becomes
-  `127.0.0.1`. The token is stored in the login Keychain.
+- **Use:** *Built-in bridge* (the default) or *External bridge*. Choose
+  External to run a bridge yourself (`node plugin/dist/index.js`), here or on
+  another computer. If you had set the app up for a bridge at another
+  address or port before the built-in one existed, it stays on External.
+- **Built in ▸ Let robots on my network connect:** the bridge listens on
+  every interface instead of only this Mac. Robots on the same network find
+  it by themselves (they sweep the subnet on port 8787) and need the token.
+- **Built in ▸ Token:** made on first run and kept in the login Keychain.
+  Copy it into a robot's setup, or paste your robot's token here and Save
+  Token. The bridge restarts with it.
+- **Built in ▸ Show Log:** opens the bridge's log in Console.
+- **External ▸ Host, Port, Token:** where your bridge is. "Import from
+  .env…" reads `BRIDGE_TOKEN`, `BRIDGE_PORT` and `BRIDGE_HOST` from the
+  bridge's `.env` (for example `plugin/src/.env`); a `0.0.0.0` bind address
+  becomes `127.0.0.1`. The token is stored in the login Keychain.
+
+The rest:
+
 - **When a turn ends:** bounce once (default), bounce until you switch to
   the app, or don't bounce.
 - **Bounce when an agent needs permission:** Claude's "Claude needs your
@@ -83,6 +114,48 @@ the icon of the frontmost app, so turn-end bounces only show once you've
 switched to something else, which is where you'll usually be. The Dock
 menu shows the connection status and has Show Robot, Keep Robot on Top,
 Replay Log and Settings.
+
+## The built-in bridge
+
+The app embeds the bridge (`Contents/Resources/bridge/bridge.mjs`, the
+TypeScript bridge from `plugin/` bundled into one file) and a Node runtime
+to run it (`Contents/Helpers/sultana-bridge`), and starts it as a child
+process (`BuiltInBridge.swift`):
+
+```
+sultana-bridge bridge.mjs --managed --host 127.0.0.1 --port 8787
+```
+
+- **Settings travel as arguments, the token as `BRIDGE_TOKEN`.** The child
+  gets a clean environment, so nothing from the shell the app started in
+  (`BRIDGE_LOG_FILE`, Firebase settings) leaks in.
+- **Ready line.** With `--managed` the bridge prints
+  `{"event":"listening",…}` on stdout once it's listening, and the app
+  connects straight away.
+- **It dies with the app.** The app holds the bridge's stdin open and never
+  writes to it. However the app ends (quit, crash, force quit), the pipe
+  closes and the bridge exits, freeing the port. Quitting also sends
+  SIGTERM and waits up to a second.
+- **Restarts.** If the bridge exits, it restarts after 1 s, then 2, 4… up to
+  30 s for repeated failures. Running a minute resets that.
+- **Port 8787 taken.** The bridge exits with status 3 if something already
+  answers on the port. The app retries every 10 s, and at once when its
+  connection to whatever holds the port drops. Meanwhile it connects to
+  127.0.0.1:8787 anyway, so a bridge you started yourself works if it has
+  the same token: Settings says "Connected to the bridge already running on
+  port 8787". To run your own bridge on 8787 for good, choose External, or
+  the app takes the port back whenever it's free.
+- **Logs.** The bridge's stderr goes to `~/Library/Logs/Sultana
+  Dock/bridge.log`, moved to `bridge.log.1` at 2 MB. Turn logs are off; to
+  keep them (for making replay fixtures), run
+  `defaults write com.lachlansleight.sultana.dock bridgeTurnLogs -bool YES`
+  and they go to `~/Library/Application Support/Sultana Dock/Bridge/logs/`.
+- **Signing.** The runtime is signed with hardened runtime and
+  `bridge/sultana-bridge.entitlements`. V8 compiles JavaScript at run time,
+  so it needs `allow-jit` and `allow-unsigned-executable-memory`; without
+  them Node dies at launch.
+- **Robot access** binds `0.0.0.0`. With the macOS firewall on, expect a
+  prompt to allow incoming connections.
 
 ## The robot on your desktop
 
@@ -134,6 +207,7 @@ firmware's clock pauses while the Mac sleeps.
 ## What it does
 
 ```
+built-in bridge (child process) or an external one
 bridge ──text frame──► BridgeSignal ──► bounce (any session, before the latch)
                   └──► SultanaEngine (the firmware: latch, verbs, emotions, face)
 display link ──► engine.tick ──pixels changed──► Dock tile (≤ frame-rate cap)
@@ -181,10 +255,17 @@ disabled) or in the shell:
 
 | Variable | Effect |
 |---|---|
-| `SULTANA_BRIDGE_HOST` / `_PORT` / `_TOKEN` | Override the stored connection settings without changing them. With a token here, the Keychain is never touched. |
+| `SULTANA_BRIDGE_MODE` | `builtIn` or `external`, overriding Settings ▸ Use. |
+| `SULTANA_BRIDGE_PORT` / `_TOKEN` | Override the port and token for either mode (the built-in bridge runs on that port). With a token here, the Keychain is never touched. |
+| `SULTANA_BRIDGE_HOST` | Override the external bridge's host. |
 | `SULTANA_REPLAY=/path/log.jsonl` | Replay a recording at launch. |
 | `SULTANA_REPLAY_CLOCK=log` | Replay on the log's clock and report the frame hash (see above). |
-| `SULTANA_DEBUG_DIR=/some/dir` | Once a second, write `dock.png` (the tile as drawn), `robot.png` (the robot's layers on a transparent background, while shown) and `state.json` (connection status, Dock push rate, the firmware's verb/expression/emotion/latch/arm); append connections, bounces, replays and sleep/wake to `events.log`. |
+| `SULTANA_DEBUG_DIR=/some/dir` | Once a second, write `dock.png` (the tile as drawn), `robot.png` (the robot's layers on a transparent background, while shown), `settings.png` (while Settings is open) and `state.json` (connection status, Dock push rate, the firmware's verb/expression/emotion/latch/arm); append connections, built-in bridge states, bounces, replays and sleep/wake to `events.log`. |
+| `SULTANA_DEBUG_SETTINGS=1` | Open Settings at launch. |
+
+Any setting can also be overridden for one run with a launch argument, which
+UserDefaults reads without storing it, for example
+`"Sultana Dock" -bridgeMode external -allowNetworkRobots YES`.
 
 Logs:
 
@@ -217,6 +298,9 @@ noisy. The code streams are the worst case: the firmware renders them at
   if a firmware source file is added, add it to both.
 - The app's Swift sources live in `SultanaDock/`, a synchronized folder:
   new files there are picked up without editing the project.
+- `bridge/` holds the Embed Bridge build phase's script and the runtime's
+  entitlements. The phase reads `plugin/` and Node from outside the project,
+  so the app target has user script sandboxing off.
 - The icon art (squircle on Apple's 1024 grid, body shading, face size and
   border, shadow) lives in `SultanaDock/IconArt.swift`, shared by the live
   tile and the static icon. `tools/make_app_icon.swift` renders the static

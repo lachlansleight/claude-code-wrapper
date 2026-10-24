@@ -12,7 +12,8 @@ import type { BridgeConfig } from './types.js'
 import { repairMojibakeDeep } from './mojibake.js'
 import { enrichWithTranscriptText } from './transcript.js'
 
-const LOGS_DIR = 'logs'
+/** Where turn logs go; undefined means don't write them. Set by startHttpServer. */
+let turnLogDir: string | undefined
 
 interface TurnLog {
   path: string
@@ -38,11 +39,10 @@ function turnLogPath(log: Pick<TurnLog, 'agentSlug' | 'startStamp' | 'eventCount
     durationSeconds === undefined
       ? ''
       : `_${log.eventCount}i-${durationSeconds}s`
-  return path.join(LOGS_DIR, log.agentSlug, `${log.agentSlug}_${log.startStamp}${suffix}.log`)
+  return path.join(turnLogDir!, log.agentSlug, `${log.agentSlug}_${log.startStamp}${suffix}.log`)
 }
 
 function openTurnLog(agent: string): TurnLog {
-  fs.mkdirSync(LOGS_DIR, { recursive: true })
   const startedAt = Date.now()
   const log: TurnLog = {
     path: '',
@@ -60,6 +60,7 @@ function openTurnLog(agent: string): TurnLog {
 }
 
 function recordTurnHook(agent: string, hook_type: string, payload: unknown, parsed: ParsedEvent[]): void {
+  if (!turnLogDir) return
   const hasTurnStart = parsed.some((p) => p.event && (p.event as { kind?: string }).kind === 'turn.started')
 
   // Rotate to a fresh file on every turn.started so each turn is its own
@@ -270,6 +271,7 @@ export function startHttpServer(
   config: BridgeConfig,
   attachUpgrade: (httpServer: HttpServer) => void,
 ): HttpServer {
+  turnLogDir = config.turnLogDir
   const server = createServer(async (req, res) => {
     try {
       await handle(req, res, config)

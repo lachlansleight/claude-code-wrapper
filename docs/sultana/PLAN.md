@@ -1,6 +1,6 @@
 # Sultana as a self-contained Claude Code plugin
 
-**Status:** agreed 2026-10-24. Phase 1 done (`feat/sultana-plugin`); phase 2 next.
+**Status:** agreed 2026-10-24. Phases 1 and 2 done (`feat/sultana-plugin`); phase 3 next.
 **Builds on:** [`docs/mac-app/PLAN.md`](../mac-app/PLAN.md) (SultanaCore and
 Sultana Dock, phases 1–4 done).
 
@@ -25,7 +25,7 @@ must be portable: the bridge, the plugin and the firmware core.
 | Decision | Choice | Why |
 |---|---|---|
 | Bridge language | **TypeScript**: the existing bridge, refactored where needed | Already runs on all three platforms; one copy of the parsing and server logic, shared by the standalone bridge and the app |
-| How the app hosts it | A bundled single-executable build of the bridge that the app launches as a background process (sidecar) and connects to over WebSocket, as it does today | Barely changes the Mac app; the same approach works for an Electron or Tauri frontend later |
+| How the app hosts it | The app embeds a **Node runtime and the bridge bundled into one JavaScript file**, launches it as a background process (sidecar) and connects over WebSocket, as it does today | Barely changes the Mac app; the same approach works for an Electron or Tauri frontend later. Why not a single executable: see phase 2 |
 | How hooks reach the bridge | Claude Code **HTTP hooks** POST each hook's JSON straight to `http://127.0.0.1:8787/hooks/claude`. `SessionStart` can't be an HTTP hook, so it runs `curl` in the background | No Node per hook, no forwarder script, no shell setup |
 | Auth for hooks | The bridge accepts hook POSTs **from this machine without a token**, if they are JSON and carry no `Origin` header (so web pages can't forge them). Everything from the network still needs the token | HTTP hook headers can only use allow-listed environment variables, which would bring the shell setup back |
 | Mid-turn text | The **bridge** reads new assistant text from the transcript (`transcript_path` is in every payload), as the forwarder did | Claude's hooks don't carry it; the receiving end runs on the same machine |
@@ -48,6 +48,18 @@ Claude Code ── HTTP hooks (+ curl for SessionStart) ──► bridge (TypeSc
 
 On the Mac the bridge is a sidecar inside Sultana Dock. Elsewhere it runs on
 its own (`node plugin/dist/index.js`) or inside a future frontend.
+
+```
+Sultana Dock.app/Contents/
+  MacOS/Sultana Dock                the app
+  Helpers/sultana-bridge            Node, stripped, hardened runtime + JIT entitlements
+  Resources/bridge/bridge.mjs       the bridge and ws, one file (plugin/scripts/bundle.mjs)
+  Resources/bridge/licenses/        Node's and ws's licences
+```
+
+The app runs `sultana-bridge bridge.mjs --managed --host 127.0.0.1 --port
+8787` with `BRIDGE_TOKEN` as its only setting and holds the child's stdin
+open; see [`sultana-dock/README.md`](../../sultana-dock/README.md#the-built-in-bridge).
 
 ## Phases
 
@@ -99,6 +111,71 @@ bridge exactly as the old forwarder did, mid-turn text included, with no
    external one.
 4. Signing: hardened runtime entitlements for a bundled JavaScript runtime.
 
+*Status: done.* What was built:
+
+- **Runtime: Node plus a bundled file, not a single executable.** esbuild
+  bundles the bridge and `ws` into one 206 KB ES module
+  (`npm run bundle` in `plugin/`). The Xcode build phase "Embed Bridge"
+  (`sultana-dock/bridge/embed-bridge.sh`) puts it in the app with a copy of
+  the build machine's Node, stripped of local symbols, hardened, and signed
+  with `allow-jit` and `allow-unsigned-executable-memory`. Without those two
+  entitlements Node dies at launch under hardened runtime (checked: exit
+  133). Inside an app bundle a single executable buys nothing: the `.app` is
+  already the single thing you ship. Node single executables would also need
+  `postject` and re-signing per build. Bun would be about half the size, but
+  it's a second runtime the bridge has never run on, and another toolchain
+  on the build machine. Measured: Node 23.11 is 114 MB, 90 MB stripped,
+  33 MB for the whole zipped Release app (89 MB on disk). The app's contract
+  with the bridge (executable, arguments, `BRIDGE_TOKEN`, a ready line) is
+  the same whichever runtime, so switching later is local to the build
+  phase.
+- **Arguments:** `--host`, `--port`, `--data-dir`, `--turn-logs` and
+  `--managed`. The token stays in `BRIDGE_TOKEN` so it never shows in `ps`.
+  `--managed` ignores `.env`, turns turn logs off, prints
+  `{"event":"listening",…}` on stdout once listening, and exits when stdin
+  closes. Exit status 3 means the port is taken. The app passes a clean
+  environment, so a shell's `BRIDGE_LOG_FILE` or Firebase settings never
+  reach it.
+- **Port check:** before listening, the bridge (standalone too) checks
+  whether something already answers on loopback. macOS lets a `127.0.0.1`
+  listener bind over another process's `0.0.0.0` one, and the newer one then
+  takes all local traffic, so without the check a second bridge would
+  silently capture the first one's hooks.
+- **Supervision** (`BuiltInBridge.swift`): exit status 3 is retried every
+  10 s, and at once when the app's connection to whatever holds the port
+  drops. Any other exit restarts after 1, 2, 4… up to 30 s. Quitting sends
+  SIGTERM and waits up to 1 s. A crash or force quit closes the stdin pipe
+  and the bridge follows. While another bridge holds 8787 the app connects
+  to it with its token, so a standalone bridge with the same token keeps
+  working.
+- **Settings:** Use ▸ Built-in bridge (default) or External bridge. Built
+  in: Let robots on my network connect (binds `0.0.0.0`), the token (made on
+  first run, kept in the Keychain, with Copy) and Show Log. Users who had an
+  external bridge at another address or port stay on External.
+- **Logs:** stderr goes to `~/Library/Logs/Sultana Dock/bridge.log` (rotated
+  at 2 MB). Turn logs are off; the hidden setting `bridgeTurnLogs` writes
+  them under `~/Library/Application Support/Sultana Dock/Bridge/logs/`.
+
+Checked with test builds on a spare port:
+- Startup: listening and connected about 110 ms after launch.
+- Token-less hooks drive the face.
+- The child's environment holds only `PATH`, `TMPDIR`, `HOME` and
+  `BRIDGE_TOKEN`.
+- Crashes: `kill -9` of the bridge three times running restarted it after
+  1, 2 and 4 s.
+- Shutdown: a normal quit (SIGTERM) and a force quit of the app (stdin
+  closed) both free the port.
+- Another bridge on the port: the app used it, then took over 55 ms after
+  it stopped.
+- Robot access binds `*:port`. External mode starts no child.
+- Release builds are universal and pass `codesign --verify --deep --strict`.
+
+Not checked:
+- A real Claude Code session against the built-in bridge on 8787 (a running
+  bridge held that port on the development Mac).
+- Hardened runtime on the app itself (phase 4).
+- An Intel Mac.
+
 ### Phase 3: first-run setup
 
 1. Find the `claude` CLI (Apple apps don't inherit the shell's PATH; check the
@@ -111,7 +188,12 @@ bridge exactly as the old forwarder did, mid-turn text included, with no
 ### Phase 4: shipping
 
 Developer ID signing, notarization, a DMG on GitHub Releases, open-source
-credits (TFT_eSPI, ArduinoJson, Bun or Node), and an install page.
+credits (TFT_eSPI, ArduinoJson, Node, ws; the bridge's are already in
+`Resources/bridge/licenses/`), and an install page. Build with a pinned
+Node LTS made universal (`lipo` of the official arm64 and x64 builds, via
+`SULTANA_NODE`): the build machine's Node is arm64-only here, and the build
+warns that the bridge won't run on Intel Macs. Turn on hardened runtime for
+the app.
 
 ### Later
 
@@ -123,7 +205,6 @@ sweep; listing in Anthropic's plugin directory.
 
 | Question | Default |
 |---|---|
-| Bun or Node single executable for the sidecar | Measure in phase 2 |
 | Plugin `version`: pin releases, or update on every commit to `sultana-plugin/` | No version while developing; pin when shipping |
-| Turn logs in the built-in bridge | Off, with a setting |
+| Turn logs in the built-in bridge | Off; hidden `bridgeTurnLogs` default (phase 2) |
 | Codex, Cursor, OpenCode | Keep their existing forwarders for now |

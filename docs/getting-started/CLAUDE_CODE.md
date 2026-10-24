@@ -5,16 +5,17 @@ Sultana Dock, or any WebSocket subscriber) can react to Claude's activity.
 
 The **sultana plugin** does this with Claude Code's HTTP hooks: no Node
 script per hook and nothing to set in your shell. It needs the bridge on the
-**same machine** as Claude Code, on port **8787**. (Sultana Dock will run the
-bridge for you; see [`docs/sultana/PLAN.md`](../sultana/PLAN.md). Until then,
-run the standalone bridge as below.)
+**same machine** as Claude Code, on port **8787**.
+
+On a Mac, [Sultana Dock](../../sultana-dock/README.md) runs the bridge for
+you: open the app and skip to step 2. Otherwise, run the standalone bridge.
 
 ## Prerequisites
 
-- Node.js 20+ (for the standalone bridge)
+- Sultana Dock, or Node.js 20+ for the standalone bridge
 - Claude Code with HTTP hooks (2.1.116 is known to work)
 
-## 1. Build and start the bridge
+## 1. Build and start the bridge (without Sultana Dock)
 
 ```bash
 git clone https://github.com/lachlansleight/claude-code-wrapper
@@ -65,8 +66,9 @@ its marketplace.
 
 ## 3. Verify
 
-Open `examples/ws-client.html` in a browser, paste your token, click
-**Connect**. Type anything in Claude. You should see:
+With Sultana Dock, type anything in Claude: the face in the Dock starts
+working. Otherwise, open `examples/ws-client.html` in a browser, paste your
+token, click **Connect**. Type anything in Claude. You should see:
 
 - `agent_event` with `agent: "claude"` and `event.kind: "turn.started"`
 - followed by `event.kind: "message.user"` carrying the prompt text
@@ -77,8 +79,9 @@ Open `examples/ws-client.html` in a browser, paste your token, click
   `last_assistant_text`)
 
 If nothing arrives: check the bridge is listening on 8787 on the same
-machine, and that the plugin loaded (`/plugin`, or `claude plugin list`). If
-the bridge isn't running, Claude carries on; each hook fails instantly.
+machine (Sultana Dock's Settings show the bridge's status, with Show Log),
+and that the plugin loaded (`/plugin`, or `claude plugin list`). If the
+bridge isn't running, Claude carries on; each hook fails instantly.
 
 ## Updating
 

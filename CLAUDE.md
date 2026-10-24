@@ -22,8 +22,10 @@ not derived states. Behaviour derivation lives in the firmware
 (`VerbSystem` + `EmotionSystem` + `EventRouter`).
 
 Source lives in `plugin/src/`. Compiled output is `plugin/dist/`. The
-Claude Code plugin in `plugin/` only registers hooks that POST to the
-bridge. Start the bridge separately (`node plugin/dist/index.js`).
+Claude Code plugins only register hooks that POST to the bridge. On a Mac,
+Sultana Dock runs a bundled copy of the bridge (built into the app by its
+"Embed Bridge" build phase); otherwise start it separately
+(`node plugin/dist/index.js`).
 
 ## Repo layout
 
@@ -38,6 +40,7 @@ plugin/                       # bridge service (Node)
     transcript.ts             # mid-turn assistant text from Claude transcripts
     hook-forward.ts           # Claude-side stdin→HTTP forwarder
     auth.ts, logger.ts, firebase.ts, types.ts, mojibake.ts, dotenv.ts
+  scripts/bundle.mjs          # esbuild: the bridge as one file, for Sultana Dock
   hooks/hooks.json
   .claude-plugin/plugin.json
 .claude-plugin/marketplace.json
@@ -45,6 +48,7 @@ sultana-plugin/               # the Claude Code plugin: hooks.json only (HTTP ho
 robot_v3/                     # ESP32-S3 firmware
   host/                       # SultanaCore: the firmware built for a desktop, replay CLI, fixtures, make test
 sultana-dock/                 # Sultana Dock macOS app (Xcode project; links SultanaCore)
+  bridge/                     # Embed Bridge build phase + the Node runtime's entitlements
 face-editor/                  # Next.js face editor (TS port of the face engine)
 scripts/record-ws.mjs         # record a bridge session as JSONL (fixtures, replay)
 helpers/                      # forwarder scripts for Codex / Cursor / OpenCode
@@ -111,6 +115,11 @@ adapter keeps one pending request per session and infers the resolution
 ## Working on this repo
 
 - After editing the bridge: `cd plugin && npm run build`, then restart it.
+  Sultana Dock picks up bridge changes when the app is rebuilt.
+- Test bridges belong on a spare port (8797, 8798) with a clean
+  environment (`env -i PATH=/usr/bin:/bin BRIDGE_TOKEN=test node …`): a
+  shell may export `BRIDGE_*` settings (log file, Firebase), and a bridge
+  usually already runs on 8787.
 - The Claude Code plugin is `sultana-plugin/` (HTTP hooks to the bridge on
   127.0.0.1:8787; no Node, no token). The marketplace (`sultana`, in
   `.claude-plugin/marketplace.json`) also lists the legacy

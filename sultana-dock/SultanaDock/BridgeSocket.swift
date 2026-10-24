@@ -93,6 +93,14 @@ final class BridgeSocket: NSObject {
         status = .stopped
     }
 
+    /// Cuts short a wait to reconnect, for when the bridge has just come up.
+    func retryNow() {
+        guard reconnectTimer != nil else { return }
+        reconnectTimer?.invalidate()
+        reconnectTimer = nil
+        connect()
+    }
+
     func send(_ text: String) {
         guard let openTask else { return }
         openTask.send(.string(text)) { error in

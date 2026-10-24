@@ -39,4 +39,6 @@ export interface BridgeConfig {
   host: string
   port: number
   logFile?: string
+  /** Directory for per-turn hook logs, or undefined to not write them. */
+  turnLogDir?: string
 }

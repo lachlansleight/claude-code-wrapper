@@ -268,6 +268,7 @@
 				7EC6D9E6268A1DE72A5C6080 /* Sources */,
 				00902D9DB823B3227B76DC9A /* Frameworks */,
 				3AF33F3745E98800474FFF1C /* Resources */,
+				5D1B7C2A9E3F4A6B8C0D1E2F /* Embed Bridge */,
 			);
 			buildRules = (
 			);
@@ -331,6 +332,29 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		5D1B7C2A9E3F4A6B8C0D1E2F /* Embed Bridge */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Embed Bridge";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "exec \"$SRCROOT/bridge/embed-bridge.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		7EC6D9E6268A1DE72A5C6080 /* Sources */ = {
@@ -491,6 +515,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_PREVIEWS = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/../robot_v3/host/core";
 				INFOPLIST_FILE = SultanaDock/Info.plist;
@@ -520,6 +545,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_PREVIEWS = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/../robot_v3/host/core";
 				INFOPLIST_FILE = SultanaDock/Info.plist;

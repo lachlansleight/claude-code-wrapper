@@ -2,7 +2,7 @@ import AppKit
 import ServiceManagement
 import SwiftUI
 
-/// Connection and behaviour settings.
+/// Bridge and behaviour settings.
 struct SettingsView: View {
     @ObservedObject var preferences: AppPreferences
     @ObservedObject var status: AppStatus
@@ -18,15 +18,13 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
-                TextField("Host", text: $host, prompt: Text("127.0.0.1"))
-                TextField("Port", text: $portText, prompt: Text("8787"))
-                SecureField("Token", text: $token, prompt: Text("BRIDGE_TOKEN"))
-                HStack {
-                    Button("Import from .env…", action: importDotEnv)
-                    Spacer()
-                    Button("Save and Connect", action: save)
-                        .keyboardShortcut(.defaultAction)
-                        .disabled(Int(portText) == nil || host.isEmpty || token.isEmpty)
+                Picker("Use", selection: $preferences.bridgeMode) {
+                    ForEach(BridgeMode.allCases) { Text($0.label).tag($0) }
+                }
+                .disabled(preferences.environmentMode != nil)
+                switch preferences.mode {
+                case .builtIn: builtInBridgeSettings
+                case .external: externalBridgeSettings
                 }
                 if let importError {
                     Text(importError).foregroundStyle(.red).font(.callout)
@@ -38,7 +36,16 @@ struct SettingsView: View {
             } header: {
                 Text("Bridge")
             } footer: {
-                Text(status.text).foregroundStyle(status.isConnected ? Color.green : Color.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(status.text).foregroundStyle(status.isConnected ? Color.green : Color.secondary)
+                    Text(
+                        preferences.mode == .builtIn
+                            ? "Sultana Dock runs the bridge on port \(String(AppPreferences.builtInPort)), where the sultana Claude Code plugin sends its hooks."
+                            : "Connect to a bridge you run yourself (node plugin/dist/index.js), here or on another computer."
+                    )
+                    .foregroundStyle(.secondary)
+                }
+                .font(.callout)
             }
 
             Section("General") {
@@ -84,6 +91,44 @@ struct SettingsView: View {
             portText = String(preferences.port)
             token = preferences.token
         }
+        // The token is made on the built-in bridge's first run, maybe after
+        // this window opened.
+        .onChange(of: preferences.token) { _, newToken in token = newToken }
+    }
+
+    @ViewBuilder private var builtInBridgeSettings: some View {
+        Toggle("Let robots on my network connect", isOn: $preferences.allowNetworkRobots)
+        if preferences.allowNetworkRobots {
+            Text("Robots on the same network find this Mac by themselves, and connect with this token.")
+                .foregroundStyle(.secondary).font(.callout)
+        }
+        HStack {
+            SecureField("Token", text: $token, prompt: Text("Robots connect with this"))
+            Button("Copy") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(token, forType: .string)
+            }
+            .disabled(token.isEmpty)
+        }
+        HStack {
+            Button("Show Log") { NSWorkspace.shared.open(BuiltInBridge.logURL) }
+            Spacer()
+            Button("Save Token", action: saveToken)
+                .disabled(token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || token == preferences.token)
+        }
+    }
+
+    @ViewBuilder private var externalBridgeSettings: some View {
+        TextField("Host", text: $host, prompt: Text("127.0.0.1"))
+        TextField("Port", text: $portText, prompt: Text("8787"))
+        SecureField("Token", text: $token, prompt: Text("BRIDGE_TOKEN"))
+        HStack {
+            Button("Import from .env…", action: importDotEnv)
+            Spacer()
+            Button("Save and Connect", action: save)
+                .keyboardShortcut(.defaultAction)
+                .disabled(Int(portText) == nil || host.isEmpty || token.isEmpty)
+        }
     }
 
     /// The arm colour setting as a SwiftUI colour, stored as "#RRGGBB" (sRGB).
@@ -112,6 +157,12 @@ struct SettingsView: View {
     private func save() {
         guard let port = Int(portText) else { return }
         preferences.saveConnection(host: host, port: port, token: token)
+        onConnect()
+    }
+
+    /// The built-in bridge restarts with the new token; robots need it too.
+    private func saveToken() {
+        preferences.saveToken(token)
         onConnect()
     }
 

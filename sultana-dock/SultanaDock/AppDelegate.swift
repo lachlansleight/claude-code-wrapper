@@ -2,9 +2,11 @@ import AppKit
 import Combine
 import SwiftUI
 
-/// Wires the bridge socket, the firmware core, the Dock tile, the robot
-/// window and bounces together. Everything runs on the main thread.
+/// Wires the built-in bridge, the bridge socket, the firmware core, the Dock
+/// tile, the robot window and bounces together. Everything runs on the main
+/// thread.
 ///
+///   built-in bridge (child process, or an external bridge)
 ///   bridge ──text frame──► BridgeSignal (bounce, any session)
 ///                     └──► SultanaEngine (firmware: latch, verbs, emotion, face)
 ///   display link ──► engine.tick ──pixels changed──► Dock tile (≤ fps cap)
@@ -15,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let status = AppStatus()
     private let engine = SultanaEngine()
     private let socket = BridgeSocket()
+    private let builtInBridge = BuiltInBridge()
     private let attention = AttentionController()
     private let replay = ReplayController()
     private var dockTile: DockTileController!
@@ -51,8 +54,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] color in self?.robotWindow.view.armColor = color }
             .store(in: &cancellables)
 
+        // @Published sends before the value changes, hence the hop to the
+        // next run loop pass before acting on the new settings.
+        Publishers.Merge(
+            preferences.$bridgeMode.dropFirst().map { _ in () },
+            preferences.$allowNetworkRobots.dropFirst().map { _ in () }
+        )
+        .receive(on: RunLoop.main)
+        .sink { [weak self] in
+            guard let self, !self.replay.isPlaying else { return }
+            self.connectLive()
+        }
+        .store(in: &cancellables)
+
         engine.onSend = { [weak self] text in self?.socket.send(text) }
         socket.delegate = self
+        builtInBridge.onStatusChange = { [weak self] status in self?.builtInBridgeChanged(status) }
         replay.onFrame = { [weak self] text in self?.handleFrame(text) }
         replay.onConnected = { [weak self] connected in self?.engine.setConnected(connected) }
         replay.onFinish = { [weak self] in self?.replayFinished() }
@@ -75,13 +92,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             connectLive()
         }
-        if !preferences.endpoint.isComplete && !replay.isPlaying {
+        if (!preferences.endpoint.isComplete && !replay.isPlaying) || env["SULTANA_DEBUG_SETTINGS"] != nil {
             showSettings(nil)
         }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         socket.stop()
+        builtInBridge.stopAndWait()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -91,7 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// connection needs fixing. macOS won't bounce the icon while the app is
     /// frontmost; bounces resume as soon as you switch away.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !preferences.endpoint.isComplete || socket.status == .unauthorized {
+        if connectionNeedsFixing {
             showSettings(nil)
         } else {
             preferences.robotWindowVisible = true
@@ -161,7 +179,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             robotWindow.view.updateArms(commandedDegrees: engine.armOffsetDegrees, nowMs: MonotonicClock.nowMs())
         }
-        DebugDump.shared?.tick(engine: engine, dockTile: dockTile, robotWindow: robotWindow, status: status.text)
+        DebugDump.shared?.tick(
+            engine: engine, dockTile: dockTile, robotWindow: robotWindow, settingsWindow: settingsWindow,
+            status: status.text)
     }
 
     // MARK: Sleep and wake
@@ -203,29 +223,64 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         engine.inject(text)
     }
 
+    /// Starts or stops the built-in bridge to match the settings, and
+    /// (re)connects to whichever bridge they name.
     private func connectLive() {
+        if preferences.mode == .builtIn {
+            preferences.ensureToken()
+            builtInBridge.start(preferences.builtInConfiguration)
+        } else {
+            builtInBridge.stopAndWait()
+        }
         socket.start(preferences.endpoint)
         updateStatus()
     }
 
-    private func updateStatus() {
-        let place = preferences.endpoint.displayName
-        var connected = false
-        let text: String
-        if replay.isPlaying {
-            text = "Replaying \(replay.name)"
-        } else {
+    private func builtInBridgeChanged(_ bridgeStatus: BuiltInBridge.Status) {
+        DebugDump.shared?.event("built-in bridge \(bridgeStatus)")
+        if bridgeStatus == .running { socket.retryNow() }
+        updateStatus()
+    }
+
+    /// Clicking the Dock icon opens Settings instead of showing the robot.
+    private var connectionNeedsFixing: Bool {
+        if !preferences.endpoint.isComplete || socket.status == .unauthorized { return true }
+        guard preferences.mode == .builtIn, socket.status != .connected else { return false }
+        return builtInBridge.status == .unavailable || builtInBridge.status == .portInUse
+    }
+
+    private func connectionDescription() -> (text: String, connected: Bool) {
+        if replay.isPlaying { return ("Replaying \(replay.name)", false) }
+        let endpoint = preferences.endpoint
+        if preferences.mode == .external {
+            let place = endpoint.displayName
             switch socket.status {
-            case .stopped: text = "Not connected"
-            case .notConfigured: text = "Not configured: add the bridge token in Settings"
-            case .connecting: text = "Connecting to \(place)…"
-            case .connected:
-                text = "Connected to \(place)"
-                connected = true
-            case .unauthorized: text = "\(place) rejected the token"
-            case .waitingToRetry(let reason): text = "Can't reach \(place): \(reason)"
+            case .stopped: return ("Not connected", false)
+            case .notConfigured: return ("Not configured: add the bridge token in Settings", false)
+            case .connecting: return ("Connecting to \(place)…", false)
+            case .connected: return ("Connected to \(place)", true)
+            case .unauthorized: return ("\(place) rejected the token", false)
+            case .waitingToRetry(let reason): return ("Can't reach \(place): \(reason)", false)
             }
         }
+        // While something else holds the port, the socket reaches that
+        // instead, which works if it's a bridge that takes our token.
+        let other = "the bridge already running on port \(endpoint.port)"
+        switch (socket.status, builtInBridge.status) {
+        case (.connected, .portInUse): return ("Connected to \(other)", true)
+        case (.connected, _): return ("Connected to the built-in bridge", true)
+        case (.unauthorized, .portInUse): return ("The bridge already running on port \(endpoint.port) rejected the token", false)
+        case (.unauthorized, _): return ("The built-in bridge rejected the token", false)
+        case (_, .unavailable): return ("This build of Sultana Dock doesn't include the bridge", false)
+        case (_, .portInUse): return ("Port \(endpoint.port) is in use by another program", false)
+        case (_, .failed(let reason)): return ("The built-in bridge \(reason); restarting it", false)
+        case (_, .running): return ("Connecting to the built-in bridge…", false)
+        case (_, .stopped), (_, .starting): return ("Starting the built-in bridge…", false)
+        }
+    }
+
+    private func updateStatus() {
+        let (text, connected) = connectionDescription()
         status.text = text
         status.isConnected = connected
 
@@ -382,6 +437,8 @@ extension AppDelegate: BridgeSocketDelegate {
     func bridgeSocketDidClose(_ socket: BridgeSocket) {
         engine.setConnected(false)
         DebugDump.shared?.event("disconnected")
+        // Lost the bridge that held the built-in bridge's port: take it over.
+        if preferences.mode == .builtIn { builtInBridge.retryIfPortInUse() }
         updateStatus()
     }
 

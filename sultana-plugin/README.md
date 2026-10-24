@@ -26,9 +26,9 @@ claude plugin install sultana@sultana
 
 Plugins load when a session starts (or on `/reload-plugins`).
 
-Then run a bridge on port 8787: Sultana Dock does this for you (from phase 2
-of [`docs/sultana/PLAN.md`](../docs/sultana/PLAN.md)); until then, run the
-standalone bridge (`node plugin/dist/index.js`, see the top-level README).
+Then run a bridge on port 8787: on a Mac, [Sultana Dock](../sultana-dock/README.md)
+does this for you. Elsewhere, run the standalone bridge
+(`node plugin/dist/index.js`, see the top-level README).
 
 Don't also enable the older `claude-code-bridge` plugin from the same
 marketplace: every hook would arrive twice.

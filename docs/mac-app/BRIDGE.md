@@ -14,6 +14,11 @@ can run at the same time.
 > unlatched), and bounce detection, which runs in Swift on the raw frames
 > before the latch, as described under "When to bounce".
 
+> **Note (phase 2 of [`docs/sultana/PLAN.md`](../sultana/PLAN.md)):** the
+> app now runs its own bridge by default, so "start the bridge" below
+> applies to Settings ▸ Use ▸ External bridge. See
+> [`sultana-dock/README.md`](../../sultana-dock/README.md#the-built-in-bridge).
+
 ---
 
 ## Connecting

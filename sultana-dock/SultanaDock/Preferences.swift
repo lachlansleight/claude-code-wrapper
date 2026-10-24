@@ -15,13 +15,31 @@ enum TurnEndBounce: String, CaseIterable, Identifiable {
     }
 }
 
+enum BridgeMode: String, CaseIterable, Identifiable {
+    /// The app runs the bridge itself (BuiltInBridge) on port 8787.
+    case builtIn
+    /// A bridge run some other way, here or on another computer.
+    case external
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .builtIn: "Built-in bridge"
+        case .external: "External bridge"
+        }
+    }
+}
+
 /// User settings. The bridge token lives in the Keychain; everything else in
-/// UserDefaults. SULTANA_BRIDGE_HOST / _PORT / _TOKEN environment variables
-/// override the stored connection settings without changing them (handy
-/// when running from Xcode).
+/// UserDefaults. Environment variables override the stored connection
+/// settings without changing them (handy when running from Xcode):
+/// SULTANA_BRIDGE_MODE (builtIn or external), SULTANA_BRIDGE_PORT and
+/// SULTANA_BRIDGE_TOKEN for either mode, SULTANA_BRIDGE_HOST for external.
 @MainActor
 final class AppPreferences: ObservableObject {
     private enum Key {
+        static let bridgeMode = "bridgeMode"
+        static let allowNetworkRobots = "allowNetworkRobots"
+        static let bridgeTurnLogs = "bridgeTurnLogs"
         static let host = "bridgeHost"
         static let port = "bridgePort"
         static let turnEndBounce = "turnEndBounce"
@@ -33,9 +51,21 @@ final class AppPreferences: ObservableObject {
     }
 
     static let dockFrameRates = [30, 15, 10]
+    /// The sultana plugin's hooks post to this port, so the built-in bridge
+    /// always uses it.
+    static let builtInPort = 8787
 
     private let defaults = UserDefaults.standard
 
+    @Published var bridgeMode: BridgeMode { didSet { defaults.set(bridgeMode.rawValue, forKey: Key.bridgeMode) } }
+    /// Whether the built-in bridge listens on every interface, so robots can
+    /// reach it, or only on this Mac.
+    @Published var allowNetworkRobots: Bool {
+        didSet { defaults.set(allowNetworkRobots, forKey: Key.allowNetworkRobots) }
+    }
+    /// Per-turn hook logs from the built-in bridge, for making fixtures. No UI:
+    /// defaults write com.lachlansleight.sultana.dock bridgeTurnLogs -bool YES
+    let bridgeTurnLogs: Bool
     @Published var host: String { didSet { defaults.set(host, forKey: Key.host) } }
     @Published var port: Int { didSet { defaults.set(port, forKey: Key.port) } }
     @Published private(set) var token: String
@@ -57,15 +87,29 @@ final class AppPreferences: ObservableObject {
         didSet { defaults.set(armColorHex, forKey: Key.armColorHex) }
     }
 
+    let environmentMode: BridgeMode?
     let environmentHost: String?
     let environmentPort: Int?
     let environmentToken: String?
-    var hasEnvironmentOverride: Bool { environmentHost != nil || environmentPort != nil || environmentToken != nil }
+    var hasEnvironmentOverride: Bool {
+        environmentMode != nil || environmentHost != nil || environmentPort != nil || environmentToken != nil
+    }
 
     init() {
-        host = defaults.string(forKey: Key.host) ?? "127.0.0.1"
+        let storedHost = defaults.string(forKey: Key.host)
         let storedPort = defaults.integer(forKey: Key.port)
-        port = storedPort == 0 ? 8787 : storedPort
+        host = storedHost ?? "127.0.0.1"
+        port = storedPort == 0 ? Self.builtInPort : storedPort
+        // Before there was a built-in bridge, everyone connected to an
+        // external one. Keep those pointed at another address or port there.
+        let pointsElsewhere =
+            !["127.0.0.1", "localhost", "::1"].contains(storedHost ?? "127.0.0.1")
+            || (storedPort != 0 && storedPort != Self.builtInPort)
+        bridgeMode =
+            BridgeMode(rawValue: defaults.string(forKey: Key.bridgeMode) ?? "")
+            ?? (storedHost != nil && pointsElsewhere ? .external : .builtIn)
+        allowNetworkRobots = defaults.bool(forKey: Key.allowNetworkRobots)
+        bridgeTurnLogs = defaults.bool(forKey: Key.bridgeTurnLogs)
         turnEndBounce = TurnEndBounce(rawValue: defaults.string(forKey: Key.turnEndBounce) ?? "") ?? .once
         attentionBounce = defaults.object(forKey: Key.attentionBounce) as? Bool ?? true
         let fps = defaults.integer(forKey: Key.dockFramesPerSecond)
@@ -76,6 +120,7 @@ final class AppPreferences: ObservableObject {
         armColorHex = CGColor.fromHex(storedArm) == nil ? RobotLayout.defaultArmColorHex : storedArm
 
         let env = ProcessInfo.processInfo.environment
+        environmentMode = env["SULTANA_BRIDGE_MODE"].flatMap { BridgeMode(rawValue: $0) }
         environmentHost = env["SULTANA_BRIDGE_HOST"].flatMap { $0.isEmpty ? nil : $0 }
         environmentPort = env["SULTANA_BRIDGE_PORT"].flatMap { Int($0) }
         environmentToken = env["SULTANA_BRIDGE_TOKEN"].flatMap { $0.isEmpty ? nil : $0 }
@@ -84,20 +129,47 @@ final class AppPreferences: ObservableObject {
         token = environmentToken == nil ? (Keychain.readToken() ?? "") : ""
     }
 
+    var mode: BridgeMode { environmentMode ?? bridgeMode }
+
     /// The endpoint to connect to, environment overrides applied.
     var endpoint: BridgeEndpoint {
-        BridgeEndpoint(
-            host: environmentHost ?? host, port: environmentPort ?? port, token: environmentToken ?? token)
+        switch mode {
+        case .builtIn:
+            BridgeEndpoint(
+                host: "127.0.0.1", port: environmentPort ?? Self.builtInPort, token: environmentToken ?? token)
+        case .external:
+            BridgeEndpoint(
+                host: environmentHost ?? host, port: environmentPort ?? port, token: environmentToken ?? token)
+        }
+    }
+
+    var builtInConfiguration: BuiltInBridge.Configuration {
+        BuiltInBridge.Configuration(
+            host: allowNetworkRobots ? "0.0.0.0" : "127.0.0.1", port: environmentPort ?? Self.builtInPort,
+            token: environmentToken ?? token, turnLogs: bridgeTurnLogs)
+    }
+
+    /// The built-in bridge needs a token for the clients that connect to it
+    /// (this app and robots), so make one the first time it runs.
+    func ensureToken() {
+        guard environmentToken == nil, token.isEmpty else { return }
+        var bytes = [UInt8](repeating: 0, count: 24)
+        guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { return }
+        token = bytes.map { String(format: "%02x", $0) }.joined()
+        Keychain.writeToken(token)
+    }
+
+    func saveToken(_ token: String) {
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != self.token else { return }
+        Keychain.writeToken(trimmed)
+        self.token = trimmed
     }
 
     func saveConnection(host: String, port: Int, token: String) {
         self.host = host.trimmingCharacters(in: .whitespacesAndNewlines)
         self.port = port
-        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed != self.token {
-            if trimmed.isEmpty { Keychain.deleteToken() } else { Keychain.writeToken(trimmed) }
-            self.token = trimmed
-        }
+        saveToken(token)
     }
 }
 
@@ -152,10 +224,6 @@ enum Keychain {
         let status = SecItemAdd(add as CFDictionary, nil)
         if status != errSecSuccess { Log.app.error("keychain write failed: \(status)") }
         return status == errSecSuccess
-    }
-
-    static func deleteToken() {
-        SecItemDelete(baseQuery as CFDictionary)
     }
 }
 

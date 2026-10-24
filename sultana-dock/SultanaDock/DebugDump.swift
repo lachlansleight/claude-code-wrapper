@@ -1,9 +1,10 @@
-import Foundation
+import AppKit
 
 /// Developer aid: when SULTANA_DEBUG_DIR is set, writes the Dock tile as
-/// drawn (dock.png), the robot window while it's open (robot.png) and a
-/// state snapshot (state.json) once a second, and appends connection,
-/// bounce and replay events to events.log.
+/// drawn (dock.png), the robot window while it's open (robot.png), the
+/// Settings window while it's open (settings.png; SULTANA_DEBUG_SETTINGS=1
+/// opens it at launch) and a state snapshot (state.json) once a second, and
+/// appends connection, bridge, bounce and replay events to events.log.
 @MainActor
 final class DebugDump {
     static let shared: DebugDump? = {
@@ -32,7 +33,10 @@ final class DebugDump {
         try? handle.close()
     }
 
-    func tick(engine: SultanaEngine, dockTile: DockTileController, robotWindow: RobotWindowController, status: String) {
+    func tick(
+        engine: SultanaEngine, dockTile: DockTileController, robotWindow: RobotWindowController,
+        settingsWindow: NSWindow?, status: String
+    ) {
         let now = MonotonicClock.nowMs()
         guard now &- lastWriteMs >= 1000 else { return }
         let elapsed = lastWriteMs == 0 ? 1 : Double(now &- lastWriteMs) / 1000
@@ -51,6 +55,13 @@ final class DebugDump {
         }
         if robotWindow.isVisible, let png = robotWindow.view.snapshotPNG() {
             try? png.write(to: directory.appendingPathComponent("robot.png"))
+        }
+        if let view = settingsWindow?.contentView, settingsWindow?.isVisible == true,
+            let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)
+        {
+            view.cacheDisplay(in: view.bounds, to: rep)
+            try? rep.representation(using: .png, properties: [:])?.write(
+                to: directory.appendingPathComponent("settings.png"))
         }
     }
 
