@@ -25,6 +25,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var activity: NSObjectProtocol?
     private var settingsWindow: NSWindow?
     private var isAsleep = false
+    /// Until this time, the app's first activation (macOS activating it at
+    /// launch, which can land after didFinishLaunching) is handed straight back.
+    private var yieldFirstActivationUntil: Date?
+    /// A focus handoff hides the app (which activates the previous one),
+    /// then unhides it without activating and puts the robot back. True from
+    /// the hide until the unhide lands, so handoffs can't overlap.
+    private var handingOffFocus = false
     private var cancellables: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -45,6 +52,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
         preferences.$robotWindowOnTop
             .sink { [weak self] onTop in self?.robotWindow.keepsOnTop = onTop }
+            .store(in: &cancellables)
+        preferences.$armColorHex
+            .compactMap { CGColor.fromHex($0) }
+            .sink { [weak self] color in self?.robotWindow.view.armColor = color }
             .store(in: &cancellables)
 
         engine.onSend = { [weak self] text in self?.socket.send(text) }
@@ -72,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             connectLive()
         }
         if preferences.endpoint.isComplete || replay.isPlaying {
+            yieldFirstActivationUntil = Date().addingTimeInterval(5)
             DispatchQueue.main.async { self.yieldFocus() }
         } else {
             showSettings(nil)
@@ -83,6 +95,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        if let until = yieldFirstActivationUntil, Date() < until { yieldFocus() }
+    }
+
+    func applicationDidHide(_ notification: Notification) {
+        guard handingOffFocus else { return }  // the user hid the app: leave it hidden
+        NSApp.unhideWithoutActivation()
+    }
+
+    func applicationDidUnhide(_ notification: Notification) {
+        guard handingOffFocus else { return }
+        handingOffFocus = false
+        if preferences.robotWindowVisible { robotWindow.show() }
+    }
 
     /// Clicking the Dock icon shows the robot window, or Settings when the
     /// connection needs fixing.
@@ -127,8 +154,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// straight back to whatever was in front. The robot window is a
     /// non-activating panel and stays put.
     private func yieldFocus() {
-        guard NSApp.isActive, settingsWindow?.isVisible != true else { return }
-        NSApp.deactivate()
+        guard NSApp.isActive, !handingOffFocus, settingsWindow?.isVisible != true else { return }
+        // NSApp.deactivate() turned out to be unreliable (focus sometimes
+        // stays put). Hiding reliably activates the previous app; once the
+        // hide has landed, the app unhides without activating and the robot
+        // comes back (applicationDidHide / applicationDidUnhide).
+        handingOffFocus = true
+        NSApp.hide(nil)
+        // Safety net in case the hide or unhide never reports back.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            guard let self, self.handingOffFocus else { return }
+            self.handingOffFocus = false
+            if NSApp.isHidden { NSApp.unhideWithoutActivation() }
+            if self.preferences.robotWindowVisible { self.robotWindow.show() }
+        }
     }
 
     // MARK: Tick loop

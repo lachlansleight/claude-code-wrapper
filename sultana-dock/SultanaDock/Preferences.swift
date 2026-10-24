@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Security
 import ServiceManagement
@@ -28,6 +29,7 @@ final class AppPreferences: ObservableObject {
         static let dockFramesPerSecond = "dockFramesPerSecond"
         static let robotWindowVisible = "robotWindowVisible"
         static let robotWindowOnTop = "robotWindowOnTop"
+        static let armColorHex = "armColorHex"
     }
 
     static let dockFrameRates = [30, 15, 10]
@@ -50,6 +52,10 @@ final class AppPreferences: ObservableObject {
     @Published var robotWindowOnTop: Bool {
         didSet { defaults.set(robotWindowOnTop, forKey: Key.robotWindowOnTop) }
     }
+    /// The robot's arm colour, "#RRGGBB".
+    @Published var armColorHex: String {
+        didSet { defaults.set(armColorHex, forKey: Key.armColorHex) }
+    }
 
     let environmentHost: String?
     let environmentPort: Int?
@@ -66,6 +72,8 @@ final class AppPreferences: ObservableObject {
         dockFramesPerSecond = Self.dockFrameRates.contains(fps) ? fps : 30
         robotWindowVisible = defaults.bool(forKey: Key.robotWindowVisible)
         robotWindowOnTop = defaults.bool(forKey: Key.robotWindowOnTop)
+        let storedArm = defaults.string(forKey: Key.armColorHex) ?? ""
+        armColorHex = CGColor.fromHex(storedArm) == nil ? RobotLayout.defaultArmColorHex : storedArm
 
         let env = ProcessInfo.processInfo.environment
         environmentHost = env["SULTANA_BRIDGE_HOST"].flatMap { $0.isEmpty ? nil : $0 }

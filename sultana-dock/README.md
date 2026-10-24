@@ -8,7 +8,8 @@ firmware renders into its Dock tile. It bounces the icon when a turn ends,
 and can put the whole robot, arms and all, on your desktop.
 
 Status: Phases 1–3 of [`docs/mac-app/PLAN.md`](../docs/mac-app/PLAN.md) are
-done. The robot's body and arms are placeholders until the Phase 5 art.
+done. The robot is drawn from Lachlan's Figma design (file SCRATCHPAD, frame
+"SultanaExample", node 3189:9).
 
 ## Build and run
 
@@ -51,7 +52,8 @@ app opens Settings:
 - **Open at login** (General). This registers the app where it is now, so
   copy it to /Applications first rather than registering a build in
   DerivedData.
-- **Show the robot window**, **Keep the robot window on top** (General).
+- **Show the robot window**, **Keep the robot window on top**, **Arm
+  colour** (General). The arms default to the design's green, #8EE270.
 
 Once it is connected, the app hands focus back to whatever you were using:
 macOS won't bounce the icon of the frontmost app. Clicking the Dock icon
@@ -62,12 +64,22 @@ Top, Replay Log and Settings.
 ## The robot on your desktop
 
 Just the robot, floating on the desktop: no window frame, title bar or
-buttons, and a soft shadow that follows its shape. Body, the round screen
-(the firmware's frame, with crisp panel pixels) and two arms driven by the
-servo angle the firmware commands. The real robot has one servo and a gear
-that mirrors it to both arms, so the arms always move as a mirrored pair,
-and the drawn arms lag the commanded angle at about 500°/s as the SG92R
-servo does.
+buttons. It follows the Figma design. Back to front:
+
+- a white body disc whose radial gradient fades to grey at the rim (the
+  slight ring around the face);
+- two tapered arms, the design's exact outline, in the arm colour setting;
+- the face: the firmware's live screen (crisp panel pixels) inside a thin
+  #ECECEC border. The border sits in front of the arms' roots, so the arms
+  look like they come out of a thin body.
+
+The arms follow the servo angle the firmware commands. The real robot has
+one servo and a gear that mirrors it to both arms, so they move as a
+mirrored pair, lagging the commanded angle at about 500°/s as the SG92R
+servo does. They hinge where they emerge from the face border; the design
+only shows the rest pose, so that hinge point is a choice (`armPivot`).
+A soft shadow, not in the design, keeps the white body visible on light
+desktops.
 
 - **Move it** by dragging the robot. **Resize it** by pinching on it with a
   trackpad, or right-click ▸ Size (Small, Medium, Large).
@@ -82,12 +94,12 @@ servo does.
   its display has gone, it comes back centred.
 - It stops redrawing while it's covered or hidden; the Dock tile carries on.
 
-The geometry lives in `RobotLayout` in `SultanaDock/RobotWindow.swift`:
-screen and body size, each arm's pivot, length and rest angle, which way a
-positive offset moves the arms, and the servo rate. The placeholder follows
-the face editor's arm overlay: two palms orbit the screen, at 3 and 9
-o'clock when the offset is 0, rising for positive offsets. That struct is
-where the Phase 5 art plugs in.
+All of it lives in `RobotLayout` in `SultanaDock/RobotWindow.swift`, in
+the Figma frame's own units, so values copy straight from the design: body
+and face diameters, the gradient stops, the border, the arm outline (from
+the design's SVG), its position, hinge and rest angle, which way a positive
+offset moves the arms, the servo rate and the shadow. In the design the left
+arm sits 2 points further out than the right; the app draws them mirrored.
 
 ## Sleep and wake
 

@@ -395,11 +395,14 @@ request, so the app stores none.
   windows behind regardless of how macOS treats transparent pixels.)*
 - Stop updating layers while `occlusionState` says the window isn't visible.
   Keep ticking the core and the Dock.
-- *(Built as above. Focus: with the window open the app can't hide itself
-  to hand focus back, so it uses `NSApp.deactivate()` everywhere instead,
-  which returns focus to the previous app and leaves the panel visible.
-  Tested; `yieldActivation` can't be used because the app is already
-  frontmost by the time its launch callbacks run.)*
+- *(Focus: `NSApp.deactivate()` looked right in a first probe but proved
+  unreliable across repeated launches, and macOS sometimes activates the
+  app again after launch. What works every time: hide the app (macOS
+  activates the previous one), unhide it without activating once the hide
+  lands, and put the robot back. It runs right after launch, on the app's
+  first activation within 5 s, and on a Dock click. It passed 8 of 8
+  launches. `yieldActivation` can't be used: the app is already frontmost
+  when its launch callbacks run.)*
 
 ### 5.6 Drawing the robot
 
@@ -416,11 +419,13 @@ Layer tree per `MACOS.md`: body, `armLeft`, `armRight`, round `screen`.
   real robot. Do not lag the body bob; the firmware's bob follows the
   commanded angle on the device too.
 - `CATransaction.setDisableActions(true)` around each frame's updates.
-- *(Built with placeholder vector art following the face editor's arm
-  overlay: palms orbit the screen, at 3 and 9 o'clock at offset 0, and a
-  positive offset raises both. All geometry is in `RobotLayout`, the
-  Phase 5 hand-off point. The drawing fits its aspect ratio inside any
-  bounds.)*
+- *(Built from Lachlan's Figma design, file SCRATCHPAD, frame
+  "SultanaExample" (node 3189:9), in its own units: a white body disc with
+  a radial gradient that greys at the rim, the design's tapered arm outline
+  in a user-settable colour (default #8EE270), and the screen inside a 4 pt
+  #ECECEC border drawn in front of the arms' roots. The arms hinge where
+  they leave the border (the design shows only the rest pose). All geometry
+  is in `RobotLayout`.)*
 
 ### 5.7 Preferences and secrets
 

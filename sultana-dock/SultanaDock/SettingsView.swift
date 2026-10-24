@@ -58,6 +58,12 @@ struct SettingsView: View {
                 }
                 Toggle("Show the robot window", isOn: $preferences.robotWindowVisible)
                 Toggle("Keep the robot window on top", isOn: $preferences.robotWindowOnTop)
+                HStack {
+                    ColorPicker("Arm colour", selection: armColor, supportsOpacity: false)
+                    if preferences.armColorHex.uppercased() != RobotLayout.defaultArmColorHex {
+                        Button("Reset") { preferences.armColorHex = RobotLayout.defaultArmColorHex }
+                    }
+                }
             }
 
             Section("Dock") {
@@ -78,6 +84,19 @@ struct SettingsView: View {
             portText = String(preferences.port)
             token = preferences.token
         }
+    }
+
+    /// The arm colour setting as a SwiftUI colour, stored as "#RRGGBB" (sRGB).
+    private var armColor: Binding<Color> {
+        Binding(
+            get: { Color(cgColor: CGColor.fromHex(preferences.armColorHex) ?? CGColor(gray: 0.5, alpha: 1)) },
+            set: { newValue in
+                guard let srgb = NSColor(newValue).usingColorSpace(.sRGB) else { return }
+                let channel = { (value: CGFloat) in Int((min(max(value, 0), 1) * 255).rounded()) }
+                preferences.armColorHex = String(
+                    format: "#%02X%02X%02X", channel(srgb.redComponent), channel(srgb.greenComponent),
+                    channel(srgb.blueComponent))
+            })
     }
 
     private func setOpenAtLogin(_ enabled: Bool) {
