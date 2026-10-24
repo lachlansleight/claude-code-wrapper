@@ -45,6 +45,18 @@ quickstart; the rest lives here.
   checklist for adding a `Face::Expression` / `kBaseTargets` row and
   keeping emotion tables, blend, palette, motion, and simulator in sync.
 
+## Mac app (planned)
+
+- [mac-app/README.md](mac-app/README.md) — goals and design brief for a
+  macOS Dock app that shows the robot's face, built by compiling the
+  firmware's behaviour and face C++ into the app.
+- [mac-app/PLAN.md](mac-app/PLAN.md) — the finalised plan: architecture,
+  host build of the firmware (`robot_v3/host/`), C API, app design,
+  phases, open decisions.
+- [mac-app/BRIDGE.md](mac-app/BRIDGE.md), [mac-app/ENGINE.md](mac-app/ENGINE.md),
+  [mac-app/MACOS.md](mac-app/MACOS.md) — reference material from the
+  discovery (bridge protocol, firmware behaviour semantics, AppKit notes).
+
 ## Forward-looking ideas
 
 - [ideas/ART_COLLABORATION.md](ideas/ART_COLLABORATION.md) — how to let

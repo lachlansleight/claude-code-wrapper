@@ -1,0 +1,572 @@
+# Mac app: finalised plan
+
+**Status:** agreed plan, nothing built yet.
+**Written:** 2026-10-24 against `main` at `0baabc3`. This branch is two
+commits behind that; merge `main` before starting Phase 1.
+**Supersedes:** the "Recommended architecture", "Alternatives considered"
+and "Work plan" sections of [`README.md`](README.md), and the TypeScript /
+JavaScriptCore material in [`ENGINE.md`](ENGINE.md) and
+[`MACOS.md`](MACOS.md). Everything else in those files still applies.
+
+---
+
+## 1. Decision
+
+**The Mac app compiles the firmware's own behaviour and face C++ and runs it
+in-process.** There is no port. The firmware stays the single copy of the
+logic; the Mac app and the robot run the same object code modulo the HAL.
+
+Why this instead of the TypeScript port the discovery recommended:
+
+- The discovery rejected a Swift port as "a third copy of logic that's still
+  changing". That applies equally to the TS port. The editor's engine is
+  already a second copy and `ENGINE.md` §3–§4 lists where it has drifted.
+- The firmware code involved is nearly pure C++. Across the 21 source files
+  the Arduino surface is `millis()`, `random()` / `randomSeed()`,
+  `esp_random()`, `Serial.printf` and a `TFT_eSprite` with ten drawing
+  methods. No `PROGMEM`, no `String` on the hot path, and ArduinoJson is
+  header-only.
+- It was tried before this plan was written (§10): all 21 files compiled
+  unmodified on macOS against ~150 lines of stub headers, a Claude-shaped
+  replay produced the exact verb sequence `ENGINE.md` §2 describes, and the
+  firmware's own renderer drew frames at its own 30 fps throttle.
+
+What this buys beyond the Dock app:
+
+- **Quirk-for-quirk fidelity by construction.** Goal 3 of the discovery is
+  automatic, and every firmware fix reaches the Mac app on rebuild.
+- **A host test harness for the firmware.** The repo has no test suite. The
+  same host build is a CLI: event log in, frames and state out.
+- **A path to an exact simulator in the face editor**, by compiling the same
+  core to WebAssembly later. Not in scope here.
+
+Known limits, accepted:
+
+- One face per process. The firmware keeps its state in `static` variables.
+  The TS plan had the same limit. Multi-face needs a firmware refactor (§9).
+- Text and debug render modes draw nothing on the host in v1. Face mode only.
+- The RNG, the physical servo lag and the panel's colour response are not
+  reproduced. §4.7 lists exactly what is and isn't identical.
+
+---
+
+## 2. Architecture
+
+```
+bridge  (node plugin/dist/index.js)
+   │  ws://host:port/ws?token=…      ← the same broadcast the robot receives
+   ▼
+Swift app (AppKit, main thread)
+   ├─ BridgeSocket        URLSessionWebSocketTask; robot's ping/reconnect policy
+   │     │  text frame
+   │     ├──────────────► Signals        bounce / badge from raw frames, BEFORE the latch
+   │     └──────────────► RobotCore      C API over the firmware (libRobotCore.a)
+   │                        ├─ EventRouter → AgentEvents latch → VerbSystem / EmotionSystem
+   │                        ├─ SceneContextFill → FrameEffective → FrameController → Scene
+   │                        ├─ MotionBehaviors → Motion  (servo write = store the angle)
+   │                        └─ Display_host: 240×240 RGB565 sprite; pushFrame() = copy out
+   │     ◄──────────────── send callback: {"type":"request_sessions"} every 5 s while unlatched
+   ├─ display link (60 Hz) → robot_core_tick(now) → frame changed? → RGBA → CGImage
+   ├─ DockTileView        NSDockTile.contentView; pushed only when pixels changed, ≤ 30 Hz
+   ├─ RobotPanel          NSPanel: body art + two arm layers (±θ, rate-limited) + round screen
+   └─ Preferences         host/port in UserDefaults, token in Keychain, bounce + fps options
+```
+
+Threading contract: **the core is single-instance and not thread-safe.**
+Every call into it happens on the main thread. WebSocket callbacks hop to
+main before injecting.
+
+---
+
+## 3. Repo layout
+
+```
+robot_v3/
+  src/                        unchanged firmware sources
+  host/                       NEW: host build of the firmware core
+    stubs/                    Arduino.h, TFT_eSPI.h, ESP32Servo.h, Preferences.h, esp_random.h
+    hal/                      Display_host.cpp, Bridge_host.cpp  (host impls of src/hal/Display.h,
+                              src/bridge/BridgeClient.h)
+    core/                     robot_core.h, robot_core.cpp         (C API, §4.3)
+    cli/                      robot_host.cpp                        (replay → trace + frames, §4.8)
+    third_party/              ArduinoJson single header (pin to the Arduino library's version,
+                              7.4.3 today, MIT); stb_image_write.h (PNG out, public domain)
+    fixtures/                 recorded WS logs for the CLI and the app's replay mode
+    CMakeLists.txt            builds libRobotCore.a + robot_host on macOS / Windows / Linux
+mac-app/
+  RobotDock.xcodeproj         working name; see §8
+  RobotDock/                  Swift sources
+  RobotCore/                  Xcode static-library target referencing robot_v3/src + robot_v3/host
+scripts/
+  record-ws.mjs               NEW: subscribe to the bridge, append frames to a JSONL log
+```
+
+The Xcode `RobotCore` target compiles the same source list as
+`CMakeLists.txt`, by file reference into `robot_v3/`. `CMakeLists.txt` is the
+canonical list; keep the two in sync.
+
+---
+
+## 4. The host core (`robot_v3/host/`)
+
+### 4.1 What gets compiled
+
+| Compiled unmodified | Not compiled (hardware only) |
+|---|---|
+| `app/EventRouter.cpp`, `app/SceneContextFill.cpp` | `robot_v3.ino` |
+| `behaviour/EmotionBlend.cpp`, `EmotionSystem.cpp`, `VerbSystem.cpp` | `hal/WiFiManager.cpp` |
+| `agents/AgentEvents.cpp`, `agents/BridgeControl.cpp` | `hal/Provisioning.cpp`, `hal/ProvisioningUI.cpp` |
+| `core/AsciiCopy.cpp` | `hal/SerialDebugging.cpp` |
+| `face/*.cpp` (all eleven) | `hal/Display.cpp` → replaced by `host/hal/Display_host.cpp` |
+| `hal/Motion.cpp`, `hal/MotionBehaviors.cpp`, `hal/Settings.cpp` | `bridge/BridgeClient.cpp` → replaced by `host/hal/Bridge_host.cpp` |
+| | `bridge/BridgeDiscovery.cpp` |
+
+`Motion.cpp` and `Settings.cpp` compile unmodified because their hardware
+dependencies (`ESP32Servo.h`, `Preferences.h`) are stubbed at the header
+level. `Motion.cpp` also includes `src/config.h` for `SERVO_PIN`. That file is
+per-machine (there is a `config.example.h` beside it) and today it is
+committed with WiFi credentials and a bridge token in it, which should be
+fixed independently of this plan. The host build must not depend on it:
+ship a `host/config.h` on the include path ahead of `src/` (or a
+`-DSERVO_PIN=8` define). Decide at Phase 1; the probe used the real file.
+
+### 4.2 Stubs
+
+Everything the compiled set needs, and nothing more:
+
+| Header | Must provide |
+|---|---|
+| `Arduino.h` | `millis()`, `micros()`, `delay()`, `random(n)`, `random(a,b)`, `randomSeed()`, `PI`, `min`/`max`/`constrain`, `Serial.printf`, a minimal `String` (used only by `Settings.cpp` key names) |
+| `esp_random.h` | `esp_random()` |
+| `ESP32Servo.h` | `class Servo { setPeriodHertz; attach → true; write(angle) stores it }` |
+| `Preferences.h` | in-memory `begin/end/clear/putUShort/getUShort/putBool/getBool/putULong/getULong` |
+| `TFT_eSPI.h` | `TFT_eSPI` (no-op init/DMA methods, `color565`), `TFT_eSprite` with `createSprite`, `created`, `getPointer`, `fillSprite`, `fillRect`, `drawFastHLine`, `drawLine`, `drawCircle`, `fillCircle`, `fillSmoothCircle`, `drawPixel`, plus no-op text methods (`setTextSize/Datum/Color/Font`, `drawString`, `fontHeight`, `textWidth`). Constants `TFT_BLACK`, `TFT_WHITE`, `TL_DATUM`, `MC_DATUM`. |
+
+**Rasteriser fidelity.** `drawLine`, `drawCircle` and `fillCircle` must use
+TFT_eSPI's own algorithms (Bresenham line; midpoint circle; `fillCircle`'s
+horizontal-span variant) so edges land on the same pixels as the panel.
+`fillSmoothCircle` is the only anti-aliased primitive the face uses (pupils);
+port it from `TFT_eSPI.cpp` (`fillSmoothCircle`, around line 4246 in the
+copy under `~/Documents/Arduino/libraries/TFT_eSPI-master`). TFT_eSPI is MIT
+licensed; keep the attribution header on the copied functions.
+
+**Clock.** `millis()` returns a global the C API sets on every `init`,
+`inject` and `tick` call. It must **never be 0 at runtime**: several
+firmware fields use `0` as "unset" (`sLastEffectsMs`, `sPendingSnapSinceMs`,
+`emotionLastAdvanceMs`, `lingerUntil`). The host maps its monotonic clock to
+`uint32_t` with a +10 000 ms offset. It wraps after 49.7 days, as the device
+does.
+
+**RNG.** A seedable xorshift behind `random()` / `esp_random()` so the CLI is
+deterministic with `--seed`. The app seeds from time.
+
+### 4.3 C API (`host/core/robot_core.h`)
+
+```c
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef void (*robot_core_send_fn)(const char* json, void* user);  /* outbound WS text */
+typedef void (*robot_core_log_fn)(const char* line, void* user);   /* firmware LOG_* lines */
+
+void   robot_core_init(uint32_t now_ms, uint32_t rng_seed);        /* = setup() minus WiFi/provisioning */
+void   robot_core_set_send_callback(robot_core_send_fn, void* user);
+void   robot_core_set_log_callback(robot_core_log_fn, void* user);
+void   robot_core_set_connected(bool connected, uint32_t now_ms);  /* → EventRouter::onBridgeConnection */
+void   robot_core_inject(const char* json, size_t len, uint32_t now_ms); /* one WS text frame */
+bool   robot_core_tick(uint32_t now_ms);                           /* one loop() iteration; true if a frame was pushed */
+const uint16_t* robot_core_frame565(void);                         /* 240×240, valid until the next tick */
+void   robot_core_frame_rgba(uint8_t* out);                        /* 240×240×4, 5/6-bit channels expanded */
+int8_t robot_core_arm_offset_deg(void);                            /* Motion::currentOffsetDeg(), already ±45-clamped and rounded */
+void   robot_core_state_json(char* out, size_t cap);               /* debug snapshot: verb, effective verb, expression, v/a, latch, pending, read/write counts */
+#ifdef __cplusplus
+}
+#endif
+```
+
+- `robot_core_init` runs `Settings::begin`, `Display::begin`, `Motion::begin`,
+  `MotionBehaviors::begin`, `Face::begin`, `EventRouter::begin`, then wires
+  `Bridge::onMessage(&EventRouter::onBridgeMessage)` and
+  `Bridge::onConnection(&EventRouter::onBridgeConnection)`. It never calls
+  `Bridge::begin`.
+- `robot_core_inject` parses with ArduinoJson (`JsonDocument`, same as
+  `BridgeClient::handleText`) and calls the registered message handler. A
+  parse failure logs and drops the frame, as the device does.
+- `robot_core_tick` is `loop()` without WiFi and serial:
+  `Bridge::tick` (no-op) → `EventRouter::tick` → `SceneContextFill::fill` →
+  `Face::tickEffectiveParams` → `MotionBehaviors::tick` → `Motion::tick` →
+  `Face::tick`. Returns whether `Display::pushFrame` ran. The face throttles
+  itself to 33 ms / 16 ms internally, so calling tick at 60 Hz or 120 Hz
+  gives the same behaviour as the device.
+- `inject` takes `now_ms` because the firmware stamps state with `millis()`
+  inside handlers (`VerbSystem::setVerb` records `enteredAt`). On the device
+  that stamp is within a millisecond of receipt; passing the receive time
+  keeps it so on the host.
+- `Bridge_host.cpp` implements `Bridge::requestSessions()` by emitting
+  `{"type":"request_sessions"}` through the send callback. `EventRouter::tick`
+  calls it every 5 s while connected and unlatched; the Swift socket must
+  forward it or the latch will never recover after a reconnect.
+- Face mode is forced: after each inject the API resets the render mode to
+  face. `config_change.display_mode` is otherwise obeyed by the compiled
+  `BridgeControl`, and text mode would draw a blank screen on the host.
+
+### 4.4 Frame output
+
+- The sprite is RGB565, as on the device. `robot_core_frame_rgba` expands
+  each channel the way a panel does (`r8 = (r5 << 3) | (r5 >> 2)`, etc.).
+- The host decides whether anything changed by `memcmp` of the 115 KB 565
+  buffer against the last one it consumed. `Face::tick` renders on its
+  schedule whether or not pixels moved; the memcmp is what makes an idle or
+  sleeping face free for the Dock.
+- The buffer is square. The GC9A01 is round. **The host masks to a circle**
+  when drawing; the core does not.
+
+### 4.5 Settings
+
+`Settings.cpp` runs on the in-memory `Preferences` stub. The palette can
+still be changed live via the bridge's `setColor` (the editor's robot
+buttons) and `BridgeControl` applies it. Nothing persists across launches in
+v1. If persistence is wanted later, the stub gets load/save hooks the app
+wires to `UserDefaults`.
+
+### 4.6 Logging
+
+`DebugLog.h`'s `LOG_*` macros expand to `Serial.printf`. The `Serial` stub
+routes through the log callback; the CLI prints to stderr, the app to
+`os_log` and a debug window if one is built.
+
+### 4.7 What is and isn't identical to the robot
+
+| Identical | Not identical |
+|---|---|
+| Every rule in `ENGINE.md` §2 (latch, verbs, overlays, linger, strain, emotion dynamics, held drivers, activity dots) | Blink and glance timing (random) |
+| Frame cadence (33 / 16 ms throttle) | Very large frames: the ESP32 can fail to allocate the `JsonDocument` and drop the frame; the host never will |
+| Face geometry, mood ring, stream effects, pixel placement of hard-edged primitives | Pupil anti-aliasing: identical only once `fillSmoothCircle` is ported exactly |
+| Arm angle commanded each tick (`Motion::currentOffsetDeg`) | Arm angle *reached*: the SG92R lags; the app rate-limits the drawn arm (§5.6) |
+| Body bob (tracks the commanded angle on the device too) | Panel colour response and brightness |
+| | Text / debug render modes (blank on host) |
+
+### 4.8 CLI harness (`robot_host`)
+
+```
+robot_host --replay fixtures/claude-turn.jsonl [--seed 1] [--trace] [--frames out/ --frame-every 100] [--realtime]
+```
+
+- **Input:** JSONL, one line per WebSocket text frame as the robot would
+  receive it, wrapped with a receive time:
+  `{"t": <ms since recording start>, "frame": {…}}`. `scripts/record-ws.mjs`
+  writes this from a live bridge. The app's replay mode (§5.8) reads the same
+  file, so one recording drives both.
+- **Clock:** by default the log's `t` drives `now_ms` in fixed 16 ms steps,
+  so a run is deterministic given `--seed`. `--realtime` uses the wall clock.
+- `--trace` prints a line whenever the effective verb, expression or latch
+  changes, with valence, activation and arm angle. This is what the probe
+  printed (§10).
+- `--frames` writes PNGs via `stb_image_write` (or PPM with no dependency).
+- Starter fixture: record `scripts/simulate-hooks.js` running against a
+  local bridge. Add a second fixture with two interleaved sessions to cover
+  the latch.
+
+Build: `cmake -S robot_v3/host -B build && cmake --build build`. Clang on
+every platform; on Windows prefer clang-cl over MSVC (`##__VA_ARGS__` in
+`DebugLog.h`, `M_PI` in `FrameController.cpp`).
+
+---
+
+## 5. The Mac app (`mac-app/`)
+
+Swift, AppKit, **minimum macOS 14** (`NSScreen.displayLink`,
+`SMAppService`). Not sandboxed in v1. No App Store.
+
+### 5.1 BridgeSocket
+
+- `URLSessionWebSocketTask` to `ws://<host>:<port>/ws?token=<token>`.
+- Mirror the robot: ping every 15 s, 3 s timeout, two consecutive failures
+  → close → reconnect after 2 s. A 401 at the handshake is a bad token;
+  surface it in the UI rather than retrying silently.
+- `didOpen` → `robot_core_set_connected(true)`; close or error →
+  `set_connected(false)`. This is the device's `WStype_CONNECTED` /
+  `WStype_DISCONNECTED` timing, not the `hello` frame.
+- Every text frame goes to **both** `Signals` and `robot_core_inject`, on the
+  main thread, in arrival order.
+- Outbound: the core's send callback writes to the socket. Only
+  `request_sessions` is ever sent.
+
+### 5.2 Tick loop
+
+- `NSScreen.main.displayLink(target:selector:)` at the display's rate.
+  Each callback: `robot_core_tick(now)`; if it returns true and the 565
+  buffer differs from the last consumed one, convert to RGBA, build a
+  `CGImage` over the buffer (`CGDataProvider`, no extra copy), and hand it to
+  the Dock tile and the robot window.
+- Hold a `ProcessInfo.beginActivity(.userInitiatedAllowingIdleSystemSleep)`
+  token while connected so App Nap doesn't stall the timer.
+- On `NSWorkspace.willSleepNotification` stop ticking; on `didWake` resume
+  and let the socket reconnect. The firmware copes with a large `dt`
+  (exponential smoothing, absolute-time comparisons, `Motion` clamps `dt` at
+  0.5 s). The display link also stops while the screen is asleep; same story.
+
+### 5.3 Dock tile
+
+- `NSApp.dockTile.contentView` = a view holding the latest `CGImage`,
+  drawn with `interpolationQuality = .none` and clipped to a circle. Corners
+  outside the circle are transparent. Call `dockTile.display()` only when a
+  new image arrived, and no more often than the **Dock fps cap** preference
+  (default 30; offer 15 and 10). Measure Dock + app CPU in Instruments at
+  each setting before shipping a default.
+- The static bundle icon (shown when the app isn't running) is a still of
+  the sleeping face, made with Icon Composer so Tahoe doesn't squircle it.
+- `applicationShouldHandleReopen` (click on the icon) shows the robot window.
+- Dock menu (`applicationDockMenu`): Show Robot, Always on Top ✓, Replay
+  Log…, Preferences…, Quit.
+
+### 5.4 Signals (bounce, later badge)
+
+Decoded in Swift from each raw frame, **before** the core's latch, with a
+minimal `Decodable` (`type`, `session_id`, `event.kind`, `event.cause`,
+`event.text`). This is what lets a completion in a non-latched session still
+bounce.
+
+| Frame | Action | Preference |
+|---|---|---|
+| `agent_event` / `turn.ended` | `NSApp.requestUserAttention(.informationalRequest)` | style: informational (default) / critical; off |
+| `agent_event` / `notification` with `text` starting `"Claude needs"`, or `permission.requested` | same | on by default; off |
+| app becomes active | `cancelUserAttentionRequest` | — |
+
+Bounce is a no-op while the app is frontmost; the robot window is a
+non-activating panel so that rarely happens. Badge counts are Phase 6 (§7).
+
+### 5.5 Robot window
+
+- `NSPanel` with `[.titled, .closable, .resizable, .nonactivatingPanel,
+  .fullSizeContentView]`, `titlebarAppearsTransparent`, title hidden,
+  `hidesOnDeactivate = false`, `contentAspectRatio` from the body art,
+  `minSize`, `setFrameAutosaveName`.
+- **Always on top** toggle: `level = .floating` plus
+  `collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]`; back to
+  `.normal` / default when off.
+- Start with this titlebar style. The borderless "desktop pet" style from
+  `MACOS.md` is a later toggle, not v1.
+- Stop updating layers while `occlusionState` says the window isn't visible.
+  Keep ticking the core and the Dock.
+
+### 5.6 Drawing the robot
+
+Layer tree per `MACOS.md`: body, `armLeft`, `armRight`, round `screen`.
+
+- `screen.contents` = the frame `CGImage`, `magnificationFilter = .nearest`,
+  `cornerRadius = w/2`, `masksToBounds = true`. Optionally snap the screen
+  layer to a whole multiple of 240 px so every panel pixel is the same size.
+- Arms: `θ_cmd = robot_core_arm_offset_deg()`. The gear mirrors one servo
+  to both arms, so `armRight` rotates by `+θ` and `armLeft` by `−θ` about
+  their pivots; which sign is "up" is set by the art (Phase 5).
+- **Servo lag:** rate-limit the *drawn* angle toward `θ_cmd` at about
+  500 °/s (the SG92R is spec'd near 0.1 s per 60°). Tune by eye against the
+  real robot. Do not lag the body bob; the firmware's bob follows the
+  commanded angle on the device too.
+- `CATransaction.setDisableActions(true)` around each frame's updates.
+
+### 5.7 Preferences and secrets
+
+- Host and port in `UserDefaults`; token in the Keychain
+  (`kSecClassGenericPassword`). No default token: with nothing configured the
+  app shows a "Not configured" state, matching the bridge's refusal to start
+  without `BRIDGE_TOKEN`.
+- Preferences window: host, port, token (secure field), "Import from
+  .env…" (reads `BRIDGE_TOKEN` / `BRIDGE_PORT` from a chosen file), bounce
+  options, Dock fps cap, launch at login (`SMAppService.mainApp`).
+- Add `NSLocalNetworkUsageDescription` for bridges on other machines.
+
+### 5.8 Replay mode (developer feature, built early)
+
+Dock menu ▸ Replay Log… opens a JSONL fixture (§4.8) and feeds it to the
+core without a bridge. Two clocks:
+
+- **wall clock**: frames injected at their `t` offsets; normal ticking.
+- **log clock**: `now_ms` comes from the log in 16 ms steps, same seed as
+  the CLI. Frames are then byte-identical to `robot_host --frames`, which is
+  the frame-exact check in §8.
+
+This is also how most of Phase 2–3 gets developed: no agent, no bridge.
+
+### 5.9 Distribution
+
+Run from Xcode for yourself. Developer ID signing and `notarytool` only if
+the app is shared. The Local Network prompt and `SMAppService` both behave
+better with a signed build, so sign early if either misbehaves.
+
+---
+
+## 6. Phases
+
+Estimates are rough and assume one person.
+
+### Phase 1 — host core and CLI (any OS, ~1–2 days)
+
+1. `robot_v3/host/` as in §3: stubs, host HAL, `robot_core` C API, CMake.
+2. Port TFT_eSPI's `fillSmoothCircle` exactly; verify `drawLine`,
+   `drawCircle`, `fillCircle` against the library's algorithms.
+3. `robot_host` CLI with `--replay`, `--seed`, `--trace`, `--frames`.
+4. `scripts/record-ws.mjs`; record `fixtures/claude-turn.jsonl` from
+   `scripts/simulate-hooks.js` and a two-session fixture by hand.
+5. Deterministic RNG; the +10 000 ms clock offset; forced face mode.
+
+**Done when:** `robot_host --replay fixtures/claude-turn.jsonl --trace`
+prints the Sleeping → Waking → Thinking → Reading → Thinking → Executing →
+Straining → AttractingAttention → Celebrating → Neutral sequence with the
+timings in `ENGINE.md` §2, and `--frames` produces frames with anti-aliased
+pupils. Running it twice with the same seed gives identical PNGs.
+
+### Phase 2 — app shell and Dock tile (Mac, ~2 days)
+
+1. Xcode project: `RobotCore` static library target over the Phase 1
+   sources; `RobotDock` app target; bridging header for `robot_core.h`.
+2. `BridgeSocket` with the robot's ping / reconnect policy and the send
+   callback for `request_sessions`.
+3. Display-link tick loop, change detection, RGBA conversion, `CGImage`.
+4. Dock tile with circular clip and fps cap; bounce on `turn.ended` from
+   any session; attention bounce.
+5. Preferences window, Keychain token, `.env` import.
+6. Replay mode, wall-clock variant.
+
+**Done when:** with the bridge running and a Claude Code session using the
+plugin, the Dock icon shows the face, follows the session through a turn,
+and bounces once when the turn ends. Killing and restarting the bridge
+reconnects within a few seconds and the latch recovers via
+`request_sessions`.
+
+### Phase 3 — robot window and polish (Mac, ~2 days)
+
+1. `NSPanel` per §5.5 with placeholder body and arm art.
+2. Layer tree, round screen, arm rotation, servo-lag rate limit.
+3. Always-on-top and all-Spaces toggle; Dock menu; reopen-on-click.
+4. Launch at login; App Nap activity token; sleep / wake handling.
+5. Replay mode, log-clock variant; frame-exact check against the CLI.
+
+**Done when:** the window can be resized, floated over a full-screen app,
+and survives sleep/wake; a log-clock replay in the app matches the CLI's
+PNGs byte for byte.
+
+### Phase 4 — behaviour fixes and docs (bridge + firmware, ~1 day)
+
+These are the discovery's "known gaps". They are fixed at the source so the
+robot gets them too, and they land *after* Phase 3 so the first side-by-side
+comparison is against unchanged behaviour.
+
+1. **Disconnect reset** (`EventRouter::onBridgeConnection(false)`): call
+   `VerbSystem::clearVerb()`. `AgentEvents::notifyConnection` already clears
+   the latch and `pending_permission`, so the held drivers release on the
+   next tick. Sleep / wake and bridge restarts are routine on a Mac; today
+   they leave the face stuck in Executing → Straining → sad.
+2. **Error turns** (`plugin/src/adapters/claude.ts`): `StopFailure` →
+   `turn.ended` with `cause: "error"`, `PostToolUseFailure` →
+   `activity.failed`. Then in `EventRouter::onAgentEvent`, celebrate only
+   when `cause` is `completed`; for other causes `clearVerb()` and a small
+   negative impulse. The exact reaction is an open decision (§8).
+3. **Stale docs** listed in `ENGINE.md` §9, plus the robot_v2 "Firmware
+   quick-map" in `CLAUDE.md`, and a `docs/README.md` entry for the host
+   build and the Mac app.
+4. Rebuild and flash the firmware; the sketch is near the partition limit,
+   so check the size line.
+
+### Phase 5 — design (you; can run alongside 2–3)
+
+Unchanged from the discovery `README.md`: body and arm art, each arm's
+pivot, where the screen sits and its size, which way `+θ` moves the arms,
+the rest pose at offset 0, what fills the Dock tile's corners, and the
+window's final look.
+
+---
+
+## 7. Later, not in this plan
+
+- **WebAssembly build** of `robot_v3/host` for the face editor: an exact
+  firmware preview beside the editable TS engine.
+- **Menu-bar face** (`NSStatusItem`) for people who auto-hide the Dock.
+- **Badge** with the number of sessions waiting on the user, and a Dock
+  menu listing sessions. Needs per-session bookkeeping in `Signals` only.
+- **Multiple faces** (one per session). Needs the firmware's `static` state
+  moved into an instance struct; a good change for both targets, not a small
+  one.
+- **Bridge supervision**: the app spawning `node plugin/dist/index.js` as a
+  child process, so the Mac is the one thing to launch and the robot's
+  subnet sweep finds it. Optional, off by default.
+- **Text / debug mode on the host** by porting TFT_eSPI's built-in font 1
+  (`glcdfont`) into the sprite stub.
+- **Desktop-pet window style** from `MACOS.md`.
+
+---
+
+## 8. Open decisions
+
+| Decision | Plan's default | Alternatives |
+|---|---|---|
+| App name and bundle id | `RobotDock`, `city.liquid.robotdock` | anything; rename before Phase 2 |
+| Bounce on `turn.ended` | once (`.informationalRequest`), any session, any cause | `.criticalRequest`; only `cause == completed` |
+| Bounce on attention | on | off |
+| Robot window style | titlebar-transparent panel first | borderless pet window |
+| Error-turn reaction (Phase 4) | no Celebrating; `clearVerb()`; impulse `(−0.3, 0)` | leave as today (Celebrating on every `turn.ended`) |
+| Dock fps cap default | 30, after measuring | 15 |
+| `SERVO_PIN` for the host build | `host/config.h` on the include path | `-D` define in CMake and Xcode |
+| Committed `robot_v3/src/config.h` with credentials | out of scope here; untrack it and rotate the token | leave as is |
+| Palette persistence on the Mac | none in v1 | `UserDefaults`-backed `Preferences` stub |
+
+---
+
+## 9. Verification
+
+1. **Behaviour, headless:** `robot_host --replay … --trace` against the
+   tables in `ENGINE.md` §2. Cheap enough to run on every firmware change.
+2. **Side by side with the robot:** both on one bridge, run
+   `scripts/simulate-hooks.js` (see `BRIDGE.md`). Same verbs at the same
+   times; blink and glance timing differ.
+3. **Frame-exact, app vs CLI:** replay the same fixture in the app's
+   log-clock mode and in the CLI with the same seed; diff the PNGs.
+4. **Dock cost:** Instruments, Dock and app CPU at 30 / 15 / 10 fps, idle
+   and during a Reading stream.
+
+---
+
+## 10. Appendix: the probe that justified §1
+
+Done on 2026-10-24 on this Mac (Xcode's clang, `-std=gnu++17`), against
+`main` at `0baabc3`, in a session scratchpad that will not survive. It takes
+under an hour to recreate from §4.2 and is the seed of Phase 1.
+
+- Compiled, unmodified: the 21 firmware files in §4.1. Zero errors on the
+  first build.
+- Stubs: the five headers in §4.2 (about 150 lines in total), plus a host
+  `Display` (sprite + copy-out on `pushFrame`) and a host `Bridge` (inject
+  + connection flag + request counter). The stub `fillSmoothCircle` was a
+  plain `fillCircle`; text methods were no-ops.
+- Harness: replicated `loop()`, injected `active_sessions` then
+  `session.started`, `turn.started`, a `file.read` activity, a `shell.exec`
+  activity held for 6.5 s, a `"Claude needs…"` notification and
+  `turn.ended`, advancing the clock 5 ms per iteration.
+- Trace (effective verb / expression / raw valence, activation / commanded
+  arm):
+
+```
+t=  1005 ms  verb=sleeping             expr=verb_sleeping          v=+0.00 a=0.00 arm=-15
+t=  1505 ms  verb=waking               expr=verb_waking            v=+0.06 a=0.06 arm=-27
+t=  2500 ms  verb=none                 expr=neutral                v=+0.59 a=0.51 arm=+23
+t=  3505 ms  verb=thinking             expr=verb_thinking          v=+0.59 a=0.50 arm=-14
+t=  5005 ms  verb=reading              expr=verb_reading           v=+0.58 a=0.50 arm=-18
+t=  6800 ms  verb=thinking             expr=verb_thinking          v=+0.57 a=0.50 arm=-20
+t=  7305 ms  verb=executing            expr=verb_executing         v=+0.56 a=0.50 arm=-11
+t= 12300 ms  verb=straining            expr=verb_straining         v=+0.53 a=0.50 arm=-8
+t= 14800 ms  verb=thinking             expr=verb_thinking          v=+0.52 a=0.50 arm=+9
+t= 15305 ms  verb=attracting_attention expr=verb_attracting_attention v=+0.51 a=0.50 arm=-22
+t= 16300 ms  verb=thinking             expr=verb_thinking          v=+0.51 a=0.50 arm=-4
+t= 17305 ms  verb=celebrating          expr=verb_celebrating       v=+0.55 a=0.55 arm=-13
+t= 19800 ms  verb=none                 expr=neutral                v=+0.97 a=0.66 arm=-8
+frames rendered: 628
+```
+
+  Every transition matches `ENGINE.md` §2: the 1.5 s Waking overlay with a
+  500 ms blend-out, the 1 s linger back to Thinking, strain promotion at
+  5 s, the 3 s Celebrating overlay, and the `+0.7 / +0.9` impulse visible in
+  the final valence. 628 frames over 18.8 s is the 33 ms throttle.
+- Frames: the firmware's own renderer produced the face, mood ring
+  (thinking blue, celebrating yellow, happy green) and the two activity
+  dots for the two tools in the turn.

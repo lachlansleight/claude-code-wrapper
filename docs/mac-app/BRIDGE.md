@@ -7,6 +7,13 @@ The Mac app is **just another WebSocket client**, exactly like the robot. The
 bridge sends every message to every connected client, so the robot and the app
 can run at the same time.
 
+> **Note (2026-10-24):** in the finalised plan ([`PLAN.md`](PLAN.md)) the app
+> hosts the firmware core, so the latch, verbs and emotions below are the
+> firmware's own code. Two things are the host's job: forwarding the core's
+> outbound `{"type":"request_sessions"}` (it asks every 5 s while
+> unlatched), and bounce detection, which runs in Swift on the raw frames
+> before the latch, as described under "When to bounce".
+
 ---
 
 ## Connecting

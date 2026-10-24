@@ -153,6 +153,10 @@ root (clear)
 
 ## Running the engine in JavaScriptCore
 
+> **Superseded (2026-10-24):** the app hosts the firmware's C++ core behind a
+> C API instead (see [`PLAN.md`](PLAN.md) §4.3 and §5.2). None of the
+> JavaScriptCore notes below apply. Kept for reference only.
+
 - Create a `JSContext` and run the esbuild bundle in it (`evaluateScript`).
 - **JavaScriptCore provides only the language itself:** no `performance`,
   `console`, `setTimeout` or `requestAnimationFrame`.

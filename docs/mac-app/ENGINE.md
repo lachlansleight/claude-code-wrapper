@@ -1,5 +1,13 @@
 # Engine: what exists, what to port, what to fix
 
+> **Status (2026-10-24):** the plan in [`PLAN.md`](PLAN.md) compiles the
+> firmware C++ directly instead of porting it, so **§1, §3, §4, §7 and §8**
+> (the TS engine, driven mode, composition parity, pixel-buffer sprite,
+> JavaScriptCore) are superseded. They are kept because they document real
+> gaps in the face editor's engine. **§2 (firmware behaviour layer), §5
+> (arms), §6 (frame rate) and §9 (stale docs) remain the reference** and are
+> what the host harness is verified against.
+
 This covers the TS face engine as it stands, the firmware behaviour layer that
 needs porting, and the changes needed so the Mac app behaves exactly like
 `robot_v3`.
