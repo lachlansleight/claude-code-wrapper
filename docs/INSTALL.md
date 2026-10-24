@@ -14,8 +14,9 @@ You need:
 1. Download `Sultana-<version>.dmg` from the
    [latest release](https://github.com/lachlansleight/claude-code-wrapper/releases/latest).
 2. Open it and drag **Sultana** onto **Applications**. Eject the disk image.
-3. Open Sultana from your Applications folder. Its Settings window opens on
-   the **Setup** tab.
+3. Open Sultana from your Applications folder. macOS will refuse the first
+   time (see below): that's expected. Once it opens, its Settings window
+   shows the **Setup** tab.
 4. Under **Claude Code**, click **Install Plugin**.
 5. Start a new Claude Code session, or run `/reload-plugins` in one that's
    already open. Type anything: the face in the Dock starts working, and
@@ -31,6 +32,23 @@ Optional, also on the Setup tab:
 
 The **General** tab has the arm colour, keeping the robot on top, and when
 the Dock icon bounces.
+
+### "Apple could not verify Sultana…"
+
+Sultana isn't signed or notarised by Apple yet, so the first time you open it
+macOS says it can't check it for malware, and won't open it. To open it
+anyway:
+
+1. Click **Done** on that message (not Move to Bin).
+2. Open **System Settings ▸ Privacy & Security**, and scroll down to
+   **Security**. Next to "Sultana was blocked to protect your Mac", click
+   **Open Anyway**.
+3. Confirm with your password or Touch ID, then click **Open Anyway** again
+   when asked.
+
+You only do this once per version. (If you're comfortable in Terminal,
+`xattr -dr com.apple.quarantine /Applications/Sultana.app` does the same
+thing.)
 
 ## If something's not right
 
@@ -49,9 +67,15 @@ the Dock icon bounces.
 
 ## Updating
 
-Download the new release and replace the app in Applications. If Settings
-then says the plugin is "Installed from another version of Sultana", click
-**Update Plugin**.
+Download the new release and replace the app in Applications, then open it
+the same way as the first time (Open Anyway). Two more things the first
+time a new version runs:
+
+- macOS asks whether Sultana may use "Sultana bridge token" in your keychain.
+  Choose **Always Allow**. (Each unsigned version looks like a new app to
+  the keychain.)
+- If Settings says the plugin is "Installed from another version of
+  Sultana", click **Update Plugin**.
 
 ## Uninstalling
 

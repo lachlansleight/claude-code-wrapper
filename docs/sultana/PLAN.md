@@ -237,7 +237,17 @@ Node LTS made universal (`lipo` of the official arm64 and x64 builds, via
 warns that the bridge won't run on Intel Macs. Turn on hardened runtime for
 the app.
 
-*Status: built, waiting on credentials.*
+*Status: shipping unsigned for now.* The "Lachlan Sleight" team in Xcode is
+a free Personal Team, which can't make Developer ID certificates or notarise;
+the paid teams on this Mac belong to companies. Until there's an individual
+Developer Program membership, releases are made with
+`SULTANA_IDENTITY=- sultana-dock/release.sh`: signed ad hoc, not notarised.
+People open them once through Privacy & Security ▸ Open Anyway
+([`docs/INSTALL.md`](../INSTALL.md)). The app clears the download's
+quarantine flag from its own bridge helper before running it. Otherwise
+Gatekeeper can block an unnotarised nested helper even after the app is
+approved; checked with a quarantined helper in a test copy. Signing and
+notarising later needs no changes to the app or the script.
 - **Apple silicon only** (Lachlan's call). That keeps the download at 39 MB
   rather than about twice that, and the app itself is arm64 only, so an
   Intel Mac refuses to open it rather than running without a bridge.
@@ -263,8 +273,8 @@ the app.
   signature, DMG contents. The app, run from the mounted image under hardened
   runtime, started its bridge, connected, and showed the guard.
 - **Not yet done:**
-  - a real Developer ID build and notarisation (no certificate or notary
-    profile yet);
+  - a real Developer ID build and notarisation (needs a paid individual
+    membership);
   - the GitHub release itself;
   - pushing `feat/sultana-dock` and `feat/sultana-plugin`, so the install
     page's links and the GitHub marketplace work.

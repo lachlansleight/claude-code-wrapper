@@ -117,6 +117,12 @@ final class BuiltInBridge {
             return
         }
         try? FileManager.default.createDirectory(at: Self.dataDirectory, withIntermediateDirectories: true)
+        // Copied from a downloaded disk image, every file in the app keeps the
+        // quarantine flag. For an app that isn't notarised, Gatekeeper can
+        // refuse to run a nested helper still carrying it, even once the user
+        // has approved the app with Open Anyway. The app is running, so it was
+        // approved: clear the flag from our own helper.
+        removexattr(runtime.path, "com.apple.quarantine", XATTR_NOFOLLOW)
 
         let child = Process()
         child.executableURL = runtime

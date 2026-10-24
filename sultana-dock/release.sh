@@ -135,5 +135,5 @@ fi
 (cd "$out" && shasum -a 256 "$(basename "$dmg")" >"$(basename "$dmg").sha256")
 echo "Ready: $dmg ($(du -h "$dmg" | cut -f1 | tr -d ' '))"
 if [ "$notarize" = 0 ]; then
-  echo "Not notarised: fine on this Mac, but other Macs will refuse to open it."
+  echo "Not notarised: on other Macs it opens only through Privacy & Security ▸ Open Anyway (docs/INSTALL.md)."
 fi
