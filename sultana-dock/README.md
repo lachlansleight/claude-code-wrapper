@@ -220,8 +220,8 @@ values, and says when a robot connects.
 - **Show the robot on the desktop**, **Keep the robot on top of other
   windows**, **Body colour** and **Arm colour** (General ▸ Robot window).
   The body defaults to white and the arms to the design's green, #8EE270.
-  The body's rim is always shaded darker than the body colour, as the
-  design's white body fades to grey.
+  The body's rim and the face's border are always shaded darker than the
+  body colour, as the design's white body fades to grey.
 - **When a turn ends** (General): bounce once (default), bounce until you
   switch to the app, or don't bounce.
 - **Bounce when an agent needs permission** (General): Claude's "Claude needs
@@ -289,8 +289,9 @@ buttons. It follows the Figma design. Back to front:
   darkens toward the rim (the slight ring around the face);
 - two tapered arms, the design's exact outline, in the arm colour setting;
 - the face: the firmware's live screen (crisp panel pixels) inside a thin
-  #ECECEC border. The border sits in front of the arms' roots, so the arms
-  look like they come out of a thin body.
+  border in the body colour, slightly darker (#ECECEC on a white body). The
+  border sits in front of the arms' roots, so the arms look like they come
+  out of a thin body.
 
 The arms follow the servo angle the firmware commands. The real robot has
 one servo and a gear that mirrors it to both arms, so they move as a
@@ -344,12 +345,13 @@ display link ──► engine.tick ──pixels changed──► Dock tile (≤ 
 - **Bounces see every session.** The firmware only follows one session at a
   time, so the app reads `turn.ended` and attention signals from the raw
   frames before the firmware's latch drops them.
-- **The Dock tile** is the app icon, live: the robot's body as a standard
-  macOS squircle, white fading to light grey toward its edges, with the
-  firmware's screen set into it as large as fits, inside the same thin
-  #ECECEC border as the desktop robot. It is redrawn only when the
-  firmware's pixels change, at most at the frame-rate cap; the body is
-  rendered once and cached.
+- **The Dock tile** is the app icon, live: the firmware's screen filling a
+  standard macOS squircle. The screen is drawn 1.285 times the squircle's
+  side and cropped by it, so its black reaches every edge and corner and
+  all that's lost is the rim (the mood ring, except for slivers in the
+  corners). It is redrawn only when the firmware's pixels change, at most
+  at the frame-rate cap; the squircle and its shadow are rendered once and
+  cached.
 
 ## Replaying a recording
 
@@ -424,8 +426,8 @@ noisy. The code streams are the worst case: the firmware renders them at
 - `bridge/` holds the Embed Bridge and Plugin build phase's script and the
   runtime's entitlements. The phase reads `plugin/` and Node from outside the project,
   so the app target has user script sandboxing off.
-- The icon art (squircle on Apple's 1024 grid, body shading, face size and
-  border, shadow) lives in `SultanaDock/IconArt.swift`, shared by the live
+- The icon art (squircle on Apple's 1024 grid, the screen's size and crop,
+  shadow) lives in `SultanaDock/IconArt.swift`, shared by the live
   tile and the static icon. `tools/make_app_icon.swift` renders the static
   icon set with it, around a frame the firmware drew. The current icon is
   the thinking face, 3.5 s into the `claude-turn` fixture:

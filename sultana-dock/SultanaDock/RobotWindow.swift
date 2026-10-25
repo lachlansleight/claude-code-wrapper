@@ -36,19 +36,27 @@ struct RobotLayout {
 
     /// The body's radial gradient for a body colour.
     func bodyGradient(for color: CGColor) -> [(location: CGFloat, color: CGColor)] {
+        bodyShading.map { ($0.location, Self.shade(color, by: $0.brightness)) }
+    }
+
+    /// A colour with each sRGB channel scaled by `brightness`.
+    static func shade(_ color: CGColor, by brightness: CGFloat) -> CGColor {
         let srgb = CGColorSpace(name: CGColorSpace.sRGB)!
         let rgb = color.converted(to: srgb, intent: .defaultIntent, options: nil)?.components ?? [1, 1, 1, 1]
-        return bodyShading.map { stop in
-            (stop.location, CGColor(
-                srgbRed: rgb[0] * stop.brightness, green: rgb[1] * stop.brightness,
-                blue: rgb[2] * stop.brightness, alpha: 1))
-        }
+        return CGColor(
+            srgbRed: rgb[0] * brightness, green: rgb[1] * brightness, blue: rgb[2] * brightness, alpha: 1)
     }
 
     /// The face disc in front of the arms: the screen inside a thin border.
     var faceDiameter: CGFloat = 199.84
     var faceBorderWidth: CGFloat = 4
-    var faceBorderColor = CGColor(gray: 0xEC / 255, alpha: 1)
+    /// The border is the body colour, slightly darker: #ECECEC on a white
+    /// body (a generic-gamma grey, as it has always been drawn).
+    var faceBorderBrightness = RobotLayout.srgbLevel(ofGray: 0xEC / 255)
+
+    func faceBorderColor(for bodyColor: CGColor) -> CGColor {
+        Self.shade(bodyColor, by: faceBorderBrightness)
+    }
     var screenDiameter: CGFloat { faceDiameter - 2 * faceBorderWidth }
 
     /// The right arm's outline exactly as in the design's SVG ("Vector 31"):
@@ -115,7 +123,8 @@ final class RobotView: NSView {
         }
     }
 
-    /// The body's colour (a setting); its rim is always shaded darker.
+    /// The body's colour (a setting). Its rim and the face's border are
+    /// always shaded slightly darker.
     var bodyColor: CGColor = CGColor.fromHex(RobotLayout.defaultBodyColorHex)! {
         didSet {
             CATransaction.begin()
@@ -167,7 +176,6 @@ final class RobotView: NSView {
         screen.masksToBounds = true
         screen.contentsGravity = .resize
         faceBorder.fillColor = nil
-        faceBorder.strokeColor = geometry.faceBorderColor
 
         for part in [bodyShadow, body, rightArm, leftArm, screen, faceBorder] {
             root.addSublayer(part)
@@ -347,6 +355,7 @@ final class RobotView: NSView {
         let gradient = geometry.bodyGradient(for: bodyColor)
         body.colors = gradient.map(\.color)
         body.locations = gradient.map { NSNumber(value: Double($0.location)) }
+        faceBorder.strokeColor = geometry.faceBorderColor(for: bodyColor)
     }
 
     func snapshotPNG() -> Data? {
