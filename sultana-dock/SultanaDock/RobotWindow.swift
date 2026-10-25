@@ -1,4 +1,5 @@
 import AppKit
+import CoreImage
 import QuartzCore
 
 /// The robot drawing, in design points: the units of the Figma frame
@@ -7,13 +8,16 @@ import QuartzCore
 /// with y pointing up.
 ///
 /// Back to front: a body disc whose radial gradient forms a slight ring at
-/// the rim, the two arms, then the face (the firmware's screen inside a thin
-/// border), so the arms look like they come out of a thin body.
+/// the rim, a soft contact shadow where the body meets the "ground", the two
+/// arms, then the face (the firmware's screen inside a thin border), so the
+/// arms look like they come out of a thin body.
 struct RobotLayout {
     static let standard = RobotLayout()
 
-    /// Room for the body, the arms, their swing and the shadow.
-    var canvasSize = CGSize(width: 312, height: 236)
+    /// The window's contents, in body-relative points (y up): room for the
+    /// body, the arms and their swing, and below them the shadows.
+    var canvasRect = CGRect(x: -156, y: -136, width: 312, height: 254)
+    var canvasSize: CGSize { canvasRect.size }
     var aspect: CGFloat { canvasSize.width / canvasSize.height }
 
     /// The body disc. The body colour out to 94% of its radius, then darker
@@ -98,6 +102,15 @@ struct RobotLayout {
     /// arms follow at this rate. The SG92R is rated at about 0.1 s per 60°.
     var armDegreesPerSecond: CGFloat = 500
 
+    /// The contact shadow ("Ellipse 25", frame 3190:15): an ellipse, black at
+    /// its centre fading to clear at its edge, with a Gaussian blur. It's
+    /// drawn over the body's fill, so it also shades the bottom of the rim,
+    /// and under the arms and face.
+    var contactShadowCenter = CGPoint(x: 0, y: -100.22)
+    var contactShadowSize = CGSize(width: 206.129, height: 41.870)
+    /// The blur's standard deviation.
+    var contactShadowBlur: CGFloat = 4.85
+
     /// Soft drop shadow under the body and arms, lit from above. Not in the
     /// design; it keeps the white body visible on light desktops.
     var shadowRadius: CGFloat = 5
@@ -136,6 +149,10 @@ final class RobotView: NSView {
 
     private let bodyShadow = CALayer()
     private let body = CAGradientLayer()
+    private let contactShadow = CALayer()
+    /// The rendered contact shadow and the pixels per design point it was
+    /// rendered at; it's re-rendered only when that changes.
+    private var contactShadowRender: (image: CGImage, pixelsPerPoint: CGFloat)?
     private let rightArm = CALayer()
     private let leftArm = CALayer()
     private let rightArmShape = CAShapeLayer()
@@ -177,7 +194,8 @@ final class RobotView: NSView {
         screen.contentsGravity = .resize
         faceBorder.fillColor = nil
 
-        for part in [bodyShadow, body, rightArm, leftArm, screen, faceBorder] {
+        contactShadow.contentsGravity = .resize
+        for part in [bodyShadow, body, contactShadow, rightArm, leftArm, screen, faceBorder] {
             root.addSublayer(part)
         }
     }
@@ -215,12 +233,16 @@ final class RobotView: NSView {
     private var scale: CGFloat { canvas.width / geometry.canvasSize.width }
     /// Body-relative design points (y up) to view points.
     private var designToView: CGAffineTransform {
-        CGAffineTransform(translationX: canvas.midX, y: canvas.midY).scaledBy(x: scale, y: scale)
+        CGAffineTransform(
+            translationX: canvas.minX - geometry.canvasRect.minX * scale,
+            y: canvas.minY - geometry.canvasRect.minY * scale
+        ).scaledBy(x: scale, y: scale)
     }
     private func viewPoint(_ p: CGPoint) -> CGPoint { p.applying(designToView) }
     private func disc(diameter: CGFloat) -> CGRect {
         let side = diameter * scale
-        return CGRect(x: canvas.midX - side / 2, y: canvas.midY - side / 2, width: side, height: side)
+        let centre = viewPoint(.zero)
+        return CGRect(x: centre.x - side / 2, y: centre.y - side / 2, width: side, height: side)
     }
 
     override func layout() {
@@ -234,6 +256,8 @@ final class RobotView: NSView {
         bodyShadow.frame = bounds
         bodyShadow.shadowPath = CGPath(ellipseIn: bodyRect, transform: nil)
         bodyShadow.shadowRadius = geometry.shadowRadius * scale
+
+        layOutContactShadow()
 
         rightArmPath = armPath(mirrored: false)
         leftArmPath = armPath(mirrored: true)
@@ -253,6 +277,56 @@ final class RobotView: NSView {
 
         applyArmAngle()
         CATransaction.commit()
+    }
+
+    /// The contact shadow's image covers the ellipse plus three standard
+    /// deviations of blur on every side.
+    private func layOutContactShadow() {
+        let padding = 3 * geometry.contactShadowBlur
+        let size = geometry.contactShadowSize
+        let centre = viewPoint(geometry.contactShadowCenter)
+        let width = (size.width + 2 * padding) * scale
+        let height = (size.height + 2 * padding) * scale
+        contactShadow.frame = CGRect(x: centre.x - width / 2, y: centre.y - height / 2, width: width, height: height)
+
+        let pixelsPerPoint = scale * (window?.backingScaleFactor ?? 2)
+        guard pixelsPerPoint > 0, contactShadowRender?.pixelsPerPoint != pixelsPerPoint else { return }
+        if let image = Self.renderContactShadow(geometry, pixelsPerPoint: pixelsPerPoint) {
+            contactShadowRender = (image, pixelsPerPoint)
+            contactShadow.contents = image
+        }
+    }
+
+    private static let shadowContext = CIContext()
+
+    /// The gradient ellipse, drawn sharp, then blurred with Core Image.
+    /// Pre-rendered rather than a layer filter, so snapshots show it too.
+    private static func renderContactShadow(_ geometry: RobotLayout, pixelsPerPoint: CGFloat) -> CGImage? {
+        let padding = 3 * geometry.contactShadowBlur
+        let size = geometry.contactShadowSize
+        let width = Int(((size.width + 2 * padding) * pixelsPerPoint).rounded(.up))
+        let height = Int(((size.height + 2 * padding) * pixelsPerPoint).rounded(.up))
+        let srgb = CGColorSpace(name: CGColorSpace.sRGB)!
+        guard
+            let context = CGContext(
+                data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: srgb,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+            let gradient = CGGradient(
+                colorsSpace: srgb,
+                colors: [CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1), CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 0)]
+                    as CFArray,
+                locations: [0, 1])
+        else { return nil }
+        context.translateBy(x: CGFloat(width) / 2, y: CGFloat(height) / 2)
+        context.scaleBy(x: size.width / 2 * pixelsPerPoint, y: size.height / 2 * pixelsPerPoint)
+        context.drawRadialGradient(
+            gradient, startCenter: .zero, startRadius: 0, endCenter: .zero, endRadius: 1, options: [])
+        guard let sharp = context.makeImage() else { return nil }
+        let image = CIImage(cgImage: sharp)
+        let blurred = image.clampedToExtent()
+            .applyingGaussianBlur(sigma: Double(geometry.contactShadowBlur * pixelsPerPoint))
+            .cropped(to: image.extent)
+        return shadowContext.createCGImage(blurred, from: image.extent)
     }
 
     /// The arm outline in view coordinates, unrotated.
@@ -429,6 +503,8 @@ final class RobotWindowController: NSObject {
         panel.contentView = view
         panel.center()
         panel.setFrameAutosaveName(Self.autosaveName)
+        // A frame saved by an older version may have other proportions.
+        setSide(panel.frame.width)
         view.onMagnify = { [weak self] magnification in self?.resize(by: 1 + magnification) }
     }
 

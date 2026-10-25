@@ -287,6 +287,9 @@ buttons. It follows the Figma design. Back to front:
 
 - a body disc in the body colour (white by default) whose radial gradient
   darkens toward the rim (the slight ring around the face);
+- a contact shadow where the robot meets the "ground" (frame 3190:15's
+  ellipse): black fading to clear, blurred, drawn over the bottom of the
+  body's rim;
 - two tapered arms, the design's exact outline, in the arm colour setting;
 - the face: the firmware's live screen (crisp panel pixels) inside a thin
   border in the body colour, slightly darker (#ECECEC on a white body). The
