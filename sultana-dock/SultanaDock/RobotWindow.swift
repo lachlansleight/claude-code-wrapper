@@ -7,8 +7,8 @@ import QuartzCore
 /// across from the design. Positions are relative to the body's centre,
 /// with y pointing up.
 ///
-/// Back to front: a body disc whose radial gradient forms a slight ring at
-/// the rim, a soft contact shadow where the body meets the "ground", the two
+/// Back to front: a soft contact shadow on the "ground" under the robot, a
+/// body disc whose radial gradient forms a slight ring at the rim, the two
 /// arms, then the face (the firmware's screen inside a thin border), so the
 /// arms look like they come out of a thin body.
 struct RobotLayout {
@@ -104,8 +104,7 @@ struct RobotLayout {
 
     /// The contact shadow ("Ellipse 25", frame 3190:15): an ellipse, black at
     /// its centre fading to clear at its edge, with a Gaussian blur. It's
-    /// drawn over the body's fill, so it also shades the bottom of the rim,
-    /// and under the arms and face.
+    /// behind everything, so the body hides its upper half.
     var contactShadowCenter = CGPoint(x: 0, y: -100.22)
     var contactShadowSize = CGSize(width: 206.129, height: 41.870)
     /// The blur's standard deviation.
@@ -195,7 +194,7 @@ final class RobotView: NSView {
         faceBorder.fillColor = nil
 
         contactShadow.contentsGravity = .resize
-        for part in [bodyShadow, body, contactShadow, rightArm, leftArm, screen, faceBorder] {
+        for part in [contactShadow, bodyShadow, body, rightArm, leftArm, screen, faceBorder] {
             root.addSublayer(part)
         }
     }
