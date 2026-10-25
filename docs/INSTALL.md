@@ -25,8 +25,9 @@ You need:
 Optional, on the **General** tab:
 - **Open at login**, so Sultana is always there.
 - **Show the robot on the desktop**: the whole robot, arms and all, floating
-  on your desktop. Drag it to move it; pinch it, or right-click it, to
-  resize it. Pick its body and arm colours there too.
+  on your desktop. Drag it to move it. Pick its size (Small, Medium, Large,
+  or any size in between with Custom) and its body and arm colours there
+  too, or pinch the robot to resize it.
 - When the Dock icon bounces.
 
 If you have the physical robot, **Setup ▸ Robot** has the steps and the

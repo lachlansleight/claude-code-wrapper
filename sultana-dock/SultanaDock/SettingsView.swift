@@ -127,6 +127,12 @@ struct SettingsView: View {
 
             Section("Robot window") {
                 Toggle("Show the robot on the desktop", isOn: $preferences.robotWindowVisible)
+                Picker("Size", selection: robotSize) {
+                    ForEach(RobotSize.allCases) { Text($0.label).tag($0) }
+                }
+                if preferences.robotSize == .custom {
+                    RobotSizeSlider(width: $preferences.robotCustomWidth)
+                }
                 Toggle("Keep the robot on top of other windows", isOn: $preferences.robotWindowOnTop)
                 colorRow("Body colour", \.bodyColorHex, default: RobotLayout.defaultBodyColorHex)
                 colorRow("Arm colour", \.armColorHex, default: RobotLayout.defaultArmColorHex)
@@ -362,6 +368,19 @@ struct SettingsView: View {
         }
     }
 
+    /// Choosing Custom starts from the current preset's width, so the robot
+    /// doesn't jump.
+    private var robotSize: Binding<RobotSize> {
+        Binding(
+            get: { preferences.robotSize },
+            set: { newSize in
+                if newSize == .custom, let width = preferences.robotSize.width {
+                    preferences.robotCustomWidth = Double(width)
+                }
+                preferences.robotSize = newSize
+            })
+    }
+
     /// A colour setting stored as "#RRGGBB" (sRGB), with Reset once changed.
     private func colorRow(
         _ title: String, _ setting: ReferenceWritableKeyPath<AppPreferences, String>, default defaultHex: String
@@ -419,6 +438,37 @@ struct SettingsView: View {
             importError = env.token == nil ? "No BRIDGE_TOKEN in that file." : nil
         } catch {
             importError = error.localizedDescription
+        }
+    }
+}
+
+/// The custom robot width, from half of Small to twice Large, with tick
+/// marks at the presets. Sliders only space ticks evenly and these aren't,
+/// so they're drawn underneath, inset like the slider's track.
+struct RobotSizeSlider: View {
+    @Binding var width: Double
+
+    /// Where the track starts and ends inside the slider: half the knob.
+    private static let trackInset: CGFloat = 10
+    private static let range = Double(RobotSize.widthRange.lowerBound)...Double(RobotSize.widthRange.upperBound)
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Slider(value: $width, in: Self.range) { Text("Width") }
+                .labelsHidden()
+            GeometryReader { geometry in
+                let track = geometry.size.width - 2 * Self.trackInset
+                ForEach(RobotSize.presets) { preset in
+                    let fraction = (Double(preset.width ?? 0) - Self.range.lowerBound)
+                        / (Self.range.upperBound - Self.range.lowerBound)
+                    VStack(spacing: 1) {
+                        Rectangle().fill(.secondary).frame(width: 1, height: 4)
+                        Text(preset.label).font(.caption2).foregroundStyle(.secondary).fixedSize()
+                    }
+                    .position(x: Self.trackInset + track * CGFloat(fraction), y: 10)
+                }
+            }
+            .frame(height: 20)
         }
     }
 }

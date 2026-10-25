@@ -59,6 +59,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .compactMap { CGColor.fromHex($0) }
             .sink { [weak self] color in self?.robotWindow.view.bodyColor = color }
             .store(in: &cancellables)
+        // The size setting drives the window; this also applies it at launch.
+        Publishers.CombineLatest(preferences.$robotSize, preferences.$robotCustomWidth)
+            .map { size, customWidth in size.width ?? CGFloat(customWidth) }
+            .removeDuplicates()
+            .sink { [weak self] width in self?.robotWindow.setSide(width) }
+            .store(in: &cancellables)
+        robotWindow.onPinch = { [weak self] width in
+            guard let self else { return }
+            self.preferences.robotCustomWidth = Double(width)
+            self.preferences.robotSize = .custom
+        }
 
         // @Published sends before the value changes, hence the hop to the
         // next run loop pass before acting on the new settings.
@@ -339,8 +350,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Size presets; the menu item's tag is the width in points.
+    /// The Size menus' presets; the menu item's tag is the width in points.
     @objc func setRobotSize(_ sender: NSMenuItem) {
-        robotWindow.setSide(CGFloat(sender.tag))
+        if let preset = RobotSize.presets.first(where: { $0.width == CGFloat(sender.tag) }) {
+            preferences.robotSize = preset
+        }
     }
 
     /// The robot has no window chrome, so this right-click menu is how it's
@@ -360,11 +374,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     fileprivate func robotSizeItem(title: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         let sizes = NSMenu(title: title)
-        for (name, side) in RobotWindowController.sizes {
-            let size = sizes.addItem(withTitle: name, action: #selector(setRobotSize(_:)), keyEquivalent: "")
+        for preset in RobotSize.presets {
+            let size = sizes.addItem(withTitle: preset.label, action: #selector(setRobotSize(_:)), keyEquivalent: "")
             size.target = self
-            size.tag = Int(side)
-            size.state = abs(robotWindow.side - side) < 1 ? .on : .off
+            size.tag = Int(preset.width ?? 0)
+            size.state = preferences.robotSize == preset ? .on : .off
         }
         sizes.addItem(.separator())
         let hint = sizes.addItem(withTitle: "Pinch the robot to resize freely", action: nil, keyEquivalent: "")
@@ -505,7 +519,7 @@ extension AppDelegate: NSMenuItemValidation {
             menuItem.state = preferences.robotWindowOnTop ? .on : .off
             return true
         case #selector(setRobotSize(_:)):
-            menuItem.state = abs(robotWindow.side - CGFloat(menuItem.tag)) < 1 ? .on : .off
+            menuItem.state = preferences.robotSize.width == CGFloat(menuItem.tag) ? .on : .off
             return true
         default:
             return true
@@ -559,10 +573,11 @@ enum MainMenu {
         ).keyEquivalentModifierMask = [.command, .option]
         window.items.last?.target = target
         let sizes = NSMenu(title: "Robot Size")
-        for (name, side) in RobotWindowController.sizes {
-            let size = sizes.addItem(withTitle: name, action: #selector(AppDelegate.setRobotSize(_:)), keyEquivalent: "")
+        for preset in RobotSize.presets {
+            let size = sizes.addItem(
+                withTitle: preset.label, action: #selector(AppDelegate.setRobotSize(_:)), keyEquivalent: "")
             size.target = target
-            size.tag = Int(side)
+            size.tag = Int(preset.width ?? 0)
         }
         window.addItem(withTitle: "Robot Size", action: nil, keyEquivalent: "").submenu = sizes
         window.addItem(.separator())

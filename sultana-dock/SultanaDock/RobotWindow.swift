@@ -461,17 +461,51 @@ extension CGColor {
 /// activates the app (so bounces keep working) and passes clicks outside the
 /// robot's shape through to whatever is behind it. It can float above
 /// everything, full-screen apps and all Spaces included.
+/// The robot window's size (a setting): a preset, or a custom width.
+enum RobotSize: String, CaseIterable, Identifiable {
+    case small, medium, large, custom
+
+    static let presets: [RobotSize] = [.small, .medium, .large]
+    /// Custom widths run from half of Small to twice Large.
+    static let widthRange: ClosedRange<CGFloat> = 110...920
+
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .small: "Small"
+        case .medium: "Medium"
+        case .large: "Large"
+        case .custom: "Custom"
+        }
+    }
+    /// The window's width in points; nil for custom.
+    var width: CGFloat? {
+        switch self {
+        case .small: 220
+        case .medium: 320
+        case .large: 460
+        case .custom: nil
+        }
+    }
+
+    static func clamp(_ width: CGFloat) -> CGFloat {
+        min(max(width, widthRange.lowerBound), widthRange.upperBound)
+    }
+}
+
 @MainActor
 final class RobotWindowController: NSObject {
-    /// Size presets, in points (the window's width).
-    static let sizes: [(name: String, side: CGFloat)] = [("Small", 220), ("Medium", 320), ("Large", 460)]
-    static let sideRange: ClosedRange<CGFloat> = 120...900
+    /// Saves the window's position. Its size is a setting (RobotSize), which
+    /// the app applies with setSide.
     private static let autosaveName = "SultanaRobotWindow"
 
     let view: RobotView
     private let panel: NSPanel
     private let aspect: CGFloat
     var onVisibilityChange: ((Bool) -> Void)?
+    /// A pinch on the robot asks for this width; the app stores it as a
+    /// custom size, which comes back through setSide.
+    var onPinch: ((CGFloat) -> Void)?
 
     var isVisible: Bool { panel.isVisible }
     /// False while the window is closed or completely covered.
@@ -502,9 +536,10 @@ final class RobotWindowController: NSObject {
         panel.contentView = view
         panel.center()
         panel.setFrameAutosaveName(Self.autosaveName)
-        // A frame saved by an older version may have other proportions.
-        setSide(panel.frame.width)
-        view.onMagnify = { [weak self] magnification in self?.resize(by: 1 + magnification) }
+        view.onMagnify = { [weak self] magnification in
+            guard let self else { return }
+            self.onPinch?(RobotSize.clamp(self.side * (1 + magnification)))
+        }
     }
 
     /// Shows the window without activating the app.
@@ -519,18 +554,15 @@ final class RobotWindowController: NSObject {
         onVisibilityChange?(false)
     }
 
-    /// Resizes about the window's centre, within `sideRange`.
+    /// Resizes about the window's centre, within RobotSize.widthRange, at the
+    /// layout's proportions.
     func setSide(_ newSide: CGFloat) {
-        let clamped = min(max(newSide, Self.sideRange.lowerBound), Self.sideRange.upperBound)
+        let clamped = RobotSize.clamp(newSide)
         let frame = panel.frame
         let height = clamped / aspect
         panel.setFrame(
             NSRect(x: frame.midX - clamped / 2, y: frame.midY - height / 2, width: clamped, height: height),
             display: true)
-    }
-
-    func resize(by factor: CGFloat) {
-        setSide(side * factor)
     }
 
     /// Only the robot catches the mouse: anywhere else in the (square,

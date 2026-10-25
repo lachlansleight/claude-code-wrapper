@@ -49,6 +49,11 @@ final class AppPreferences: ObservableObject {
         static let robotWindowOnTop = "robotWindowOnTop"
         static let armColorHex = "armColorHex"
         static let bodyColorHex = "bodyColorHex"
+        static let robotSize = "robotSize"
+        static let robotCustomWidth = "robotCustomWidth"
+        /// Where AppKit saved the robot window's frame, which held its size
+        /// before the size was a setting.
+        static let legacyRobotFrame = "NSWindow Frame SultanaRobotWindow"
     }
 
     static let dockFrameRates = [30, 15, 10]
@@ -87,6 +92,13 @@ final class AppPreferences: ObservableObject {
     @Published var armColorHex: String {
         didSet { defaults.set(armColorHex, forKey: Key.armColorHex) }
     }
+    @Published var robotSize: RobotSize { didSet { defaults.set(robotSize.rawValue, forKey: Key.robotSize) } }
+    /// The width for RobotSize.custom, in points.
+    @Published var robotCustomWidth: Double {
+        didSet { defaults.set(robotCustomWidth, forKey: Key.robotCustomWidth) }
+    }
+    /// The robot window's width in points, whichever kind of size is chosen.
+    var robotWidth: CGFloat { robotSize.width ?? CGFloat(robotCustomWidth) }
     /// The robot's body colour, "#RRGGBB"; its rim is shaded darker.
     @Published var bodyColorHex: String {
         didSet { defaults.set(bodyColorHex, forKey: Key.bodyColorHex) }
@@ -125,6 +137,19 @@ final class AppPreferences: ObservableObject {
         armColorHex = CGColor.fromHex(storedArm) == nil ? RobotLayout.defaultArmColorHex : storedArm
         let storedBody = defaults.string(forKey: Key.bodyColorHex) ?? ""
         bodyColorHex = CGColor.fromHex(storedBody) == nil ? RobotLayout.defaultBodyColorHex : storedBody
+        let storedWidth = defaults.double(forKey: Key.robotCustomWidth)
+        var customWidth = storedWidth > 0 ? Double(RobotSize.clamp(storedWidth)) : 320
+        var size = RobotSize.medium
+        if let stored = RobotSize(rawValue: defaults.string(forKey: Key.robotSize) ?? "") {
+            size = stored
+        } else if let width = Self.legacyRobotWidth(defaults) {
+            // From before the size was a setting: keep whatever size the
+            // robot was, as a preset if it was one.
+            size = RobotSize.presets.first { abs(($0.width ?? 0) - width) < 1 } ?? .custom
+            if size == .custom { customWidth = Double(RobotSize.clamp(width)) }
+        }
+        robotSize = size
+        robotCustomWidth = customWidth
 
         let env = ProcessInfo.processInfo.environment
         environmentMode = env["SULTANA_BRIDGE_MODE"].flatMap { BridgeMode(rawValue: $0) }
@@ -134,6 +159,13 @@ final class AppPreferences: ObservableObject {
         // Skip the Keychain entirely when the environment supplies a token:
         // ad-hoc signed debug builds get a Keychain prompt after every rebuild.
         token = environmentToken == nil ? (Keychain.readToken() ?? "") : ""
+    }
+
+    /// The width in AppKit's saved frame string ("x y width height ...").
+    private static func legacyRobotWidth(_ defaults: UserDefaults) -> CGFloat? {
+        let fields = (defaults.string(forKey: Key.legacyRobotFrame) ?? "").split(separator: " ")
+        guard fields.count >= 3, let width = Double(fields[2]), width > 0 else { return nil }
+        return CGFloat(width)
     }
 
     var mode: BridgeMode { environmentMode ?? bridgeMode }

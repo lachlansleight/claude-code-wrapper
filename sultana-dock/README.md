@@ -303,8 +303,12 @@ only shows the rest pose, so that hinge point is a choice (`armPivot`).
 A soft shadow, not in the design, keeps the white body visible on light
 desktops.
 
-- **Move it** by dragging the robot. **Resize it** by pinching on it with a
-  trackpad, or right-click ▸ Size (Small, Medium, Large).
+- **Move it** by dragging the robot. **Resize it** in Settings ▸ General ▸
+  Size: Small (220 points wide), Medium (320), Large (460) or Custom, whose
+  slider runs from half of Small to twice Large, with ticks at the presets.
+  Right-click ▸ Size picks a preset; pinching the robot with a trackpad
+  switches to Custom at the new width. The size is a setting, applied at
+  launch; macOS only remembers the window's position.
 - **Right-click** it for Keep on Top, Size, Hide Robot and Settings.
 - Only the robot itself catches the mouse. Clicks anywhere else in its
   (square, invisible) window, shadow included, go to whatever is behind.
@@ -312,7 +316,7 @@ desktops.
 - **Keep on Top** (⌥⌘T) floats it above other windows, on every Space and
   over full-screen apps.
 - Show or hide it from the Dock menu, Window ▸ Show Robot (⌘1), Settings,
-  or by clicking the Dock icon. Its size and position are remembered; if
+  or by clicking the Dock icon. Its position is remembered too; if
   its display has gone, it comes back centred.
 - It stops redrawing while it's covered or hidden; the Dock tile carries on.
 
