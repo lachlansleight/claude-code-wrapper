@@ -59,6 +59,10 @@ if [ -d "$old_installed" ]; then
   rm -rf "$old_installed"
 fi
 ditto "$built" "$installed"
+# Icon Services caches an app's icon by the bundle's modification date,
+# which ditto copies from the build; bump it so Finder and the Dock pick
+# up a changed icon rather than showing the old one from the cache.
+touch "$installed"
 echo "Installed: $installed"
 
 if [ "$open_after" = 1 ]; then
