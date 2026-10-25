@@ -1,9 +1,10 @@
 import CoreGraphics
 
-/// Sultana's app icon: the robot's body as a standard macOS squircle,
-/// white fading to light grey toward its edges, with the face (the
-/// firmware's OLED screen) set into it as large as fits, inside the same
-/// thin #ECECEC border as the desktop robot.
+/// Sultana's app icon: the robot's face filling a standard macOS squircle.
+/// The firmware's round screen is drawn larger than the squircle and
+/// cropped by it, so its black reaches every edge and corner and none of
+/// the body shows around it. What's lost is the screen's rim: the mood
+/// ring, except for slivers in the corners.
 ///
 /// Shared by the live Dock tile (DockTile.swift) and the static app icon
 /// (tools/make_app_icon.swift), so the two always match. CoreGraphics only.
@@ -13,27 +14,24 @@ enum IconArt {
     /// The squircle: 824 points square, centred, with continuous corners.
     static let shapeSide: CGFloat = 824
     static let cornerRadius: CGFloat = 185.4
-    /// Body visible between the face and the squircle's straight edges.
-    static let faceMargin: CGFloat = 40
-    static var faceDiameter: CGFloat { shapeSide - 2 * faceMargin }
-    /// Same proportion as the desktop robot's face border (4 of 199.84).
-    static var faceBorderWidth: CGFloat { faceDiameter * 4 / 199.84 }
-    static let faceBorderColor = CGColor(gray: 0xEC / 255, alpha: 1)
-
-    /// Radial body shading from the centre: white until just outside the
-    /// face, then light grey toward the edges and corners. Locations are in
-    /// points from the centre on the 1024 grid.
-    static let bodyStops: [(distance: CGFloat, gray: CGFloat)] = [
-        (0, 1),
-        (376, 1),
-        (412, 0xDC / 255.0),
-        (506, 0xC4 / 255.0),
-    ]
+    /// The screen's diameter as a multiple of the squircle's side. The
+    /// corners are 0.615 sides from the centre, so anything over 1.23
+    /// covers the squircle; this crops a little further, as in the design,
+    /// showing the screen out to 78% of its radius at the middle of each
+    /// edge and 96% in the corners.
+    static let screenScale: CGFloat = 1.285
+    static var screenDiameter: CGFloat { shapeSide * screenScale }
 
     /// The drop shadow under the squircle, as on standard macOS icons.
     static let shadowOffsetY: CGFloat = -10
     static let shadowBlur: CGFloat = 20
     static let shadowAlpha: CGFloat = 0.28
+
+    /// The screen is drawn with nearest-neighbour pixels only when enlarged
+    /// at least this much; below it, it's smoothed. At 1.1x, nearest
+    /// neighbour doubles every tenth pixel, which shows on the eyes' thin
+    /// outlines.
+    static let crispUpscale: CGFloat = 2
 
     // MARK: Geometry (in a size x size square, origin bottom-left)
 
@@ -42,14 +40,13 @@ enum IconArt {
         return CGRect(x: (size - side) / 2, y: (size - side) / 2, width: side, height: side)
     }
 
-    static func faceRect(size: CGFloat) -> CGRect {
-        let side = faceDiameter * size / grid
+    static func screenRect(size: CGFloat) -> CGRect {
+        let side = screenDiameter * size / grid
         return CGRect(x: (size - side) / 2, y: (size - side) / 2, width: side, height: side)
     }
 
-    static func screenRect(size: CGFloat) -> CGRect {
-        let inset = faceBorderWidth * size / grid
-        return faceRect(size: size).insetBy(dx: inset, dy: inset)
+    static func shapePath(size: CGFloat) -> CGPath {
+        squircle(in: shapeRect(size: size), radius: cornerRadius * size / grid)
     }
 
     /// A rounded rect with Apple's continuous ("squircle") corners: each
@@ -91,56 +88,35 @@ enum IconArt {
 
     // MARK: Drawing
 
-    /// The body: shadow, squircle and its shading. Static, so the Dock tile
-    /// caches it.
+    /// The body: the shadow and the squircle, black like the screen that
+    /// covers it (and all that shows before the first frame). Static, so
+    /// the Dock tile caches it.
     static func drawBody(in context: CGContext, size: CGFloat) {
         let scale = size / grid
-        let shape = squircle(in: shapeRect(size: size), radius: cornerRadius * scale)
-
         context.saveGState()
         context.setShadow(
             offset: CGSize(width: 0, height: shadowOffsetY * scale), blur: shadowBlur * scale,
             color: CGColor(gray: 0, alpha: shadowAlpha))
-        context.addPath(shape)
-        context.setFillColor(CGColor(gray: 1, alpha: 1))
+        context.addPath(shapePath(size: size))
+        context.setFillColor(CGColor(gray: 0, alpha: 1))
         context.fillPath()
-        context.restoreGState()
-
-        context.saveGState()
-        context.addPath(shape)
-        context.clip()
-        let endRadius = bodyStops.last!.distance * scale
-        let colors = bodyStops.map { CGColor(gray: $0.gray, alpha: 1) } as CFArray
-        let locations = bodyStops.map { $0.distance * scale / endRadius }
-        if let gradient = CGGradient(
-            colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: colors, locations: locations)
-        {
-            let centre = CGPoint(x: size / 2, y: size / 2)
-            context.drawRadialGradient(
-                gradient, startCenter: centre, startRadius: 0, endCenter: centre, endRadius: endRadius,
-                options: [.drawsAfterEndLocation])
-        }
         context.restoreGState()
     }
 
-    /// The face: border ring and the screen. `pixelScale` is device pixels
-    /// per point, used to keep the OLED pixels crisp when upscaling and
-    /// smooth them when downscaling (thin lines would drop out otherwise).
+    /// The face: the screen, cropped to the squircle. `pixelScale` is device
+    /// pixels per point, used to decide between crisp OLED pixels and
+    /// smoothing (thin lines would drop out or go uneven otherwise).
     static func drawFace(_ screen: CGImage?, in context: CGContext, size: CGFloat, pixelScale: CGFloat) {
-        context.setFillColor(faceBorderColor)
-        context.fillEllipse(in: faceRect(size: size))
-
+        guard let screen else { return }
         let screenRect = screenRect(size: size)
         context.saveGState()
+        context.addPath(shapePath(size: size))
+        context.clip()
         context.addEllipse(in: screenRect)
         context.clip()
-        context.setFillColor(CGColor(gray: 0, alpha: 1))
-        context.fill(screenRect)
-        if let screen {
-            context.interpolationQuality =
-                screenRect.width * pixelScale >= CGFloat(screen.width) ? .none : .high
-            context.draw(screen, in: screenRect)
-        }
+        context.interpolationQuality =
+            screenRect.width * pixelScale >= CGFloat(screen.width) * crispUpscale ? .none : .high
+        context.draw(screen, in: screenRect)
         context.restoreGState()
     }
 

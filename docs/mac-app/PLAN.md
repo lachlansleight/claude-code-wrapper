@@ -334,17 +334,18 @@ Swift, AppKit, **minimum macOS 14** (`NSScreen.displayLink`,
   `dockTile.display()` only when a new image arrived, and no more often than
   the **Dock fps cap** preference (default 30; offer 15 and 10).
   *(Built: the tile is the squircle icon described below, on Apple's icon
-  grid so it sits at the same size as other Dock icons. The Dock shows tiles
-  smaller than 240 px, so the face is smoothed when downscaled and
-  nearest-neighbour only when upscaled. CPU was measured at each cap; see
-  `sultana-dock/README.md`. 30 fps stays the default.)*
+  grid so it sits at the same size as other Dock icons. The Dock tile is
+  128 pt (256 px), so the face is smoothed; it's drawn pixel for pixel only
+  when enlarged at least 2x, as in the big static icons. CPU was measured
+  at each cap; see `sultana-dock/README.md`. 30 fps stays the default.)*
 - The static bundle icon (shown when the app isn't running) is a still of
   the sleeping face, made with Icon Composer so Tahoe doesn't squircle it.
   *(Built differently, at Lachlan's direction: both the live tile and the
   static icon are a standard macOS squircle (continuous corners, 824 on the
-  1024 grid, usual drop shadow) that is the robot's body, white fading to
-  light grey toward the edges, with the firmware's screen inset as large as
-  fits inside the desktop robot's #ECECEC face border. One drawing routine,
+  1024 grid, usual drop shadow) filled edge to edge by the firmware's
+  screen, drawn 1.285 squircle sides wide and cropped by the squircle. An
+  earlier version set the screen inside a white body with the desktop
+  robot's #ECECEC face border, which left the face small. One drawing routine,
   `IconArt.swift`, serves both; `tools/make_app_icon.swift` renders the
   asset-catalog icon around a firmware frame (the thinking face). An Icon
   Composer `.icon` for Tahoe's appearance variants is still possible later.)*

@@ -43,10 +43,10 @@ final class DockTileController {
     }
 }
 
-/// The app icon, live: the robot's body as a macOS squircle with the
-/// firmware's screen set into it (IconArt.swift, shared with the static
-/// icon). The body never changes, so it's rendered once per tile size and
-/// only the screen is redrawn per frame.
+/// The app icon, live: the firmware's screen filling a macOS squircle
+/// (IconArt.swift, shared with the static icon). The squircle and its
+/// shadow never change, so they're rendered once per tile size and only
+/// the screen is redrawn per frame.
 final class FaceTileView: NSView {
     var image: CGImage?
     private var body: (pixels: Int, image: CGImage)?
