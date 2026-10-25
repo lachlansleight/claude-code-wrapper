@@ -120,8 +120,9 @@ is the page to point people at.
 
 ## Setting it up
 
-Settings has three tabs: **Setup** (Claude Code, Robot, Start-up), **Bridge**
-and **General**. The first launch opens Setup. For Claude Code, all you need
+Settings has three tabs: **General** (Start-up, Robot window, Dock), **Setup**
+(Claude Code, Robot) and **Bridge**. It opens on General, except on the
+first launch, which opens Setup. For Claude Code, all you need
 is Setup ▸ Claude Code ▸ **Install Plugin**: the app runs the bridge itself
 on port 8787, where the plugin's hooks go. When the connection needs fixing,
 Settings opens on Bridge instead.
@@ -175,7 +176,8 @@ values, and says when a robot connects.
   `GET /api/clients` (polled every 3 s while the tab shows). A robot is a
   client whose User-Agent is `arduino-WebSocket-Client`, which the
   firmware's WebSocket library always sends.
-- **How to set up a robot** (open until a robot connects):
+- **How to set up a robot** (folded until you open it, and folded again
+  each time Settings closes):
   1. Hold the robot's BOOT button while you plug it in, until its screen
      says CONFIG MODE.
   2. Join the open `robot-…` network it shows, and open the address under
@@ -198,6 +200,11 @@ values, and says when a robot connects.
   External to run a bridge yourself (`node plugin/dist/index.js`), here or on
   another computer. If you had set the app up for a bridge at another
   address or port before the built-in one existed, it stays on External.
+- **Bridge URL** (built in): where the bridge listens and the plugin's hooks
+  go, `http://127.0.0.1:8787`.
+- **Status:** Connected, Starting…, Port in use, Restarting…, Token
+  rejected and so on, with a sentence more when there's something to
+  explain. The Dock menu shows the same.
 - **Built in ▸ Show Log:** opens the bridge's log in Console.
 - **External ▸ Host, Port, Token:** where your bridge is. "Import from
   .env…" reads `BRIDGE_TOKEN`, `BRIDGE_PORT` and `BRIDGE_HOST` from the
@@ -206,13 +213,15 @@ values, and says when a robot connects.
 
 ### The rest
 
-- **Open at login** (Setup ▸ Start-up). This registers the app where it is
-  now, so copy it to /Applications first rather than registering a build in
-  DerivedData. Apps registered as Sultana Dock before the rename need it
+- **Open at login** (General ▸ Start-up). This registers the app where it
+  is now, so copy it to /Applications first rather than registering a build
+  in DerivedData. Apps registered as Sultana Dock before the rename need it
   turned off and on again.
-- **Show the robot on the desktop** (Setup ▸ Start-up), **Keep the robot on
-  top of other windows** and **Arm colour** (General). The arms default to
-  the design's green, #8EE270.
+- **Show the robot on the desktop**, **Keep the robot on top of other
+  windows**, **Body colour** and **Arm colour** (General ▸ Robot window).
+  The body defaults to white and the arms to the design's green, #8EE270.
+  The body's rim is always shaded darker than the body colour, as the
+  design's white body fades to grey.
 - **When a turn ends** (General): bounce once (default), bounce until you
   switch to the app, or don't bounce.
 - **Bounce when an agent needs permission** (General): Claude's "Claude needs
@@ -276,8 +285,8 @@ sultana-bridge bridge.mjs --managed --host 127.0.0.1 --port 8787
 Just the robot, floating on the desktop: no window frame, title bar or
 buttons. It follows the Figma design. Back to front:
 
-- a white body disc whose radial gradient fades to grey at the rim (the
-  slight ring around the face);
+- a body disc in the body colour (white by default) whose radial gradient
+  darkens toward the rim (the slight ring around the face);
 - two tapered arms, the design's exact outline, in the arm colour setting;
 - the face: the firmware's live screen (crisp panel pixels) inside a thin
   #ECECEC border. The border sits in front of the arms' roots, so the arms

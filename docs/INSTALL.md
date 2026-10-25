@@ -22,16 +22,16 @@ You need:
    already open. Type anything: the face in the Dock starts working, and
    Settings shows "Last hook from Claude Code … ago".
 
-Optional, also on the Setup tab:
+Optional, on the **General** tab:
 - **Open at login**, so Sultana is always there.
 - **Show the robot on the desktop**: the whole robot, arms and all, floating
   on your desktop. Drag it to move it; pinch it, or right-click it, to
-  resize it.
-- **Robot**, if you have the physical robot: the steps and the details to
-  type into its setup page. It says when the robot has connected.
+  resize it. Pick its body and arm colours there too.
+- When the Dock icon bounces.
 
-The **General** tab has the arm colour, keeping the robot on top, and when
-the Dock icon bounces.
+If you have the physical robot, **Setup ▸ Robot** has the steps and the
+details to type into its setup page, and says when the robot has
+connected.
 
 ### "Apple could not verify Sultana…"
 
@@ -79,7 +79,8 @@ time a new version runs:
 
 ## Uninstalling
 
-1. Settings ▸ Setup ▸ Claude Code ▸ **Remove**, and turn off Open at login.
+1. Settings ▸ Setup ▸ Claude Code ▸ **Remove**, and turn off Settings ▸
+   General ▸ Open at login.
 2. Quit Sultana and move it to the Bin.
 3. To remove everything else it kept:
    ```bash

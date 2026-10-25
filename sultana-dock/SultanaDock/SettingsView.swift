@@ -3,11 +3,11 @@ import ServiceManagement
 import SwiftUI
 
 enum SettingsTab: String, CaseIterable {
-    case setup, bridge, general
+    case general, setup, bridge
 }
 
-/// Settings, in three tabs: Setup (Claude Code's plugin, pairing a robot,
-/// start-up), Bridge, and General (the robot window and the Dock).
+/// Settings, in three tabs: General (start-up, the robot window, the Dock),
+/// Setup (Claude Code's plugin, pairing a robot) and Bridge.
 struct SettingsView: View {
     @ObservedObject var preferences: AppPreferences
     @ObservedObject var status: AppStatus
@@ -19,17 +19,15 @@ struct SettingsView: View {
     @State private var portText = ""
     @State private var token = ""
     @State private var revealToken = false
-    /// Nil until toggled: the steps start open unless a robot is connected.
-    @State private var robotStepsExpanded: Bool?
     @State private var importError: String?
     @State private var loginStatus = LoginItem.status
     @State private var loginError: String?
 
     var body: some View {
         TabView(selection: $status.settingsTab) {
+            generalTab.tabItem { Text("General") }.tag(SettingsTab.general)
             setupTab.tabItem { Text("Setup") }.tag(SettingsTab.setup)
             bridgeTab.tabItem { Text("Bridge") }.tag(SettingsTab.bridge)
-            generalTab.tabItem { Text("General") }.tag(SettingsTab.general)
         }
         .frame(width: 460)
         .fixedSize()
@@ -60,6 +58,55 @@ struct SettingsView: View {
             }
             claudeCodeSection
             robotSection
+        }
+        .formStyle(.grouped)
+        .onAppear { robots.start() }
+        .onDisappear { robots.stop() }
+    }
+
+    private var bridgeTab: some View {
+        Form {
+            Section {
+                Picker("Use", selection: $preferences.bridgeMode) {
+                    ForEach(BridgeMode.allCases) { Text($0.label).tag($0) }
+                }
+                .disabled(preferences.environmentMode != nil)
+                if preferences.mode == .builtIn {
+                    LabeledContent("Bridge URL") {
+                        Text(bridgeURL).font(.system(.body, design: .monospaced)).textSelection(.enabled)
+                    }
+                }
+                LabeledContent("Status") {
+                    Text(status.summary).foregroundStyle(status.isConnected ? Color.green : Color.secondary)
+                }
+                if let detail = status.detail {
+                    Text(detail).foregroundStyle(.secondary).font(.callout)
+                }
+                switch preferences.mode {
+                case .builtIn: builtInBridgeSettings
+                case .external: externalBridgeSettings
+                }
+                if let importError {
+                    Text(importError).foregroundStyle(.red).font(.callout)
+                }
+                if preferences.hasEnvironmentOverride {
+                    Text("SULTANA_BRIDGE_* environment variables are set and take precedence over these.")
+                        .foregroundStyle(.secondary).font(.callout)
+                }
+            } header: {
+                Text("Bridge")
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    /// The built-in bridge's address, where the plugin's hooks go.
+    private var bridgeURL: String {
+        "http://\(preferences.endpoint.host):\(String(preferences.endpoint.port))"
+    }
+
+    private var generalTab: some View {
+        Form {
             Section("Start-up") {
                 Toggle("Open at login", isOn: Binding(
                     get: { loginStatus == .enabled || loginStatus == .requiresApproval },
@@ -76,60 +123,13 @@ struct SettingsView: View {
                 if let loginError {
                     Text(loginError).foregroundStyle(.red).font(.callout)
                 }
-                Toggle("Show the robot on the desktop", isOn: $preferences.robotWindowVisible)
             }
-        }
-        .formStyle(.grouped)
-        .onAppear { robots.start() }
-        .onDisappear { robots.stop() }
-    }
 
-    private var bridgeTab: some View {
-        Form {
-            Section {
-                Picker("Use", selection: $preferences.bridgeMode) {
-                    ForEach(BridgeMode.allCases) { Text($0.label).tag($0) }
-                }
-                .disabled(preferences.environmentMode != nil)
-                switch preferences.mode {
-                case .builtIn: builtInBridgeSettings
-                case .external: externalBridgeSettings
-                }
-                if let importError {
-                    Text(importError).foregroundStyle(.red).font(.callout)
-                }
-                if preferences.hasEnvironmentOverride {
-                    Text("SULTANA_BRIDGE_* environment variables are set and take precedence over these.")
-                        .foregroundStyle(.secondary).font(.callout)
-                }
-            } header: {
-                Text("Bridge")
-            } footer: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(status.text).foregroundStyle(status.isConnected ? Color.green : Color.secondary)
-                    Text(
-                        preferences.mode == .builtIn
-                            ? "Sultana runs the bridge on port \(String(AppPreferences.builtInPort)), where the sultana Claude Code plugin sends its hooks."
-                            : "Connect to a bridge you run yourself (node plugin/dist/index.js), here or on another computer."
-                    )
-                    .foregroundStyle(.secondary)
-                }
-                .font(.callout)
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    private var generalTab: some View {
-        Form {
             Section("Robot window") {
+                Toggle("Show the robot on the desktop", isOn: $preferences.robotWindowVisible)
                 Toggle("Keep the robot on top of other windows", isOn: $preferences.robotWindowOnTop)
-                HStack {
-                    ColorPicker("Arm colour", selection: armColor, supportsOpacity: false)
-                    if preferences.armColorHex.uppercased() != RobotLayout.defaultArmColorHex {
-                        Button("Reset") { preferences.armColorHex = RobotLayout.defaultArmColorHex }
-                    }
-                }
+                colorRow("Body colour", \.bodyColorHex, default: RobotLayout.defaultBodyColorHex)
+                colorRow("Arm colour", \.armColorHex, default: RobotLayout.defaultArmColorHex)
             }
 
             Section("Dock") {
@@ -177,9 +177,14 @@ struct SettingsView: View {
             if let error = plugin.lastError {
                 Text(error).foregroundStyle(.red).font(.callout).textSelection(.enabled)
             }
-            if plugin.lastError != nil || (plugin.hasLookedForCLI && plugin.cli == nil) {
+            if plugin.lastError != nil || cliMissing {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Or run these in a terminal:").font(.callout)
+                    Text(
+                        plugin.lastError == nil
+                            ? "Couldn't find the claude command. Install Claude Code, or run these in a terminal:"
+                            : "Or run these in a terminal:"
+                    )
+                    .font(.callout)
                     Text(plugin.manualCommands).font(.system(.callout, design: .monospaced)).textSelection(.enabled)
                     Button("Copy Commands") {
                         NSPasteboard.general.clearContents()
@@ -189,10 +194,10 @@ struct SettingsView: View {
             }
         } header: {
             Text("Claude Code")
-        } footer: {
-            Text(pluginFooterText).foregroundStyle(.secondary).font(.callout)
         }
     }
+
+    private var cliMissing: Bool { plugin.hasLookedForCLI && plugin.cli == nil }
 
     private var pluginButton: some View {
         Button(pluginButtonTitle) { plugin.install() }
@@ -217,15 +222,6 @@ struct SettingsView: View {
         }
     }
 
-    private var pluginFooterText: String {
-        let what = "The plugin sends Claude Code's activity to Sultana."
-        guard plugin.hasLookedForCLI else { return what }
-        guard let cli = plugin.cli else {
-            return "\(what) Couldn't find the claude command: install Claude Code, or run the commands above."
-        }
-        return "\(what) Sultana installs it with \(ClaudePlugin.tildePath(cli))."
-    }
-
     // MARK: Setup ▸ Robot
 
     /// Pairing: the steps for the robot's setup portal (hold BOOT at power-on,
@@ -239,12 +235,7 @@ struct SettingsView: View {
             LabeledContent("Robot") {
                 Text(robotStatusText).foregroundStyle(connectedRobots.isEmpty ? Color.secondary : Color.green)
             }
-            DisclosureGroup(
-                "How to set up a robot",
-                isExpanded: Binding(
-                    get: { robotStepsExpanded ?? connectedRobots.isEmpty },
-                    set: { robotStepsExpanded = $0 })
-            ) {
+            DisclosureGroup("How to set up a robot", isExpanded: $status.robotStepsExpanded) {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(Array(robotSteps.enumerated()), id: \.offset) { index, step in
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -268,11 +259,6 @@ struct SettingsView: View {
             }
         } header: {
             Text("Robot")
-        } footer: {
-            Text(
-                "If this Mac's address changes, the robot looks for it on your network by itself. With the macOS firewall on, allow sultana-bridge to accept incoming connections."
-            )
-            .foregroundStyle(.secondary).font(.callout)
         }
     }
 
@@ -376,17 +362,25 @@ struct SettingsView: View {
         }
     }
 
-    /// The arm colour setting as a SwiftUI colour, stored as "#RRGGBB" (sRGB).
-    private var armColor: Binding<Color> {
-        Binding(
-            get: { Color(cgColor: CGColor.fromHex(preferences.armColorHex) ?? CGColor(gray: 0.5, alpha: 1)) },
+    /// A colour setting stored as "#RRGGBB" (sRGB), with Reset once changed.
+    private func colorRow(
+        _ title: String, _ setting: ReferenceWritableKeyPath<AppPreferences, String>, default defaultHex: String
+    ) -> some View {
+        let color = Binding<Color>(
+            get: { Color(cgColor: CGColor.fromHex(preferences[keyPath: setting]) ?? CGColor(gray: 0.5, alpha: 1)) },
             set: { newValue in
                 guard let srgb = NSColor(newValue).usingColorSpace(.sRGB) else { return }
                 let channel = { (value: CGFloat) in Int((min(max(value, 0), 1) * 255).rounded()) }
-                preferences.armColorHex = String(
+                preferences[keyPath: setting] = String(
                     format: "#%02X%02X%02X", channel(srgb.redComponent), channel(srgb.greenComponent),
                     channel(srgb.blueComponent))
             })
+        return HStack {
+            ColorPicker(title, selection: color, supportsOpacity: false)
+            if preferences[keyPath: setting].uppercased() != defaultHex {
+                Button("Reset") { preferences[keyPath: setting] = defaultHex }
+            }
+        }
     }
 
     private func setOpenAtLogin(_ enabled: Bool) {
@@ -432,10 +426,15 @@ struct SettingsView: View {
 /// Connection status shown in the settings window and the Dock menu.
 @MainActor
 final class AppStatus: ObservableObject {
-    @Published var text = "Starting…"
+    /// "Connected", "Port in use" and the like.
+    @Published var summary = "Starting…"
+    /// A sentence more, when the summary isn't the whole story.
+    @Published var detail: String?
     @Published var isConnected = false
     /// When the bridge last passed on an event from Claude Code.
     @Published var lastClaudeHook: Date?
     /// The Settings tab showing; the app picks one when it opens Settings.
-    @Published var settingsTab: SettingsTab = .setup
+    @Published var settingsTab: SettingsTab = .general
+    /// Setup ▸ Robot's steps; folded again whenever Settings closes.
+    @Published var robotStepsExpanded = false
 }

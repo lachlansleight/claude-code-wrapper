@@ -48,6 +48,7 @@ final class AppPreferences: ObservableObject {
         static let robotWindowVisible = "robotWindowVisible"
         static let robotWindowOnTop = "robotWindowOnTop"
         static let armColorHex = "armColorHex"
+        static let bodyColorHex = "bodyColorHex"
     }
 
     static let dockFrameRates = [30, 15, 10]
@@ -86,6 +87,10 @@ final class AppPreferences: ObservableObject {
     @Published var armColorHex: String {
         didSet { defaults.set(armColorHex, forKey: Key.armColorHex) }
     }
+    /// The robot's body colour, "#RRGGBB"; its rim is shaded darker.
+    @Published var bodyColorHex: String {
+        didSet { defaults.set(bodyColorHex, forKey: Key.bodyColorHex) }
+    }
 
     let environmentMode: BridgeMode?
     let environmentHost: String?
@@ -118,6 +123,8 @@ final class AppPreferences: ObservableObject {
         robotWindowOnTop = defaults.bool(forKey: Key.robotWindowOnTop)
         let storedArm = defaults.string(forKey: Key.armColorHex) ?? ""
         armColorHex = CGColor.fromHex(storedArm) == nil ? RobotLayout.defaultArmColorHex : storedArm
+        let storedBody = defaults.string(forKey: Key.bodyColorHex) ?? ""
+        bodyColorHex = CGColor.fromHex(storedBody) == nil ? RobotLayout.defaultBodyColorHex : storedBody
 
         let env = ProcessInfo.processInfo.environment
         environmentMode = env["SULTANA_BRIDGE_MODE"].flatMap { BridgeMode(rawValue: $0) }

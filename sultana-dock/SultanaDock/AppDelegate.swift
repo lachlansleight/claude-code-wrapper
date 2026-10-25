@@ -55,6 +55,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .compactMap { CGColor.fromHex($0) }
             .sink { [weak self] color in self?.robotWindow.view.armColor = color }
             .store(in: &cancellables)
+        preferences.$bodyColorHex
+            .compactMap { CGColor.fromHex($0) }
+            .sink { [weak self] color in self?.robotWindow.view.bodyColor = color }
+            .store(in: &cancellables)
 
         // @Published sends before the value changes, hence the hop to the
         // next run loop pass before acting on the new settings.
@@ -103,7 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else if firstLaunch {
             showSettings(tab: .setup)
         } else if let tab = env["SULTANA_DEBUG_SETTINGS"] {
-            showSettings(tab: SettingsTab(rawValue: tab) ?? .setup)
+            showSettings(tab: SettingsTab(rawValue: tab) ?? .general)
         }
     }
 
@@ -132,9 +136,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let menu = NSMenu()
-        let statusItem = NSMenuItem(title: status.text, action: nil, keyEquivalent: "")
-        statusItem.isEnabled = false
-        menu.addItem(statusItem)
+        for line in [status.summary, status.detail].compactMap({ $0 }) {
+            let item = NSMenuItem(title: line, action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        }
         menu.addItem(.separator())
         menu.addItem(
             withTitle: robotWindow.isVisible ? "Hide Robot" : "Show Robot",
@@ -193,7 +199,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         DebugDump.shared?.tick(
             engine: engine, dockTile: dockTile, robotWindow: robotWindow, settingsWindow: settingsWindow,
-            status: status.text)
+            status: [status.summary, status.detail].compactMap { $0 }.joined(separator: ": "))
     }
 
     // MARK: Sleep and wake
@@ -261,39 +267,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return builtInBridge.status == .unavailable || builtInBridge.status == .portInUse
     }
 
-    private func connectionDescription() -> (text: String, connected: Bool) {
-        if replay.isPlaying { return ("Replaying \(replay.name)", false) }
+    /// A short status ("Connected", "Port in use") and, when there's more to
+    /// say, a sentence of detail.
+    private func connectionDescription() -> (summary: String, detail: String?, connected: Bool) {
+        if replay.isPlaying { return ("Replaying", "Playing \(replay.name).", false) }
         let endpoint = preferences.endpoint
         if preferences.mode == .external {
             let place = endpoint.displayName
             switch socket.status {
-            case .stopped: return ("Not connected", false)
-            case .notConfigured: return ("Not configured: add the bridge token in Settings", false)
-            case .connecting: return ("Connecting to \(place)…", false)
-            case .connected: return ("Connected to \(place)", true)
-            case .unauthorized: return ("\(place) rejected the token", false)
-            case .waitingToRetry(let reason): return ("Can't reach \(place): \(reason)", false)
+            case .stopped: return ("Disconnected", nil, false)
+            case .notConfigured: return ("Not set up", "Add the bridge's host, port and token.", false)
+            case .connecting: return ("Connecting…", nil, false)
+            case .connected: return ("Connected", nil, true)
+            case .unauthorized: return ("Token rejected", "\(place) rejected the token.", false)
+            case .waitingToRetry(let reason): return ("Disconnected", "Can't reach \(place): \(reason)", false)
             }
         }
         // While something else holds the port, the socket reaches that
         // instead, which works if it's a bridge that takes our token.
-        let other = "the bridge already running on port \(endpoint.port)"
+        let port = endpoint.port
         switch (socket.status, builtInBridge.status) {
-        case (.connected, .portInUse): return ("Connected to \(other)", true)
-        case (.connected, _): return ("Connected to the built-in bridge", true)
-        case (.unauthorized, .portInUse): return ("The bridge already running on port \(endpoint.port) rejected the token", false)
-        case (.unauthorized, _): return ("The built-in bridge rejected the token", false)
-        case (_, .unavailable): return ("This build of Sultana doesn't include the bridge", false)
-        case (_, .portInUse): return ("Port \(endpoint.port) is in use by another program", false)
-        case (_, .failed(let reason)): return ("The built-in bridge \(reason); restarting it", false)
-        case (_, .running): return ("Connecting to the built-in bridge…", false)
-        case (_, .stopped), (_, .starting): return ("Starting the built-in bridge…", false)
+        case (.connected, .portInUse):
+            return ("Connected", "To the bridge that was already running on port \(port), not Sultana's own.", true)
+        case (.connected, _): return ("Connected", nil, true)
+        case (.unauthorized, .portInUse):
+            return ("Token rejected", "The bridge already running on port \(port) rejected the token.", false)
+        case (.unauthorized, _): return ("Token rejected", "The built-in bridge rejected the token.", false)
+        case (_, .unavailable): return ("Unavailable", "This build of Sultana doesn't include the bridge.", false)
+        case (_, .portInUse): return ("Port in use", "Something else is using port \(port).", false)
+        case (_, .failed(let reason)): return ("Restarting…", "The bridge \(reason).", false)
+        case (_, .running): return ("Connecting…", nil, false)
+        case (_, .stopped), (_, .starting): return ("Starting…", nil, false)
         }
     }
 
     private func updateStatus() {
-        let (text, connected) = connectionDescription()
-        status.text = text
+        let (summary, detail, connected) = connectionDescription()
+        status.summary = summary
+        status.detail = detail
         status.isConnected = connected
 
         // Keep App Nap from throttling the animation while there is
@@ -383,6 +394,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.isReleasedWhenClosed = false
             window.center()
             settingsWindow = window
+            // The robot setup steps start folded each time Settings opens.
+            NotificationCenter.default.addObserver(
+                forName: NSWindow.willCloseNotification, object: window, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.status.robotStepsExpanded = false }
+            }
         }
         NSApp.unhide(nil)
         NSApp.activate()

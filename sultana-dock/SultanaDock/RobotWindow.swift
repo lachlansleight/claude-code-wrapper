@@ -16,15 +16,34 @@ struct RobotLayout {
     var canvasSize = CGSize(width: 312, height: 236)
     var aspect: CGFloat { canvasSize.width / canvasSize.height }
 
-    /// The body disc. White out to 94% of its radius, then fading to grey at
-    /// the rim (the frame's radial fill).
+    /// The body disc. The body colour out to 94% of its radius, then darker
+    /// toward the rim (the frame's radial fill, white fading to grey). The
+    /// shading multiplies the colour, so a white body is drawn as it always
+    /// was: in greys 217 and 179 of the generic gamma-2.2 grey space, which
+    /// are about 224 and 192 in sRGB.
     var bodyDiameter: CGFloat = 215.5
-    var bodyGradient: [(location: CGFloat, color: CGColor)] = [
-        (0, CGColor(gray: 1, alpha: 1)),
-        (0.94231, CGColor(gray: 1, alpha: 1)),
-        (0.97115, CGColor(gray: 217 / 255, alpha: 1)),
-        (1, CGColor(gray: 179 / 255, alpha: 1)),
+    var bodyShading: [(location: CGFloat, brightness: CGFloat)] = [
+        (0, 1), (0.94231, 1),
+        (0.97115, RobotLayout.srgbLevel(ofGray: 217 / 255)),
+        (1, RobotLayout.srgbLevel(ofGray: 179 / 255)),
     ]
+
+    private static func srgbLevel(ofGray gray: CGFloat) -> CGFloat {
+        let srgb = CGColorSpace(name: CGColorSpace.sRGB)!
+        return CGColor(gray: gray, alpha: 1).converted(to: srgb, intent: .defaultIntent, options: nil)?
+            .components?.first ?? gray
+    }
+
+    /// The body's radial gradient for a body colour.
+    func bodyGradient(for color: CGColor) -> [(location: CGFloat, color: CGColor)] {
+        let srgb = CGColorSpace(name: CGColorSpace.sRGB)!
+        let rgb = color.converted(to: srgb, intent: .defaultIntent, options: nil)?.components ?? [1, 1, 1, 1]
+        return bodyShading.map { stop in
+            (stop.location, CGColor(
+                srgbRed: rgb[0] * stop.brightness, green: rgb[1] * stop.brightness,
+                blue: rgb[2] * stop.brightness, alpha: 1))
+        }
+    }
 
     /// The face disc in front of the arms: the screen inside a thin border.
     var faceDiameter: CGFloat = 199.84
@@ -61,6 +80,7 @@ struct RobotLayout {
     /// so this is a choice; change it to move the hinge.
     var armPivot = CGPoint(x: 99.75, y: 14.28)
     static let defaultArmColorHex = "#8EE270"
+    static let defaultBodyColorHex = "#FFFFFF"
 
     /// Right arm angle at servo offset 0, degrees anticlockwise (0 = as drawn).
     var restAngleDegrees: CGFloat = 0
@@ -95,6 +115,16 @@ final class RobotView: NSView {
         }
     }
 
+    /// The body's colour (a setting); its rim is always shaded darker.
+    var bodyColor: CGColor = CGColor.fromHex(RobotLayout.defaultBodyColorHex)! {
+        didSet {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            applyBodyColor()
+            CATransaction.commit()
+        }
+    }
+
     private let bodyShadow = CALayer()
     private let body = CAGradientLayer()
     private let rightArm = CALayer()
@@ -120,8 +150,7 @@ final class RobotView: NSView {
         body.type = .radial
         body.startPoint = CGPoint(x: 0.5, y: 0.5)
         body.endPoint = CGPoint(x: 1, y: 1)
-        body.colors = geometry.bodyGradient.map(\.color)
-        body.locations = geometry.bodyGradient.map { NSNumber(value: Double($0.location)) }
+        applyBodyColor()
         body.masksToBounds = true
 
         for shadowed in [bodyShadow, rightArm, leftArm] {
@@ -314,6 +343,12 @@ final class RobotView: NSView {
     }
 
     /// The view as drawn (transparent background), for debugging.
+    private func applyBodyColor() {
+        let gradient = geometry.bodyGradient(for: bodyColor)
+        body.colors = gradient.map(\.color)
+        body.locations = gradient.map { NSNumber(value: Double($0.location)) }
+    }
+
     func snapshotPNG() -> Data? {
         guard let root = layer, bounds.width > 0,
             let rep = NSBitmapImageRep(
