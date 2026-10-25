@@ -51,6 +51,7 @@ sultana-dock/                 # the Sultana macOS app (Xcode project; links Sult
   bridge/                     # Embed Bridge and Plugin build phase, the pinned Node (node.env, fetch-node.sh), its entitlements
   install.sh, release.sh      # local install; signed + notarised DMG for others (docs/INSTALL.md)
 face-editor/                  # Next.js face editor (TS port of the face engine)
+cad/                          # parametric build123d model of the body (cad/README.md)
 scripts/record-ws.mjs         # record a bridge session as JSONL (fixtures, replay)
 helpers/                      # forwarder scripts for Codex / Cursor / OpenCode
 examples/                     # browser WS client + sample hooks-settings.json

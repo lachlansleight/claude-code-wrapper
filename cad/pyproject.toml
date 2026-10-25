@@ -1,0 +1,9 @@
+[project]
+name = "sultana-cad"
+version = "0.1.0"
+description = "Parametric CAD for Sultana's body (build123d)"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "build123d>=0.9",
+    "pyvista>=0.44",
+]

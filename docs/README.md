@@ -45,6 +45,12 @@ quickstart; the rest lives here.
   checklist for adding a `Face::Expression` / `kBaseTargets` row and
   keeping emotion tables, blend, palette, motion, and simulator in sync.
 
+## Body (CAD)
+
+- [../cad/README.md](../cad/README.md) — parametric build123d model of the
+  body for the 1.85" Waveshare display and X27.168 arms: parameters, fit and
+  torque checks, parts, wiring, assembly.
+
 ## Sultana as a self-contained plugin
 
 - [sultana/PLAN.md](sultana/PLAN.md) — the plan for shipping Sultana as a
